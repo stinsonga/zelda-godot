@@ -1,0 +1,17 @@
+# Godot-generated editor data
+.godot/
+
+# Local reference inputs and generated exports
+reference-inputs/
+exports/
+*.nes
+
+# Local OS files
+.DS_Store
+
+# Reproducible ROM-derived resources (edit copies under content/ instead)
+imported/
+
+# Python tool caches
+__pycache__/
+*.pyc

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"stout_octorok"
+title = "Stout Octorok (custom)"
+health = 3
+speed_subpixels = 192
+sprite = &"blue_octorok"
+tint = Color(0.8, 1, 0.8, 1)
+fallback_color = Color(0.35, 0.75, 0.55, 1)
+shoot_cooldown = 96

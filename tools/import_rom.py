@@ -1,0 +1,493 @@
+#!/usr/bin/env python3
+"""Import US PRG0 Zelda into editable Godot resources. Python standard library only.
+
+Offsets refer to the 128 KiB PRG payload, excluding the 16-byte iNES header.
+See docs/IMPORTING.md for the disassembly routines behind this decoder.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import struct
+import zlib
+
+PRG_SHA1 = 'a12d74c73a0481599a5d832361d168f4737bbcf6'
+PRG_SIZE = 131072
+# Conventional RGB approximation: the NES itself does not store RGB colors.
+RGB = '''666666 002a88 1412a7 3b00a4 5c007e 6e0040 6c0600 561d00
+333500 0b4800 005200 004f08 00404d 000000 000000 000000
+adadad 155fd9 4240ff 7527fe a01acc b71e7b b53120 994e00
+6b6d00 388700 0c9300 008f32 007c8d 000000 000000 000000
+fffeff 64b0ff 9290ff c676ff f36aff fe6ecc fe8170 ea9e22
+bcbe00 88d800 5ce430 45e082 48cdde 4f4f4f 000000 000000
+fffeff c0dfff d3d2ff e8c8ff fbc2ff fec4ea feccc5 f7d8a5
+e4e594 cfef96 bdf4ab b3f3cc b5ebf2 b8b8b8 000000 000000'''
+COLORS = [bytes.fromhex(color) for color in RGB.split()]
+WALKABLE = {0x8D, 0x91, 0x9C, 0xAC, 0xAD, 0xCC, 0xD2, 0xD5, 0xDF}
+TILE_OBJECTS = dict(zip(range(0xE5, 0xEB), [0xC8, 0xD8, 0xC4, 0xBC, 0xC0, 0xC0]))
+
+
+def read_rom(path):
+    data = Path(path).read_bytes()
+    if len(data) < 16 or data[:4] != b'NES\x1a':
+        raise ValueError('Not an iNES ROM: missing NES header')
+    if data[4:8] != bytes([8, 0, 0x12, 0]):
+        raise ValueError('Expected US PRG0 iNES header: 128 KiB PRG, CHR RAM, mapper 1, no trainer')
+    if len(data) != PRG_SIZE + 16:
+        raise ValueError('ROM has unexpected size or trailing data')
+    prg = data[16:]
+    if hashlib.sha1(prg).hexdigest() != PRG_SHA1:
+        raise ValueError('ROM payload does not match supported US PRG0 revision')
+    return prg
+
+
+def png(path, width, height, pixels):
+    def chunk(kind, body):
+        return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+    rows = b''.join(b'\0' + pixels[y * width * 4:(y + 1) * width * 4] for y in range(height))
+    Path(path).write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+
+
+def chr_pixels(patterns, tile):
+    pattern = patterns[tile * 16:(tile + 1) * 16]
+    if len(pattern) != 16:
+        raise ValueError('Tile outside pattern memory')
+    return [[((pattern[y] >> (7 - x)) & 1) | (((pattern[y + 8] >> (7 - x)) & 1) << 1) for x in range(8)] for y in range(8)]
+
+
+def blit_tile(canvas, width, x0, y0, patterns, tile, palette, transparent=False):
+    for y, row in enumerate(chr_pixels(patterns, tile)):
+        for x, value in enumerate(row):
+            rgba = COLORS[palette[value] & 63] + bytes([0 if transparent and value == 0 else 255])
+            offset = ((y0 + y) * width + x0 + x) * 4
+            canvas[offset:offset + 4] = rgba
+
+
+def square_tiles(prg, index):
+    if not 0 <= index < 56:
+        raise ValueError(f'Invalid square index {index}')
+    if index < 16:
+        return list(prg[0x169B4 + index * 4:0x169B4 + index * 4 + 4])
+    first = prg[0x1697C + index]
+    first = TILE_OBJECTS.get(first, first)
+    return list(range(first, first + 4))
+
+
+def decode_room(prg, room_id):
+    layout_id = prg[99328 + 3 * 128 + room_id] & 0x7F
+    descriptors = prg[87064 + layout_id * 16:87064 + layout_id * 16 + 16]
+    return decode_columns(prg, descriptors)
+
+
+def decode_columns(prg, descriptors):
+    grid = [[0] * 16 for _ in range(11)]
+    for x, descriptor in enumerate(descriptors):
+        table = descriptor >> 4
+        address = struct.unpack_from('<H', prg, 0x19D0F + table * 2)[0]
+        offset = 5 * 0x4000 + address - 0x8000
+        column = descriptor & 15
+        # Bit 7 identifies the first descriptor of each compressed column.
+        for _ in range(1024):
+            if prg[offset] & 0x80:
+                if column == 0:
+                    break
+                column -= 1
+            offset += 1
+        else:
+            raise ValueError('Column start not found')
+        rows = []
+        while len(rows) < 11:
+            value = prg[offset]
+            rows.extend([value & 0x3F] * (2 if value & 0x40 else 1))
+            offset += 1
+        if len(rows) != 11:
+            raise ValueError('Column expands past room height')
+        for y, value in enumerate(rows):
+            square_tiles(prg, value)  # Validate before emitting any resources.
+            grid[y][x] = value
+    return grid
+
+
+def array(values):
+    return ', '.join(map(str, values))
+
+
+def export_cave(prg, patterns, palettes, output):
+    """Original starting cave and the sprites used by its native game logic."""
+    cave_palettes = [row[:] for row in palettes]
+    cave_palettes[2] = [0x0F, 0x30, 0x00, 0x12]
+    cave_palettes[3] = [0x0F, 0x07, 0x0F, 0x17]
+    atlas = bytearray(256 * 256 * 4)
+    for palette in range(4):
+        for index in range(56):
+            slot = palette * 64 + index
+            for part, tile in enumerate(square_tiles(prg, index)):
+                blit_tile(atlas, 256, slot % 16 * 16 + part // 2 * 8,
+                          slot // 16 * 16 + part % 2 * 8,
+                          patterns[0x1000:], tile, cave_palettes[palette])
+    png(output / 'cave_tiles.png', 256, 256, atlas)
+
+    def sprite(name, tile, palette, mirrored=False, narrow=False, flip_x=False, flip_y=False, right_override=None):
+        canvas = bytearray(16 * 16 * 4)
+        for part in range(2 if narrow else 4):
+            column, row = part // 2, part % 2
+            actual = tile + part if not mirrored else tile + row
+            if column == 1 and right_override is not None:
+                actual = right_override + row
+            block = bytearray(8 * 8 * 4)
+            blit_tile(block, 8, 0, 0, patterns, actual, palettes[palette], transparent=True)
+            for y in range(8):
+                for x in range(8):
+                    source_x = 7 - x if mirrored and column == 1 else x
+                    dest_x = column * 8 + x + (4 if narrow else 0)
+                    dest_y = row * 8 + y
+                    if flip_x: dest_x = 15 - dest_x
+                    if flip_y: dest_y = 15 - dest_y
+                    dst = (dest_y * 16 + dest_x) * 4
+                    src = (y * 8 + source_x) * 4
+                    canvas[dst:dst + 4] = block[src:src + 4]
+        png(output / (name + '.png'), 16, 16, canvas)
+
+    animations = prg[0x6E04:0x6E83]
+    old_man = prg[0x6E83 + animations[0x6B]]
+    fire = prg[0x6E83 + animations[0x41]]
+    sprite('old_man', old_man, 6, mirrored=True)
+    sprite('fire_0', fire, 6)
+    sprite('fire_1', fire, 6, flip_x=True)
+    sprite('wooden_sword', 0x20, 4, narrow=True)
+    sprite('sword_up', 0x20, 4, narrow=True)
+    sprite('sword_down', 0x20, 4, narrow=True, flip_y=True)
+    sprite('sword_right', 0x82, 4)
+    sprite('sword_left', 0x82, 4, flip_x=True)
+    for name, frame, flip in [('attack_right', 4, False), ('attack_left', 4, True),
+                               ('attack_down', 6, False), ('attack_up', 7, False)]:
+        sprite(name, prg[0x6E83 + frame], 4, flip_x=flip)
+    # Item slot $21: lifting pose, with the narrow-item one-arm substitution.
+    lift_tile = prg[0x714C + prg[0x7127 + 0x21]]
+    sprite('lift', lift_tile, 4, mirrored=True, right_override=0x08)
+
+    chars = {0x24: ' ', 0x25: ' ', 0x28: ',', 0x29: '.', 0x2A: "'", 0x2B: '?', 0x2C: '!'}
+    text = ''
+    for byte in prg[16460:16460 + 43]:
+        code = byte & 63
+        text += chr(48 + code) if code < 10 else chr(65 + code - 10) if code < 36 else chars.get(code, ' ')
+        if byte & 0xC0 == 0xC0:
+            break
+        if byte & 0xC0:
+            text += '\n'
+    layout = decode_columns(prg, prg[89000:89016])
+    indices, collision, coarse = [], [0] * 704, []
+    outer = prg[99328 + 0x44] & 3
+    inner = prg[99328 + 128 + 0x44] & 3
+    for y, row in enumerate(layout):
+        line = ''
+        for x, index in enumerate(row):
+            palette = inner if 2 <= x < 14 and 2 <= y < 9 else outer
+            indices.append(palette * 64 + index)
+            blocked = []
+            for part, tile in enumerate(square_tiles(prg, index)):
+                value = int(tile >= 0x89 and tile not in WALKABLE)
+                collision[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = value
+                blocked.append(value)
+            line += '#' if all(blocked) else '.'
+        coarse.append(line)
+    (output / 'rooms' / 'sword_cave.tres').write_text(f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps=12 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Texture2D" path="res://imported/cave_tiles.png" id="atlas"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Script" path="res://scripts/decoration_definition.gd" id="decoration"]
+[ext_resource type="Resource" path="res://content/items/wooden_sword.tres" id="sword"]
+[sub_resource type="Resource" id="exit"]
+script = ExtResource("portal")
+area = Rect2i(104, 157, 32, 1)
+required_direction = Vector2i(0, 1)
+target_room = &"ow_77"
+target_position = Vector2i(64, 29)
+target_facing = Vector2i(0, 1)
+[sub_resource type="Resource" id="gift"]
+script = ExtResource("pickup")
+id = &"sword_gift"
+item = ExtResource("sword")
+position = Vector2i(120, 88)
+[sub_resource type="Resource" id="old_man"]
+script = ExtResource("decoration")
+position = Vector2i(120, 64)
+sprite = &"old_man"
+hide_after_pickup = &"sword_gift"
+blocking_area = Rect2i(112, 56, 32, 24)
+[sub_resource type="Resource" id="fire_left"]
+script = ExtResource("decoration")
+position = Vector2i(72, 64)
+sprite = &"fire"
+frames = 2
+frame_ticks = 6
+blocking_area = Rect2i(72, 64, 16, 16)
+[sub_resource type="Resource" id="fire_right"]
+script = ExtResource("decoration")
+position = Vector2i(168, 64)
+sprite = &"fire"
+frames = 2
+frame_ticks = 6
+blocking_area = Rect2i(168, 64, 16, 16)
+[resource]
+script = ExtResource("room")
+id = &"sword_cave"
+title = "Sword cave"
+map_room_id = 119
+tiles = {json.dumps(chr(10).join(coarse))}
+spawn = Vector2i(112, 109)
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+tile_atlas = ExtResource("atlas")
+tile_indices = PackedInt32Array({array(indices)})
+collision_tiles = PackedByteArray({array(collision)})
+portals = Array[Resource]([SubResource("exit")])
+pickups = Array[Resource]([SubResource("gift")])
+decorations = Array[Resource]([SubResource("old_man"), SubResource("fire_left"), SubResource("fire_right")])
+dialogue = {json.dumps(text)}
+dialogue_until_pickup = &"sword_gift"
+''')
+
+
+def export_combat_sprites(prg, patterns, palettes, output):
+    names = []
+    animations = prg[0x6E04:0x6E83]
+    for name, enemy_type in [('red_octorok', 7), ('blue_octorok', 9)]:
+        base = animations[enemy_type + 1]
+        for direction in ['right', 'left', 'down', 'up']:
+            for pose in range(2):
+                frame = base + pose * 3 + {'left': 0, 'right': 0, 'up': 1, 'down': 2}[direction]
+                tile = prg[0x6E83 + frame]
+                palette = 4 + (prg[0x6F4F + frame] & 3)
+                canvas = bytearray(16 * 16 * 4)
+                vertical = direction in ('up', 'down')
+                for part in range(4):
+                    column, row = part // 2, part % 2
+                    actual = tile + (row if vertical else part)
+                    block = bytearray(8 * 8 * 4)
+                    blit_tile(block, 8, 0, 0, patterns, actual, palettes[palette], transparent=True)
+                    for y in range(8):
+                        for x in range(8):
+                            source_x = 7 - x if vertical and column == 1 else x
+                            dest_x = column * 8 + x
+                            if direction == 'right': dest_x = 15 - dest_x
+                            dst = ((row * 8 + y) * 16 + dest_x) * 4
+                            src = (y * 8 + source_x) * 4
+                            canvas[dst:dst + 4] = block[src:src + 4]
+                key = f'{name}_{direction}_{pose}'
+                png(output / (key + '.png'), 16, 16, canvas)
+                names.append(key)
+    # Flying rock $53 uses animation $54; preserve its original mirrored pair.
+    frame = animations[0x54]
+    tile = prg[0x6E83 + frame]
+    canvas = bytearray(16 * 16 * 4)
+    for column in range(2):
+        for row in range(2):
+            block = bytearray(8 * 8 * 4)
+            blit_tile(block, 8, 0, 0, patterns, tile + row, palettes[4], transparent=True)
+            for y in range(8):
+                for x in range(8):
+                    src = (y * 8 + (7 - x if column else x)) * 4
+                    dst = ((row * 8 + y) * 16 + column * 8 + x) * 4
+                    canvas[dst:dst + 4] = block[src:src + 4]
+    png(output / 'rock.png', 16, 16, canvas)
+    return names + ['rock']
+
+
+def enemy_resources(prg, room_id, collision, spawn):
+    attr_c = prg[99328 + 256 + room_id]
+    attr_d = prg[99328 + 384 + room_id]
+    enemy_type = (attr_c & 63) | ((attr_d >> 7) << 6)
+    definitions = {7: 'red_octorok', 8: 'fast_red_octorok', 9: 'blue_octorok', 10: 'fast_blue_octorok'}
+    if enemy_type not in definitions:
+        return '', '', '', 0
+    count = prg[103168 + 36 + (attr_c >> 6)]
+    candidates = []
+    for y in range(29, 142, 16):
+        for x in range(32, 225, 16):
+            if abs(x - spawn[0]) + abs(y - spawn[1]) < 48:
+                continue
+            points = [(x + dx, y + dy) for dx in (2, 13) for dy in (8, 15)]
+            if all(not collision[(py // 8) * 32 + px // 8] for px, py in points):
+                candidates.append((x, y))
+    # Native reproducible placement; original slot-by-slot random spawning is future work.
+    candidates.sort(key=lambda at: ((at[0] * 17 + at[1] * 31 + room_id * 43) % 257, at))
+    positions = []
+    for at in candidates:
+        if all(abs(at[0] - other[0]) + abs(at[1] - other[1]) >= 48 for other in positions):
+            positions.append(at)
+        if len(positions) >= count: break
+    ext = '[ext_resource type="Script" path="res://scripts/enemy_spawn.gd" id="enemy_spawn"]\n'
+    ext += f'[ext_resource type="Resource" path="res://content/enemies/{definitions[enemy_type]}.tres" id="enemy_def"]\n'
+    sub = ''
+    for i, (x, y) in enumerate(positions):
+        sub += f'''[sub_resource type="Resource" id="enemy_{i}"]
+script = ExtResource("enemy_spawn")
+id = &"slot_{i}"
+enemy = ExtResource("enemy_def")
+position = Vector2i({x}, {y})
+seed_value = {room_id * 31 + i + 1}
+'''
+    field = 'enemies = Array[Resource]([' + ', '.join(f'SubResource("enemy_{i}")' for i in range(len(positions))) + '])'
+    return ext, sub, field, len(positions)
+
+
+def import_rom(prg, output):
+    output = Path(output)
+    # Decode everything before touching output, to fail early on unsupported data.
+    layouts = [decode_room(prg, i) for i in range(128)]
+    output.mkdir(parents=True, exist_ok=True)
+    (output / 'rooms').mkdir(exist_ok=True)
+    patterns = bytearray(8192)
+    for source, length, target in [(32895, 1792, 0), (34687, 1792, 0x1000),
+                                    (36479, 224, 0x1F20), (19892, 2304, 0x0700),
+                                    (51515, 2080, 0x1700),
+                                    (53595, 1824, 0x08E0)]:
+        patterns[target:target + length] = prg[source:source + length]
+    palettes = [list(prg[103168 + 3 + p * 4:103168 + 7 + p * 4]) for p in range(8)]
+    atlas = bytearray(256 * 256 * 4)
+    for palette in range(4):
+        for index in range(56):
+            slot = palette * 64 + index
+            for part, tile in enumerate(square_tiles(prg, index)):
+                blit_tile(atlas, 256, slot % 16 * 16 + part // 2 * 8,
+                          slot // 16 * 16 + part % 2 * 8,
+                          patterns[0x1000:], tile, palettes[palette])
+    png(output / 'overworld_tiles.png', 256, 256, atlas)
+    # Eight explicit directional frames: right, left, down, up, two poses each.
+    player = bytearray(128 * 16 * 4)
+    for direction in range(4):
+        for pose in range(2):
+            frame = pose if direction < 2 else direction
+            tile = prg[0x6E83 + frame]
+            sprite = bytearray(16 * 16 * 4)
+            for part in range(4):
+                actual = tile + part
+                if direction == 2 and part == 0:
+                    actual += 0x50  # Original small-shield substitution, Z_07.
+                blit_tile(sprite, 16, part // 2 * 8, part % 2 * 8,
+                          patterns, actual, palettes[4], transparent=True)
+            flip = direction == 1 or (direction >= 2 and pose == 1)
+            for y in range(16):
+                for x in range(16):
+                    src = (y * 16 + (15 - x if flip else x)) * 4
+                    dst = (y * 128 + (direction * 2 + pose) * 16 + x) * 4
+                    player[dst:dst + 4] = sprite[src:src + 4]
+    png(output / 'player.png', 128, 16, player)
+    glyphs = bytearray(128 * 128 * 4)
+    for tile in range(256):
+        blit_tile(glyphs, 128, tile % 16 * 8, tile // 16 * 8,
+                  patterns[0x1000:], tile, [0x0F, 0x30, 0x30, 0x30], transparent=True)
+    png(output / 'hud_tiles.png', 128, 128, glyphs)
+    export_cave(prg, patterns, palettes, output)
+    combat_names = export_combat_sprites(prg, patterns, palettes, output)
+    start_id = prg[103168 + 47]
+    start_y = prg[103168 + 40] - 64
+    for room_id, layout in enumerate(layouts):
+        inner = prg[99328 + 128 + room_id] & 3
+        outer = prg[99328 + room_id] & 3
+        indices, collision = [], [0] * (32 * 22)
+        coarse = []
+        for y, row in enumerate(layout):
+            line = ''
+            for x, index in enumerate(row):
+                palette = inner if 2 <= x < 14 and 2 <= y < 9 else outer
+                indices.append(palette * 64 + index)
+                parts = square_tiles(prg, index)
+                solid = []
+                for part, tile in enumerate(parts):
+                    blocked = int(tile >= 0x89 and tile not in WALKABLE)
+                    collision[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = blocked
+                    solid.append(blocked)
+                line += '#' if all(solid) else '.'
+            coarse.append(line)
+        exits = {}
+        for edge, delta, allowed in [('left', -1, room_id % 16 > 0), ('right', 1, room_id % 16 < 15),
+                                     ('up', -16, room_id >= 16), ('down', 16, room_id < 112)]:
+            if allowed:
+                exits[edge] = f'ow_{room_id + delta:02x}'
+        # Default spawns are only used by reset; choose a walkable square.
+        spawn = (120, start_y) if room_id == start_id else next(
+            ((x * 16, y * 16 - 3) for y in range(1, 10) for x in range(1, 15)
+             if all(collision[(y * 2 + dy) * 32 + x * 2 + dx] == 0 for dy in range(2) for dx in range(2))), (120, 77))
+        portal_resources = ''
+        portal_field = ''
+        if room_id == start_id:
+            portal_resources = '''[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[sub_resource type="Resource" id="cave_entry"]
+script = ExtResource("portal")
+area = Rect2i(64, 13, 1, 1)
+required_direction = Vector2i(0, -1)
+target_room = &"sword_cave"
+target_position = Vector2i(112, 157)
+target_facing = Vector2i(0, -1)
+entry_walk_pixels = 48
+'''
+            portal_field = 'portals = Array[Resource]([SubResource("cave_entry")])'
+        enemy_ext, enemy_sub, enemy_field, enemy_count = enemy_resources(prg, room_id, collision, spawn)
+        portal_resources = enemy_ext + portal_resources + enemy_sub
+        steps = (5 if room_id == start_id else 3) + (2 + enemy_count if enemy_ext else 0)
+        text = f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
+[ext_resource type="Texture2D" path="res://imported/overworld_tiles.png" id="2"]
+{portal_resources}[resource]
+script = ExtResource("1")
+id = &"ow_{room_id:02x}"
+title = "Overworld {room_id:02X}"
+map_room_id = {room_id}
+{portal_field}
+{enemy_field}
+tiles = {json.dumps(chr(10).join(coarse))}
+exits = Dictionary[String, String]({json.dumps(exits)})
+spawn = Vector2i({spawn[0]}, {spawn[1]})
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+tile_atlas = ExtResource("2")
+tile_indices = PackedInt32Array({array(indices)})
+collision_tiles = PackedByteArray({array(collision)})
+'''
+        (output / 'rooms' / f'ow_{room_id:02x}.tres').write_text(text)
+    names = ['old_man', 'fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
+    theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={4 + len(names)} format=3]',
+             '[ext_resource type="Script" path="res://scripts/visual_theme.gd" id="1"]',
+             '[ext_resource type="Texture2D" path="res://imported/player.png" id="2"]',
+             '[ext_resource type="Texture2D" path="res://imported/hud_tiles.png" id="3"]']
+    for name in names:
+        theme.append(f'[ext_resource type="Texture2D" path="res://imported/{name}.png" id="{name}"]')
+    theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")',
+              'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
+    (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
+    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps=132 format=3]',
+               '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
+               '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]']
+    for i in range(128):
+        catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/ow_{i:02x}.tres" id="r{i}"]')
+    catalog.append('[ext_resource type="Resource" path="res://imported/rooms/sword_cave.tres" id="cave"]')
+    catalog += ['[resource]', 'script = ExtResource("script")', f'start_room = &"ow_{start_id:02x}"',
+                'visual_theme = ExtResource("theme")',
+                'rooms = Array[Resource]([' + ', '.join(f'ExtResource("r{i}")' for i in range(128)) + ', ExtResource("cave")])']
+    (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
+    (output / 'manifest.json').write_text(json.dumps({
+        'format_version': 1, 'revision': 'US PRG0', 'prg_sha1': PRG_SHA1,
+        'rooms': 129, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
+        'limitations': ['Static first-quest terrain only; no secret-state changes or room effects.',
+                        'Only the starting sword cave is functional; other caves, dungeons, non-Octorok enemies, and sword beams remain unimplemented.',
+                        'RGB colors approximate NES output.']}, indent=2) + '\n')
+    print(f'Imported 128 overworld rooms, the sword cave, terrain, player, item, and Octorok sprites into {output}')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('rom', type=Path)
+    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'imported',
+                        help='Output res://imported directory of the destination Godot project')
+    args = parser.parse_args()
+    try:
+        import_rom(read_rom(args.rom), args.output)
+    except (OSError, ValueError) as exc:
+        parser.exit(1, f'Import failed: {exc}\n')
+
+
+if __name__ == '__main__':
+    main()

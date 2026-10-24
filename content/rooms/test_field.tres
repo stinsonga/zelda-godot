@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"test_field"
+title = "Test field  /  East: new room"
+tiles = "################\n################\n##............##\n##............##\n##..##........##\n##..............\n##..............\n##........##..##\n##............##\n##............##\n################"
+exits = Dictionary[String, String]({"right": "expansion_field"})
+spawn = Vector2i(120, 96)
