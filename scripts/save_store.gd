@@ -1,7 +1,7 @@
 class_name SaveStore
 extends RefCounted
 
-const VERSION := 1
+const VERSION := 2
 const MAX_BYTES := 1048576
 var directory: String
 
@@ -27,7 +27,15 @@ func identifiers(value: Variant) -> bool:
 
 func validate(data: Variant, world_id: String) -> Dictionary:
 	if not data is Dictionary: return failure("Invalid save structure")
-	if not whole(data.get("version"), VERSION, VERSION): return failure("Unsupported save version")
+	if not whole(data.get("version"), 1, VERSION): return failure("Unsupported save version")
+	if int(data.version) == 1:
+		data = data.duplicate(true)
+		data.version = VERSION
+		data.room_history = []
+		data.history_cursor = 0
+		data.room_records = {}
+	if not data.has("spawn_cycle"): data["spawn_cycle"] = 0
+	if not whole(data.spawn_cycle, 0, 8): return failure("Invalid spawn cycle")
 	if data.get("world_id") != world_id: return failure("Save belongs to a different world")
 	if not data.get("room_id") is String or data.room_id.is_empty(): return failure("Missing saved room")
 	for key in ["inventory", "collected", "defeated", "flags"]:
@@ -44,6 +52,15 @@ func validate(data: Variant, world_id: String) -> Dictionary:
 	var facing: Variant = data.get("facing")
 	if not facing is Array or facing.size() != 2: return failure("Invalid saved direction")
 	if not whole(facing[0], -1, 1) or not whole(facing[1], -1, 1) or absf(facing[0]) + absf(facing[1]) != 1: return failure("Invalid saved direction")
+	if not identifiers(data.get("room_history")) or data.room_history.size() > 6: return failure("Invalid room history")
+	if not whole(data.get("history_cursor"), 0, 5): return failure("Invalid room history cursor")
+	if data.room_history.size() < 6 and int(data.history_cursor) != data.room_history.size(): return failure("Invalid partial room history")
+	var records: Variant = data.get("room_records")
+	if not records is Dictionary or records.size() > 10000: return failure("Invalid room records")
+	for key in records:
+		if not key is String or key.is_empty() or key.length() > 256: return failure("Invalid room record ID")
+		var record: Variant = records[key]
+		if not record is Dictionary or not whole(record.get("kills"), 0, 10000) or not record.get("cleared") is bool: return failure("Invalid room kill record")
 	return {"ok": true, "data": data}
 
 func read_file(path: String, world_id: String) -> Dictionary:
@@ -74,6 +91,7 @@ func read_snapshot(world_id: String) -> Dictionary:
 func write_snapshot(data: Dictionary, world_id: String) -> Dictionary:
 	var checked := validate(data, world_id)
 	if not checked.ok: return checked
+	data = checked.data
 	var text := JSON.stringify(data, "\t")
 	if text.to_utf8_buffer().size() > MAX_BYTES: return failure("Save file is too large")
 	var absolute := ProjectSettings.globalize_path(directory)

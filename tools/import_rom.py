@@ -233,6 +233,7 @@ blocking_area = Rect2i(168, 64, 16, 16)
 [resource]
 script = ExtResource("room")
 id = &"sword_cave"
+history_id = &"ow_77"
 title = "Sword cave"
 map_room_id = 119
 tiles = {json.dumps(chr(10).join(coarse))}
@@ -334,6 +335,39 @@ def export_beam_sprites(prg, patterns, palettes, output):
     return names
 
 
+def export_source_enemies(prg, patterns, palettes, output):
+    (output / 'enemies').mkdir(exist_ok=True)
+    for name, kind in [('red_octorok', 7), ('fast_red_octorok', 8), ('blue_octorok', 9), ('fast_blue_octorok', 10)]:
+        (output / 'enemies' / (name + '.tres')).write_text(f'''[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"{name}"
+title = "{name.replace('_', ' ').title()}"
+behavior = "nes_octorok"
+nes_type = {kind}
+health = {2 if kind >= 9 else 1}
+speed_subpixels = {256 if kind in (8, 10) else 128}
+sprite = &"{'blue_octorok' if kind >= 9 else 'red_octorok'}"
+turn_chance = {160 if kind >= 9 else 112}
+''')
+    names = []
+    for name, tile in [('spawn_cloud_0', 0x70), ('spawn_cloud_1', 0x72), ('spawn_cloud_2', 0x74), ('death_spark_0', 0x64), ('death_spark_1', 0x62)]:
+        canvas = bytearray(16 * 16 * 4)
+        for row in range(2):
+            block = bytearray(8 * 8 * 4)
+            blit_tile(block, 8, 0, 0, patterns, tile + row, palettes[5], transparent=True)
+            for y in range(8):
+                for x in range(8):
+                    for column in range(2):
+                        src = (y * 8 + (7 - x if column else x)) * 4
+                        dst = ((row * 8 + y) * 16 + column * 8 + x) * 4
+                        canvas[dst:dst + 4] = block[src:src + 4]
+        png(output / (name + '.png'), 16, 16, canvas)
+        names.append(name)
+    return names
+
+
 def enemy_resources(prg, room_id, collision, spawn):
     attr_c = prg[99328 + 256 + room_id]
     attr_d = prg[99328 + 384 + room_id]
@@ -342,23 +376,10 @@ def enemy_resources(prg, room_id, collision, spawn):
     if enemy_type not in definitions:
         return '', '', '', 0
     count = prg[103168 + 36 + (attr_c >> 6)]
-    candidates = []
-    for y in range(29, 142, 16):
-        for x in range(32, 225, 16):
-            if abs(x - spawn[0]) + abs(y - spawn[1]) < 48:
-                continue
-            points = [(x + dx, y + dy) for dx in (2, 13) for dy in (8, 15)]
-            if all(not collision[(py // 8) * 32 + px // 8] for px, py in points):
-                candidates.append((x, y))
-    # Native reproducible placement; original slot-by-slot random spawning is future work.
-    candidates.sort(key=lambda at: ((at[0] * 17 + at[1] * 31 + room_id * 43) % 257, at))
-    positions = []
-    for at in candidates:
-        if all(abs(at[0] - other[0]) + abs(at[1] - other[1]) >= 48 for other in positions):
-            positions.append(at)
-        if len(positions) >= count: break
+    # Runtime selects source position lists or the edge-spawn scheduler.
+    positions = [spawn] * count
     ext = '[ext_resource type="Script" path="res://scripts/enemy_spawn.gd" id="enemy_spawn"]\n'
-    ext += f'[ext_resource type="Resource" path="res://content/enemies/{definitions[enemy_type]}.tres" id="enemy_def"]\n'
+    ext += f'[ext_resource type="Resource" path="res://imported/enemies/{definitions[enemy_type]}.tres" id="enemy_def"]\n'
     sub = ''
     for i, (x, y) in enumerate(positions):
         sub += f'''[sub_resource type="Resource" id="enemy_{i}"]
@@ -366,6 +387,7 @@ script = ExtResource("enemy_spawn")
 id = &"slot_{i}"
 enemy = ExtResource("enemy_def")
 position = Vector2i({x}, {y})
+facing = Vector2i(0, 0)
 seed_value = {room_id * 31 + i + 1}
 spawn_ticks = {32 + i * 16}
 '''
@@ -429,6 +451,7 @@ def import_rom(prg, output):
     export_cave(prg, patterns, palettes, output)
     combat_names = export_combat_sprites(prg, patterns, palettes, output)
     combat_names += export_beam_sprites(prg, patterns, palettes, output)
+    combat_names += export_source_enemies(prg, patterns, palettes, output)
     start_id = prg[103168 + 47]
     start_y = prg[103168 + 40] - 64
     for room_id, layout in enumerate(layouts):
@@ -458,6 +481,11 @@ def import_rom(prg, output):
         spawn = (120, start_y) if room_id == start_id else next(
             ((x * 16, y * 16 - 3) for y in range(1, 10) for x in range(1, 15)
              if all(collision[(y * 2 + dy) * 32 + x * 2 + dx] == 0 for dy in range(2) for dx in range(2))), (120, 77))
+        edge_cells = []
+        for y in range(11):
+            for x in range(16):
+                if (x in (0, 15) or y in (0, 10)) and square_tiles(prg, layout[y][x])[0] < 0x84:
+                    edge_cells.append((y + 4) * 16 + x)
         portal_resources = ''
         portal_field = ''
         if room_id == start_id:
@@ -481,6 +509,9 @@ entry_walk_pixels = 48
 {portal_resources}[resource]
 script = ExtResource("1")
 id = &"ow_{room_id:02x}"
+enemy_persistence = "overworld"
+source_edge_spawns = {str(bool(prg[99328 + 640 + room_id] & 8)).lower()}
+source_edge_cells = PackedByteArray({array(edge_cells)})
 title = "Overworld {room_id:02X}"
 map_room_id = {room_id}
 {portal_field}
@@ -526,6 +557,7 @@ collision_tiles = PackedByteArray({array(collision)})
                     f'chance = {prg[0x1303E + group]}', 'entries = Array[Resource]([' + ', '.join(entries) + '])']
     catalog += ['[resource]', 'script = ExtResource("script")', 'id = &"original_quest_1"', f'start_room = &"ow_{start_id:02x}"',
                 'visual_theme = ExtResource("theme")',
+                'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
                 'loot_tables = Dictionary[StringName, Resource]({&"red_octorok": SubResource("red_loot"), &"fast_red_octorok": SubResource("red_loot"), &"blue_octorok": SubResource("blue_loot"), &"fast_blue_octorok": SubResource("blue_loot")})',
                 'rooms = Array[Resource]([' + ', '.join(f'ExtResource("r{i}")' for i in range(128)) + ', ExtResource("cave")])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')

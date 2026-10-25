@@ -77,3 +77,5 @@ packaging](docs/ASSET_BOUNDARY.md) before publishing or extracting this folder.
 Overworld room edges now scroll with source-based timing. See [scrolling notes](docs/SCROLLING.md) for behavior and fidelity limits.
 
 Save/load now persists inventory, health, currency, collected items, defeated enemies, progression flags, and location. See [save controls and storage](docs/SAVING.md).
+
+Imported overworld enemies now respawn using the original six-entry room history and kill counts. See [room persistence and custom policies](docs/ROOM_PERSISTENCE.md).

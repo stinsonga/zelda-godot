@@ -387,7 +387,11 @@ func check_first_encounter(world: Node) -> void:
 	world.state.kill_cycle = 0
 	world.state.health = 4
 	world.state.rupees = 0
-	for actor in actors: actor.spawn_remaining = 10000
+	for actor in actors:
+		actor.definition = actor.definition.duplicate()
+		actor.definition.behavior = "native"
+		actor.waiting_spawn = false
+		actor.spawn_remaining = 10000
 	for actor in actors:
 		actor.definition = actor.definition.duplicate()
 		actor.definition.speed_subpixels = 0
@@ -583,7 +587,7 @@ func check_scrolling() -> void:
 		original.try_exit(Vector2i.RIGHT)
 		for tick in range(64): original.simulate_tick(Vector2i.ZERO)
 		check(original.room.id == &"ow_78" and original.combat.enemies.size() == 4, "Original east encounter must initialize after the scroll")
-		check(original.combat.enemies[0].spawn_remaining == 32 and original.combat.enemies[3].spawn_remaining == 80, "Incoming spawn timers must not elapse during scrolling")
+		check(original.combat.enemies[0].waiting_spawn and original.combat.enemies[3].waiting_spawn, "Incoming edge enemies must wait until after scrolling")
 		original.try_exit(Vector2i.LEFT)
 		for tick in range(64): original.simulate_tick(Vector2i.ZERO)
 		check(original.room.id == &"ow_77", "Original west exit must scroll back to the starting screen")

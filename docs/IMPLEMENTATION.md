@@ -74,7 +74,9 @@ input priorities and frame-by-frame turn timing still need emulator comparison.
    definitions, a custom variant, sword/contact damage, shield-blocked rocks,
    health, heart/rupee drops, and an end-to-end encounter test are now in place.
    See [combat notes](COMBAT.md) for remaining AI and respawn approximations.
-4. Refine original room persistence and enemy respawn history. Native save/load
+4. Extend persistence to dungeon rules when dungeon content is implemented.
+   Overworld history and respawn counts are now implemented; see
+   [room persistence](ROOM_PERSISTENCE.md). Native save/load
    now persists stable IDs, inventory, health, currency, and progression; see
    [saving notes](SAVING.md). Screen scrolling and damage are also implemented.
 

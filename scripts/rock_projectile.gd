@@ -3,6 +3,10 @@ extends RefCounted
 var subposition := Vector2i.ZERO
 var direction := Vector2i.RIGHT
 var speed_subpixels := 512
+var source_rules := false
+var age := 0
+var bounce_remaining := 0
+var bounce_direction := Vector2i.UP
 var alive := true
 
 func position() -> Vector2i:

@@ -1,6 +1,12 @@
 class_name RoomDefinition
 extends Resource
 ## A room is 16 x 11 logical tiles. IDs are independent of NES addresses.
+## Native unique encounters default to permanent; imported overworld uses counts.
+@export_enum("permanent", "overworld", "reset") var enemy_persistence: String = "permanent"
+@export var source_edge_spawns: bool = false
+@export var source_edge_cells: PackedByteArray = PackedByteArray()
+@export var history_id: StringName
+@export var tracks_history: bool = true
 @export var enemies: Array[Resource] = []
 @export var portals: Array[Resource] = []
 @export var pickups: Array[Resource] = []
@@ -38,6 +44,8 @@ func is_pixel_solid(pixel: Vector2i) -> bool:
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
+	if enemy_persistence not in ["permanent", "overworld", "reset"]:
+		errors.append("Unknown enemy persistence policy")
 	if id.is_empty():
 		errors.append("Room ID is empty")
 	if not tile_indices.is_empty() and (tile_indices.size() != 176 or tile_atlas == null):

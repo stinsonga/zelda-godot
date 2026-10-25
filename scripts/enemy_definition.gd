@@ -1,6 +1,9 @@
 class_name EnemyDefinition
 extends Resource
 
+@export_enum("native", "nes_octorok") var behavior: String = "native"
+@export var nes_type: int = 7
+@export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
 @export var id: StringName
 @export var title: String

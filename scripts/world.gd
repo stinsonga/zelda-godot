@@ -2,6 +2,7 @@ extends Node2D
 
 const Room = preload("res://scripts/room_definition.gd")
 const Player = preload("res://scripts/player.gd")
+const Saves = preload("res://scripts/save_store.gd")
 const HUD_HEIGHT := 64
 const ROOM_SIZE := Vector2i(256, 176)
 
@@ -15,7 +16,7 @@ const ROOM_SIZE := Vector2i(256, 176)
 @export var visual_theme: Resource = preload("res://content/themes/default.tres")
 var world_id := ""
 var item_catalog: Dictionary[StringName, Resource] = {}
-var save_store = preload("res://scripts/save_store.gd").new()
+var save_store = Saves.new()
 var status_message := ""
 var status_ticks := 0
 var transition: RefCounted
@@ -49,6 +50,8 @@ func _ready() -> void:
 		visual_theme = selected_world.visual_theme
 		start_id = selected_world.start_room
 		loot_tables = selected_world.loot_tables
+		combat.spawn_lists = selected_world.spawn_lists
+		combat.projectile_limit = selected_world.projectile_limit
 		world_id = String(selected_world.id)
 		item_resources = item_resources + selected_world.items
 	assert(not room_resources.is_empty(), "World must contain rooms")
@@ -111,7 +114,8 @@ func _physics_process(_delta: float) -> void:
 	attack_requested = false
 	queue_redraw()
 
-func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: int = 0) -> void:
+func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: int = 0, restoring: bool = false) -> void:
+	if not restoring: combat.commit_room(state)
 	transition = null
 	room = target
 	player.grid_origin = room.grid_origin
@@ -123,13 +127,15 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	walk_ticks = 0
 	walk_pose = 0
 	sword.phase = -1
-	combat.enter_room(room, state)
+	combat.enter_room(room, state, restoring, at, facing)
+	state.visit_room(room)
 
 func dialogue_visible() -> bool:
 	return not room.dialogue.is_empty() and (room.dialogue_until_pickup.is_empty() or not state.has_collected(room.id, room.dialogue_until_pickup))
 
 func simulate_tick(direction: Vector2i, attack_pressed: bool = false) -> void:
 	simulation_tick += 1
+	combat.advance_frame()
 	if state.health <= 0:
 		return
 	if transition != null:
@@ -409,11 +415,22 @@ func draw_original_hud() -> void:
 func draw_combat() -> void:
 	for actor in combat.enemies:
 		var at: Vector2 = Vector2(actor.position()) + Vector2(0, HUD_HEIGHT)
+		if actor.waiting_spawn: continue
 		if actor.spawn_remaining > 0:
-			draw_circle(at + Vector2(8, 8), 3 + actor.spawn_remaining % 4, Color("f0e6c8"))
+			var phase: int = 0 if actor.spawn_remaining > 12 else 1 if actor.spawn_remaining > 6 else 2
+			var sprite := StringName("spawn_cloud_" + str(phase))
+			if actor.definition.behavior == "nes_octorok" and visual_theme.sprites.has(sprite):
+				draw_named_sprite(sprite, Vector2(actor.position()))
+			else:
+				draw_circle(at + Vector2(8, 8), 3 + actor.spawn_remaining % 4, Color("f0e6c8"))
 		elif actor.health <= 0:
 			if actor.death_remaining > 0:
-				draw_circle(at + Vector2(8, 8), actor.death_remaining / 2.0, Color("fff4c8"))
+				var phase: int = 1 if actor.death_remaining > 12 or actor.death_remaining <= 6 else 0
+				var sprite := StringName("death_spark_" + str(phase))
+				if actor.definition.behavior == "nes_octorok" and visual_theme.sprites.has(sprite):
+					if actor.death_remaining < 19: draw_named_sprite(sprite, Vector2(actor.position()))
+				else:
+					draw_circle(at + Vector2(8, 8), actor.death_remaining / 2.0, Color("fff4c8"))
 		elif actor.invulnerability == 0 or simulation_tick % 4 < 2:
 			var pose: int = (actor.animation_ticks / 6) % 2
 			var sprite := StringName(String(actor.definition.sprite) + "_" + direction_name(actor.facing) + "_" + str(pose))
@@ -519,12 +536,14 @@ func show_status(message: String) -> void:
 func snapshot() -> Dictionary:
 	var inventory: Array = state.inventory.keys().map(func(id: StringName) -> String: return String(id))
 	inventory.sort()
-	return {"version": 1, "world_id": world_id, "room_id": String(room.id),
+	return {"version": Saves.VERSION, "world_id": world_id, "room_id": String(room.id),
 		"position": [player.subposition.x, player.subposition.y],
 		"facing": [player.facing.x, player.facing.y], "max_health": state.max_health,
-		"health": state.health, "rupees": state.rupees, "kill_cycle": state.kill_cycle,
+		"health": state.health, "rupees": state.rupees, "kill_cycle": state.kill_cycle, "spawn_cycle": state.spawn_cycle,
 		"inventory": inventory, "equipped": String(state.equipped_weapon.id) if state.equipped_weapon != null else "",
-		"collected": enabled_keys(state.collected), "defeated": enabled_keys(state.defeated), "flags": enabled_keys(state.flags)}
+		"collected": enabled_keys(state.collected), "defeated": enabled_keys(state.defeated), "flags": enabled_keys(state.flags),
+		"room_history": state.room_history.duplicate(), "history_cursor": state.history_cursor,
+		"room_records": combat.persisted_records(state)}
 
 func enabled_keys(values: Dictionary) -> Array:
 	var keys: Array = []
@@ -572,9 +591,14 @@ func load_game() -> bool:
 	restored.health = int(data.health)
 	restored.rupees = int(data.rupees)
 	restored.kill_cycle = int(data.kill_cycle)
+	restored.spawn_cycle = int(data.spawn_cycle)
 	for key in data.collected: restored.collected[key] = true
 	for key in data.defeated: restored.defeated[key] = true
 	for key in data.flags: restored.flags[key] = true
+	restored.room_history.assign(data.room_history)
+	restored.history_cursor = int(data.history_cursor)
+	for key in data.room_records:
+		restored.room_records[key] = {"kills": int(data.room_records[key].kills), "cleared": data.room_records[key].cleared}
 	var target: Resource = rooms[id]
 	var position := Vector2i(int(data.position[0]), int(data.position[1]))
 	var at := Vector2i(floori(position.x / 256.0), floori(position.y / 256.0))
@@ -593,7 +617,7 @@ func load_game() -> bool:
 	pickup_ticks.clear()
 	held.clear()
 	attack_requested = false
-	enter_room(target, at, Vector2i(int(data.facing[0]), int(data.facing[1])))
+	enter_room(target, at, Vector2i(int(data.facing[0]), int(data.facing[1])), 0, true)
 	player.subposition = position
 	combat.player_invulnerability = 48
 	show_status("BACKUP SAVE LOADED" if result.backup else "LOADED AT ROOM ENTRANCE" if relocated else "GAME LOADED")

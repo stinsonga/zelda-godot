@@ -2,6 +2,11 @@ class_name EnemyActor
 extends RefCounted
 
 const DIRECTIONS := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
+var source = preload("res://scripts/nes_octorok.gd").new()
+var waiting_spawn := false
+var source_random := 0
+var source_next_random := 0
+var slot := 1
 var drop_resolved := false
 var definition: Resource
 var id: StringName
@@ -27,12 +32,15 @@ func setup(spawn: Resource) -> void:
 	rng.seed = spawn.seed_value
 	spawn_remaining = definition.spawn_ticks if spawn.spawn_ticks < 0 else spawn.spawn_ticks
 	cooldown = definition.shoot_cooldown
+	if definition.behavior == "nes_octorok":
+		source.setup(definition.nes_type)
+		spawn_remaining += 12
 
 func position() -> Vector2i:
 	return Vector2i(floori(subposition.x / 256.0), floori(subposition.y / 256.0))
 
 func alive() -> bool:
-	return health > 0 and spawn_remaining == 0
+	return health > 0 and spawn_remaining == 0 and not waiting_spawn
 
 func hurtbox() -> Rect2i:
 	return Rect2i(position() + Vector2i(2, 2), Vector2i(12, 12))
@@ -43,14 +51,16 @@ func receive_hit(damage: int, direction: Vector2i) -> bool:
 	health = maxi(0, health - damage)
 	invulnerability = 32
 	windup = 0
+	source.shove_started = false
 	shove_direction = direction
 	shove_remaining = 64
 	if health == 0:
-		death_remaining = 12
+		death_remaining = 19 if definition.behavior == "nes_octorok" else 12
 	return true
 
 ## Returns true on the frame a rock should be emitted.
-func tick(target: Vector2i, can_occupy: Callable) -> bool:
+func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Callable(), can_shoot: bool = true) -> bool:
+	if waiting_spawn: return false
 	if spawn_remaining > 0:
 		spawn_remaining -= 1
 		return false
@@ -59,6 +69,10 @@ func tick(target: Vector2i, can_occupy: Callable) -> bool:
 		return false
 	animation_ticks += 1
 	invulnerability = maxi(0, invulnerability - 1)
+	if definition.behavior == "nes_octorok":
+		var probe := segment_probe
+		if not probe.is_valid(): probe = func(at: Vector2i, direction: Vector2i) -> bool: return can_occupy.call(at + direction * 16)
+		return source.tick(self, target, probe, can_shoot, source_random, source_next_random)
 	if shove_remaining > 0:
 		for pixel in range(mini(4, shove_remaining)):
 			var candidate := position() + shove_direction

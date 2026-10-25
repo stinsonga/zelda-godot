@@ -12,6 +12,17 @@ func preview() -> void:
 		quit(1)
 		return
 	var args := OS.get_cmdline_user_args()
+	if args.has("octorok") or args.has("octorok_cloud"):
+		var room_id: StringName = &"ow_67" if args.has("octorok_cloud") else &"ow_78"
+		var at := Vector2i(120, 157) if args.has("octorok_cloud") else Vector2i(0, 77)
+		var facing := Vector2i.UP if args.has("octorok_cloud") else Vector2i.RIGHT
+		world.enter_room(world.rooms[room_id], at, facing)
+		for tick in range(10 if args.has("octorok_cloud") else 400):
+			world.combat.player_invulnerability = 10000
+			world.simulate_tick(Vector2i.ZERO)
+		world.combat.player_invulnerability = 0
+		world.queue_redraw()
+		return
 	for label in ["scroll_right", "scroll_left", "scroll_up", "scroll_down"]:
 		if not args.has(label): continue
 		var direction := Vector2i.RIGHT
@@ -47,6 +58,8 @@ func preview() -> void:
 		for i in range(world.combat.enemies.size()):
 			var actor = world.combat.enemies[i]
 			actor.spawn_remaining = 0
+			actor.waiting_spawn = false
+			actor.subposition = Vector2i(64 + i * 32, 93) * 256
 			actor.facing = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.UP, Vector2i.DOWN][i % 4]
 			actor.animation_ticks = (i % 2) * 6
 		var reward = preload("res://scripts/dropped_reward.gd").new()

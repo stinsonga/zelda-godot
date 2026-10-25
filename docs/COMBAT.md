@@ -65,12 +65,10 @@ A world can override loot for an enemy ID without mutating its shared definition
 
 ## Known fidelity limits
 
-This remains a native combat baseline, not an emulator-verified frame-perfect
-port. Random wandering, target selection, shooting cadence, spawn positions,
-spawn/death effects, contact and projectile collision boxes, and shield handling
-still approximate parts of the NES routines. Spawn delays are staggered per slot,
-but cloud visuals are procedural placeholders. Enemy grid turns preserve
-fractional movement and check all intermediate terrain positions.
+Imported Octoroks now use source-translated movement, targeting, firing, spawning,
+terrain probes, contact thresholds, and shield bounces. See
+[Octorok fidelity](OCTOROK_FIDELITY.md) for the rules and remaining limits.
+Native custom enemies retain the simpler configurable behavior.
 
 Only repeated Octorok types 7 through 10 are imported. Mixed object lists and all
 other monsters remain unimplemented. Red and blue drop rows may reference bombs,
@@ -78,8 +76,9 @@ clocks, or fairies; those unsupported entries currently produce no drop. Help-dr
 counters and the forced-fairy rule are not implemented. Currency applies instantly
 rather than counting upward over multiple frames. Sword beams are implemented; sound remains unimplemented. See [beam rules](SWORD_BEAM.md).
 
-Defeated enemies remain defeated for the entire session. The original six-room
-history and respawn logic are not implemented. Loose drops disappear when leaving
+Imported overworld enemies now use the original six-entry history and kill-count
+respawn rules. Custom encounters can retain permanent defeats or reset on entry.
+See [room persistence](ROOM_PERSISTENCE.md). Loose drops disappear when leaving
 the room. Save/load now preserves inventory, health, currency, collected items, and defeated
 enemies. See [saving notes](SAVING.md). The original game-over flow remains a
 future milestone. Overworld

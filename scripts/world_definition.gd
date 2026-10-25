@@ -8,3 +8,6 @@ extends Resource
 @export var visual_theme: Resource
 
 @export var loot_tables: Dictionary[StringName, Resource] = {}
+
+@export var spawn_lists: Array[PackedByteArray] = []
+@export var projectile_limit: int = 4

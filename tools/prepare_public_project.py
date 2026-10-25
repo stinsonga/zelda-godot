@@ -6,7 +6,7 @@ import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORIES = ('scripts', 'scenes', 'content', 'docs', 'tests', 'tools')
-FILES = ('project.godot', 'README.md', '.gitignore')
+FILES = ('project.godot', 'README.md', 'TODO.md', '.gitignore')
 
 
 def prepare(destination):

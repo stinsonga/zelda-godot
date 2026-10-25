@@ -34,7 +34,7 @@ On this Mac, the default application directory is:
 ```
 
 Filenames use a hash of the stable world ID. The JSON document records the actual
-ID in readable form. The format has version 1. A normal save writes a temporary
+ID in readable form. The format has version 2, with automatic migration from version 1. A normal save writes a temporary
 file, flushes and closes it, preserves the previous valid snapshot as `.bak`, then
 renames the temporary file over the main file. A failed write keeps the prior
 save. The loader can recover a valid backup if the primary JSON is damaged or
@@ -44,7 +44,8 @@ The loader validates structure, version, world identity, integer values, limits,
 item IDs, room IDs, and location before replacing the current game state. Files
 larger than 1 MiB and snapshots that would exceed that size are rejected. A failed
 load leaves the current session intact, apart from displaying its status message.
-Unsupported format versions are rejected; version migrations are not implemented.
+Versions newer than 2 are rejected. Version 1 loads automatically; its old enemy
+flags migrate to the new count/history model when those rooms are instantiated.
 
 If edited terrain blocks a saved position, the loader tries that room's spawn and
 reports `LOADED AT ROOM ENTRANCE`. If the room or item is unavailable, or neither
@@ -57,15 +58,15 @@ not implemented.
 Saving is unavailable during room scrolling, automatic cave entry, item lifting,
 or death. It is available during ordinary movement and combat. A loaded game
 clears pending input, attacks, beams, rocks, loose drops, animation state, and
-knockback. Remaining enemies restart from their room definitions; defeated enemies
-stay defeated. Link receives 48 ticks of arrival invulnerability. Unfinished cave
+knockback. Remaining enemies restart from their room definitions; original overworld
+populations follow their saved kill counts and six-room history. Custom permanent
+encounters retain their exact defeated spawn IDs. Link receives 48 ticks of arrival invulnerability. Unfinished cave
 dialogue restarts unless the saved pickup/progression state suppresses it.
 
 This is a native game save, not an NES emulator save state. Partially damaged
 enemies, projectile positions, random-generator state, and loose drops are not
-saved. The existing session-wide defeated-enemy behavior is preserved across
-save/load; reproducing the original six-room respawn history is the next persistence
-milestone. Multiple player profiles, save-slot selection, autosaving, and the
+saved. Room history, insertion cursor, and kill records persist across save/load.
+See [room persistence](ROOM_PERSISTENCE.md) for respawn rules and migration details. Multiple player profiles, save-slot selection, autosaving, and the
 original NES continue/save menu are not implemented yet.
 
 ## Verification
