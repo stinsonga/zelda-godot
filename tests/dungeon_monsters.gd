@@ -324,4 +324,28 @@ func check_regulars(world: Node) -> void:
 	boss.health = 0
 	world.try_pickups()
 	check(world.state.has_collected(&"l1_35", &"item"), "Defeating Aquamentus releases the heart container")
+	# Dodongo: swords bounce off; two eaten bombs, or a blast and a sword, defeat it.
+	var ItemObject = preload("res://scripts/item_object.gd")
+	var dodongo = actor("dodongo", Vector2i(80, 77), Vector2i.RIGHT)
+	fresh_room(world, [dodongo])
+	check(dodongo.size() == Vector2i(32, 16) and not dodongo.targetable(), "Dodongo is 32 wide sideways and shrugs off weapons")
+	var mouth: Vector2i = dodongo.position() + Vector2i(16, 0) + Vector2i(8, 0)
+	world.item_objects.append(ItemObject.bomb(mouth, Vector2i.LEFT))
+	for i in range(3): world.simulate_tick(Vector2i.ZERO)
+	check(dodongo.family.phase == 1 and dodongo.family.bombs_eaten == 1 and world.item_objects.is_empty(), "Dodongo eats a ticking bomb at its mouth")
+	for i in range(0x20 + 0x40 + 4): world.simulate_tick(Vector2i.ZERO)
+	check(dodongo.family.phase == 0 and dodongo.health > 0, "One bomb only bloats Dodongo")
+	mouth = dodongo.position() + Vector2i(16 if dodongo.facing.x != 0 else 8, 8) + dodongo.facing * 8 - Vector2i(8, 8)
+	world.item_objects.append(ItemObject.bomb(mouth, Vector2i.LEFT))
+	for i in range(0x20 + 0x40 + 0x40 + 8): world.simulate_tick(Vector2i.ZERO)
+	check(dodongo.health == 0, "A second eaten bomb defeats Dodongo")
+	var stunned_dodongo = actor("dodongo", Vector2i(80, 77), Vector2i.RIGHT)
+	fresh_room(world, [stunned_dodongo])
+	var blast = ItemObject.bomb(stunned_dodongo.position() + Vector2i(24, 0), Vector2i.LEFT)
+	blast.stage = 3
+	blast.timer = 20
+	world.item_objects.append(blast)
+	world.simulate_tick(Vector2i.ZERO)
+	check(stunned_dodongo.family.phase == 2 and stunned_dodongo.targetable(), "A bomb blast beside Dodongo stuns it")
+	check(stunned_dodongo.receive_hit(1, Vector2i.LEFT, "sword") and stunned_dodongo.health == 0, "A stunned Dodongo falls to the sword")
 	completed = true

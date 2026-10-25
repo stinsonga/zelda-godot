@@ -400,11 +400,15 @@ MONSTERS = {0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x1
             0x27: ('wallmaster', 'wallmaster'), 0x2B: ('bubble', 'walker'), 0x2C: ('blue_bubble', 'walker'),
             0x2D: ('red_bubble', 'walker'), 0x30: ('gibdo', 'walker'), 0x49: ('trap', 'trap'),
             0x23: ('blue_wizzrobe', 'blue_wizzrobe'), 0x24: ('red_wizzrobe', 'red_wizzrobe'),
-            0x3D: ('aquamentus', 'aquamentus')}
+            0x3D: ('aquamentus', 'aquamentus'), 0x31: ('dodongo', 'dodongo'), 0x32: ('dodongo', 'dodongo')}
+# Z_04 DodongoFrameImages / DodongoFrameImagesBloated: right, left, down, -, up for pose A, then B.
+DODONGO_IMAGES = [0x00, 0x01, 0x06, None, 0x08, 0x02, 0x03, 0x06, None, 0x08]
+DODONGO_BLOATED = [0x04, 0x05, 0x07, None, 0x09]
 # Bosses that start at fixed spots rather than spawn lists (Z_04 InitAquamentus).
 FIXED_POSITIONS = {0x3D: (0xB0, 0x80)}
 AQUAMENTUS_TILES = 0x11834          # Two frames of six 8x16 sprites.
 AQUAMENTUS_PALETTE = 0x1A28E        # AquamentusPaletteRow7TransferBuf.
+ORANGE_BOSS_PALETTE = 0x1A296       # OrangeBossPaletteRow7TransferBuf (Dodongo, Gohma).
 # Z_01 TrapXs/TrapYs: $49 makes six traps, $4A the first four.
 TRAPS = [(0x20, 0x5D), (0x20, 0xBD), (0xD0, 0x5D), (0xD0, 0xBD), (0x40, 0x8D), (0xB0, 0x8D)]
 EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
@@ -494,6 +498,10 @@ def monster_definition(prg, kind):
         raw = prg[0x72BA + 0x55]
         fields.update(size='Vector2i(24, 32)', invincible_to='PackedStringArray("boomerang", "fire")', projectile_kind='"fireball"',
                       projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0), sprite_style='"frames"', animation_frame_ticks=16)
+    elif name == 'dodongo':
+        # Dodongo_CheckCollisionsStandardSize: mask $FF until stunned; then any sword hit kills.
+        fields.update(health=1, speed_subpixels=128, turn_chance=0x20, shooting_enabled='false', wide_when_horizontal='true',
+                      invincible_to='PackedStringArray("beam", "boomerang", "arrow", "bomb", "fire", "magic")', stunnable='false')
     elif name == 'trap':
         fields.update(invincible_to=f'PackedStringArray({EVERYTHING})', counts_for_clear='false', spawn_cloud='false', sprite_style='"frames"',
                       contact_damage=max(1, fields['contact_damage']))
@@ -520,7 +528,7 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
     """Per-level sprites: level-group pattern blocks and the level's sprite palettes."""
     patterns = bytearray(8192)
     for source, length, target in [(32895, 1792, 0), (19892, 2304, 0x0700), (UW_COMMON_SPRITES, 0x100, 0x08E0),
-                                    (LEVEL_SPRITES[level], 0x220, 0x09E0)]:
+                                    (LEVEL_SPRITES[level], 0x220, 0x09E0), (BOSS_SPRITES[level], 0x400, 0x0C00)]:
         patterns[target:target + length] = prg[source:source + length]
     info = level_info(prg, level)
     palettes = [list(info[3 + p * 4:7 + p * 4]) for p in range(8)]
@@ -546,7 +554,6 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
 
     if 0x3D in kinds:
         # Aquamentus_Draw: six 8x16 sprites, AquamentusTiles frames, its own palette row.
-        patterns[0x0C00:0x1000] = prg[BOSS_SPRITES[level]:BOSS_SPRITES[level] + 0x400]
         row = list(prg[AQUAMENTUS_PALETTE + 3:AQUAMENTUS_PALETTE + 7])
         for frame in range(2):
             canvas = bytearray(24 * 32 * 4)
@@ -567,6 +574,57 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
             png(output / f'fireball_{frame}.png', 16, 16, canvas)
             if f'fireball_{frame}' not in names: names.append(f'fireball_{frame}')
         kinds = kinds - {0x3D}
+    if kinds & {0x31, 0x32}:
+        base = prg[0x6E04 + 0x31 + 1]
+        # The level palette row, which boss rooms load from OrangeBossPaletteRow7TransferBuf.
+        row = list(prg[ORANGE_BOSS_PALETTE + 3:ORANGE_BOSS_PALETTE + 7])
+
+        def image(index, mirrored):
+            tile = prg[0x6E83 + base + index]
+            bank = patterns[0x1000:] if tile & 1 else patterns
+            canvas = bytearray(16 * 16 * 4)
+            for column in range(2):
+                for half in range(2):
+                    piece = bytearray(8 * 8 * 4)
+                    blit_tile(piece, 8, 0, 0, bank, (tile & 0xFE) + half + (0 if mirrored else column * 2), row, True)
+                    for y in range(8):
+                        for x in range(8):
+                            sx = 7 - x if mirrored and column == 1 else x
+                            canvas[((half * 8 + y) * 16 + column * 8 + x) * 4:((half * 8 + y) * 16 + column * 8 + x) * 4 + 4] = piece[(y * 8 + sx) * 4:(y * 8 + sx) * 4 + 4]
+            return canvas
+
+        def flip(canvas, width, height):
+            out = bytearray(len(canvas))
+            for y in range(height):
+                for x in range(width):
+                    out[(y * width + x) * 4:(y * width + x) * 4 + 4] = canvas[(y * width + width - 1 - x) * 4:(y * width + width - 1 - x) * 4 + 4]
+            return out
+
+        def wide(first):
+            left, right = image(first, False), image(first ^ 1, False)
+            canvas = bytearray(32 * 16 * 4)
+            for y in range(16):
+                canvas[y * 128:y * 128 + 64] = left[y * 64:y * 64 + 64]
+                canvas[y * 128 + 64:y * 128 + 128] = right[y * 64:y * 64 + 64]
+            return canvas
+
+        def save(key, canvas, width):
+            png(output / f'l{level}_{key}.png', width, 16, canvas)
+            names.append(f'l{level}_{key}')
+
+        for pose in range(2):
+            right = wide(DODONGO_IMAGES[pose * 5])
+            save(f'dodongo_right_{pose}', right, 32)
+            save(f'dodongo_left_{pose}', flip(right, 32, 16), 32)
+            for direction, slot in (('down', 2), ('up', 4)):
+                canvas = image(DODONGO_IMAGES[pose * 5 + slot], False)
+                save(f'dodongo_{direction}_{pose}', flip(canvas, 16, 16) if pose else canvas, 16)
+        bloated = wide(DODONGO_BLOATED[0])
+        save('dodongo_bloated_right', bloated, 32)
+        save('dodongo_bloated_left', flip(bloated, 32, 16), 32)
+        save('dodongo_bloated_down', image(DODONGO_BLOATED[2], True), 16)
+        save('dodongo_bloated_up', image(DODONGO_BLOATED[4], True), 16)
+        kinds = kinds - {0x31, 0x32}
     for kind in sorted(kinds):
         name, behavior = MONSTERS[kind]
         base = prg[0x6E04 + kind + 1]

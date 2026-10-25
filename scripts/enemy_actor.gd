@@ -52,7 +52,11 @@ func position() -> Vector2i:
 
 ## Hit checks compare 16-pixel shapes; larger monsters are measured from their middle.
 func hit_position() -> Vector2i:
-	return position() + (definition.size - Vector2i(16, 16)) / 2
+	return position() + (size() - Vector2i(16, 16)) / 2
+
+func size() -> Vector2i:
+	if definition.wide_when_horizontal and facing.x != 0: return Vector2i(32, 16)
+	return definition.size
 
 ## Several shots fired in one tick (Aquamentus): {kind, position, spread}.
 var pending_shots: Array[Dictionary] = []
@@ -182,6 +186,8 @@ func body_visible() -> bool:
 func sprite_name() -> StringName:
 	if definition.behavior in ["jumper", "burrower", "flyer"]:
 		return StringName(String(definition.sprite) + "_" + str(family.frame(self)))
+	if definition.behavior == "dodongo":
+		return family.dodongo_sprite(self)
 	if definition.sprite_style == "frames":
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / definition.animation_frame_ticks) % 2))
 	var direction := "right" if facing.x > 0 else "left" if facing.x < 0 else "down" if facing.y > 0 else "up"

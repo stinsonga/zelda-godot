@@ -503,6 +503,8 @@ func tick_item_objects() -> void:
 			var delta: Vector2i = (object.position - player.pixel_position()).abs()
 			if delta.x < 0x0E and delta.y < 0x0E:
 				combat.hurt_player(self, 1, object.position)
+	for actor in combat.enemies:
+		if actor.definition.behavior == "dodongo" and actor.alive(): actor.family.dodongo_bombs(actor, item_objects)
 	for object in item_objects:
 		if not object.detonating(): continue
 		for door in room.doors:
@@ -1014,7 +1016,7 @@ func draw_combat() -> void:
 			var leveled := StringName("l%d_%s" % [room.dungeon_level, sprite])
 			if room.dungeon_level > 0 and visual_theme.sprites.has(leveled): sprite = leveled
 			if visual_theme.sprites.has(sprite):
-				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint, Vector2(actor.definition.size))
+				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint, Vector2(actor.size()))
 			else:
 				draw_rect(Rect2(at + Vector2(1, 2), Vector2(14, 12)), actor.definition.fallback_color)
 				draw_line(at + Vector2(8, 8), at + Vector2(8, 8) + Vector2(actor.facing) * 8, Color.BLACK, 2)

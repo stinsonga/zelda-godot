@@ -50,6 +50,8 @@ func visible(actor: RefCounted) -> bool:
 	return actor.definition.behavior != "burrower" or phase != 0
 
 func vulnerable(actor: RefCounted) -> bool:
+	# Dodongo_CheckCollisionsStandardSize: mask $FF except while stunned.
+	if actor.definition.behavior == "dodongo": return phase == 2
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	if actor.definition.behavior == "burrower": return phase == 3
@@ -110,6 +112,7 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 		"wallmaster": tick_wallmaster(actor, context)
 		"pols_voice": tick_pols_voice(actor, probe)
 		"aquamentus": tick_aquamentus(actor, context)
+		"dodongo": tick_dodongo(actor, target, probe)
 	return false
 
 func begin_jump(actor: RefCounted) -> void:
@@ -533,3 +536,65 @@ func tick_aquamentus(actor: RefCounted, context: Dictionary) -> void:
 		timer = actor.source_random | 0x70
 		for spread in [0, 1, -1]:
 			actor.pending_shots.append({"position": actor.position() + Vector2i(4, 0), "spread": spread})
+
+## Z_04 UpdateDodongo. State 0 walks (turn rate $20) with its walker logic at the
+## head when facing right, up, or down. A ticking bomb at its mouth is eaten
+## (state 1): bloated $20 then $40 frames; two eaten bombs make it flicker for
+## $40 more and die. A detonating bomb beside it stuns it (state 2) for $20 long
+## ticks, when the sword can kill it.
+const DODONGO_BLOAT := [0x20, 0x40, 0x40]
+var bombs_eaten := 0
+var bloat_stage := 0
+
+func tick_dodongo(actor: RefCounted, target: Vector2i, probe: Callable) -> void:
+	match phase:
+		0:
+			var shift := 16 if actor.facing in [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.UP] else 0
+			actor.subposition.x += shift * 256
+			actor.source.move_speed = actor.definition.speed_subpixels
+			var direction: Vector2i = actor.facing
+			if actor.source.grid_offset == 0: direction = actor.source.choose_movement(actor, probe, actor.source_random)
+			if direction != Vector2i.ZERO: actor.source.advance_position(actor, direction, actor.source.move_speed)
+			actor.source.select_target(actor, target, actor.source_random, actor.source_next_random)
+			actor.subposition.x -= shift * 256
+			if actor.position().x < 0x20: actor.facing = Vector2i.RIGHT
+		1:
+			if timer > 0: return
+			bloat_stage += 1
+			if bloat_stage == 2 and bombs_eaten < 2:
+				phase = 0
+				bloat_stage = 0
+			elif bloat_stage == 3:
+				actor.health = 0
+				actor.death_remaining = 19
+			else:
+				timer = DODONGO_BLOAT[bloat_stage]
+		2:
+			if actor.stun_ticks == 0 and timer == 0:
+				phase = 0
+
+## Z_04 Dodongo_CheckBombHit with DodongoBombPositive/NegativeLimits: the mouth is
+## the middle of the head; ticking bombs within -16..16 are eaten, blasts
+## within -12..12 stun.
+func dodongo_bombs(actor: RefCounted, objects: Array) -> void:
+	if phase != 0: return
+	var mouth: Vector2i = actor.position() + Vector2i(16 if actor.facing.x != 0 else 8, 8) + actor.facing * 8
+	for object in objects:
+		if object.kind != "bomb": continue
+		var delta: Vector2i = object.center() - mouth
+		if object.showing_bomb() and object.stage == 2 and delta.x >= -16 and delta.x < 17 and delta.y >= -16 and delta.y < 17:
+			object.active = false
+			bombs_eaten += 1
+			phase = 1
+			bloat_stage = 0
+			timer = DODONGO_BLOAT[0]
+			return
+		if object.detonating() and absi(delta.x) < 12 and absi(delta.y) < 12:
+			phase = 2
+			timer = 0x20 * 10
+
+func dodongo_sprite(actor: RefCounted) -> StringName:
+	var direction := "right" if actor.facing.x > 0 else "left" if actor.facing.x < 0 else "down" if actor.facing.y > 0 else "up"
+	if phase == 1 and bloat_stage < 2: return StringName("dodongo_bloated_" + direction)
+	var pose := 1 if (actor.animation_ticks / (0x20 if phase == 2 else 8)) % 2 else 0
+	return StringName("dodongo_%s_%d" % [direction, pose])

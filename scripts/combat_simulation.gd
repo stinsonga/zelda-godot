@@ -159,8 +159,8 @@ func tick(world: Node) -> void:
 					reward.definition = item
 					reward.position = actor.position()
 					rewards.append(reward)
-		var reach: Vector2i = actor.definition.size / 2 + Vector2i.ONE
-		var gap: Vector2i = (actor.position() + actor.definition.size / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
+		var reach: Vector2i = actor.size() / 2 + Vector2i.ONE
+		var gap: Vector2i = (actor.position() + actor.size() / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
 		if actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
 			touch_player(world, actor)
 	ambush_timer = int(context.ambush_timer)
