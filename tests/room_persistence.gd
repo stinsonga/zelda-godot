@@ -180,7 +180,7 @@ func run() -> void:
 	file.store_string(JSON.stringify(checkpoint))
 	file.close()
 	check(world.load_game() and world.combat.enemies.size() == 2 and world.state.defeated.is_empty(), "Version 1 per-enemy flags must migrate to overworld counts")
-	check(world.snapshot().version == 2 and world.state.room_history == ["room_a"], "Migrated saves must establish a current history entry and write version 2")
+	check(world.snapshot().version == 3 and world.state.room_history == ["room_a"], "Migrated saves must establish a current history entry and write the current version")
 	checkpoint.defeated = ["room_a/enemy_0", "room_a/enemy_1", "room_a/enemy_2", "room_a/enemy_3"]
 	file = FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(JSON.stringify(checkpoint))
@@ -200,7 +200,7 @@ func run() -> void:
 		world = Main.instantiate()
 		root.add_child(world)
 		world.set_physics_process(false)
-		check(world.rooms[&"ow_78"].enemy_persistence == "overworld" and world.rooms[&"sword_cave"].history_id == &"ow_77", "Original import must select count persistence and shared cave history")
+		check(world.rooms[&"ow_78"].enemy_persistence == "overworld" and world.rooms[&"cave_77"].history_id == &"ow_77", "Original import must select count persistence and shared cave history")
 		world.free()
 	for name in DirAccess.get_files_at(temporary): DirAccess.remove_absolute(temporary.path_join(name))
 	DirAccess.remove_absolute(temporary)

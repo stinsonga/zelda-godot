@@ -1,18 +1,30 @@
 class_name GameState
 extends RefCounted
 ## Runtime state is separate from content resources and serializes by stable ID.
+const HEALTH_UNITS := 128
 var spawn_cycle := 0
 var room_history: Array[String] = []
 var history_cursor := 0
 var room_records: Dictionary[String, Dictionary] = {}
 var flags: Dictionary[String, bool] = {}
 var rupees := 0
+## Z_01 World_ChangeRupees applies these one rupee every other frame.
+var rupees_to_add := 0
+var rupees_to_subtract := 0
 var kill_cycle := 0
 var max_health := 6
-var health := 6
+## Half hearts are split into 128 units so rings can reduce damage.
+var health_units := 6 * HEALTH_UNITS
+var health: int:
+	get: return ceili(health_units / float(HEALTH_UNITS))
+	set(value): health_units = value * HEALTH_UNITS
 var defeated: Dictionary[String, bool] = {}
 var equipped_weapon: Resource
 var inventory: Dictionary[StringName, Resource] = {}
+## Original item slots: grades, counts, or 1 for unique items.
+var slots: Dictionary[StringName, int] = {}
+var max_bombs := 8
+var selected_item: StringName
 var collected: Dictionary[String, bool] = {}
 
 func pickup_key(room_id: StringName, pickup_id: StringName) -> String:
@@ -25,9 +37,62 @@ func collect(room_id: StringName, pickup: Resource) -> bool:
 	if has_collected(room_id, pickup.id):
 		return false
 	collected[pickup_key(room_id, pickup.id)] = true
-	inventory[pickup.item.id] = pickup.item
-	equipped_weapon = pickup.item
+	take_item(pickup.item)
 	return true
+
+func item_value(slot: StringName) -> int:
+	return slots.get(slot, 0)
+
+## Z_01 TakeItem. Returns false when the item changed nothing.
+func take_item(item: Resource) -> bool:
+	if not "effect" in item:
+		return false
+	var before := item_value(item.slot) if "slot" in item and not item.slot.is_empty() else 0
+	match item.effect:
+		"unique": slots[item.slot] = item.value
+		"grade":
+			if item.value <= before: return false
+			slots[item.slot] = item.value
+		"count":
+			var cap: int = max_bombs if item.slot == &"bombs" else item.limit
+			slots[item.slot] = mini(cap, before + item.value)
+		"heart_container":
+			if max_health >= 32: return false
+			max_health += 2
+			health += 2
+			return true
+		"rupees":
+			rupees_to_add += item.amount if "amount" in item else item.value
+			return true
+		"health":
+			health = mini(max_health, health + (item.amount if "amount" in item else item.value))
+			return true
+	inventory[item.id] = item
+	if item.slot == &"sword" and (equipped_weapon == null or item.value >= equipped_weapon.value):
+		equipped_weapon = item
+	if selected_item.is_empty() and item.usable:
+		selected_item = item.slot
+	return true
+
+## Damage in half hearts. Rings halve or quarter it (Z_07 Link_BeHarmed).
+func take_damage(half_hearts: int) -> void:
+	var shift := item_value(&"ring")
+	health_units = maxi(0, health_units - ((half_hearts * HEALTH_UNITS) >> shift))
+
+func tick_rupees(frame: int) -> bool:
+	if rupees == 0: rupees_to_subtract = 0
+	if rupees == 255: rupees_to_add = 0
+	if frame % 2 != 0 or (rupees_to_add == 0 and rupees_to_subtract == 0): return false
+	if rupees_to_add > 0:
+		rupees_to_add -= 1
+		rupees += 1
+	if rupees_to_subtract > 0:
+		rupees_to_subtract -= 1
+		rupees = maxi(0, rupees - 1)
+	return true
+
+func rupees_settled() -> bool:
+	return rupees_to_add == 0 and rupees_to_subtract == 0
 
 func heart_frame(index: int) -> int:
 	var remaining := health - index * 2

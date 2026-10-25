@@ -1,7 +1,7 @@
 class_name SaveStore
 extends RefCounted
 
-const VERSION := 2
+const VERSION := 3
 const MAX_BYTES := 1048576
 var directory: String
 
@@ -35,6 +35,17 @@ func validate(data: Variant, world_id: String) -> Dictionary:
 		data.history_cursor = 0
 		data.room_records = {}
 	if not data.has("spawn_cycle"): data["spawn_cycle"] = 0
+	if int(data.version) == 2:
+		data = data.duplicate(true)
+		data.version = VERSION
+	if data.has("slots") or data.has("max_bombs") or data.has("selected_item"):
+		var slots: Variant = data.get("slots")
+		if not slots is Dictionary or slots.size() > 64: return failure("Invalid item slots")
+		for key in slots:
+			if not key is String or key.is_empty() or key.length() > 64 or not whole(slots[key], 1, 255): return failure("Invalid item slot")
+		if not whole(data.get("max_bombs"), 1, 255): return failure("Invalid bomb capacity")
+		if not data.get("selected_item") is String or data.selected_item.length() > 64: return failure("Invalid selected item")
+		if not data.selected_item.is_empty() and not slots.has(data.selected_item): return failure("Selected item is not held")
 	if not whole(data.spawn_cycle, 0, 8): return failure("Invalid spawn cycle")
 	if data.get("world_id") != world_id: return failure("Save belongs to a different world")
 	if not data.get("room_id") is String or data.room_id.is_empty(): return failure("Missing saved room")

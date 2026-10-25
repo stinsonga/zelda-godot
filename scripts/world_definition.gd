@@ -12,3 +12,5 @@ extends Resource
 
 @export var spawn_lists: Array[PackedByteArray] = []
 @export var projectile_limit: int = 4
+## Renamed room IDs and collected keys, applied when loading older saves.
+@export var legacy_ids: Dictionary[String, String] = {}

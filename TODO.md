@@ -19,7 +19,10 @@
 - Common overworld enemies implemented: Moblins, Lynels, Tektites, Leevers,
   Peahats, and editable variants; see docs/MORE_ENEMIES.md. Follow up with
   replay fidelity, Zora, Armos, Ghini, boulders, and special overworld actors.
-- Items, equipment, secrets, caves, then dungeon foundations and bosses.
+- Overworld caves, shop items, equipment, and bomb/fire/push secrets are implemented;
+  see docs/CAVES_AND_SECRETS.md. Follow up with the item submenu, Armos and
+  recorder secrets, raft and ladder, bait, bow and arrows, and traced item-use timing.
+- Dungeon foundations and bosses, starting with connecting the level entrances.
 - Improve visual content editing and asset-pack workflows alongside implementation.
 
 See docs/ for completed save/load, room persistence, combat, beam, and scrolling work.

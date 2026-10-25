@@ -195,6 +195,9 @@ CUES = {
     'parry': (0x604,1,0.3), 'heart': (0x604,16,0.25),
     'rupee': (0x602,1,0.4), 'item': (0x602,8,1),
     'secret': (0x602,4,3), 'enemy_die': (0x602,0x20,1.5),
+    # Z_01 textbox characters, money and secrets, WieldBomb, UpdateBomb, WieldCandle.
+    'text': (0x604,0x10,0.25), 'key': (0x604,8,0.6), 'bomb_drop': (0x604,0x20,0.3),
+    'bomb_blow': (0x603,0x10,0.8), 'flame': (0x603,4,0.6),
 }
 
 def export_audio(prg, destination):

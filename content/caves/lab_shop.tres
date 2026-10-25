@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="CaveDefinition" load_steps=9 format=3]
+[ext_resource type="Script" path="res://scripts/cave_definition.gd" id="cave"]
+[ext_resource type="Script" path="res://scripts/cave_ware.gd" id="ware"]
+[ext_resource type="Resource" path="res://content/items/big_bombs.tres" id="big_bombs"]
+[ext_resource type="Resource" path="res://content/items/key.tres" id="key"]
+[ext_resource type="Resource" path="res://content/items/magic_shield.tres" id="magic_shield"]
+[sub_resource type="Resource" id="ware_0"]
+script = ExtResource("ware")
+item = ExtResource("magic_shield")
+price = 30
+[sub_resource type="Resource" id="ware_1"]
+script = ExtResource("ware")
+item = ExtResource("key")
+price = 10
+[sub_resource type="Resource" id="ware_2"]
+script = ExtResource("ware")
+item = ExtResource("big_bombs")
+price = 20
+[resource]
+script = ExtResource("cave")
+id = &"lab_shop"
+text = "BUY SOMETHIN' WILL YA!"
+wares = Array[Resource]([SubResource("ware_0"), SubResource("ware_1"), SubResource("ware_2")])
+choose = true
+pay = true
+show_items = true
+show_prices = true

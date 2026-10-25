@@ -38,6 +38,7 @@ or press F5 to run the project.
 
 - Move: arrow keys or WASD.
 - Use the sword after collecting it: Z or Space.
+- Use the B item: X or Shift. Choose the B item: C or Tab.
 - Save: F5. Load: F9.
 - Reset to the current room's spawn: R.
 - Walk through open screen edges to visit neighboring rooms.
@@ -46,10 +47,12 @@ After a ROM import, the project starts in the original overworld with original
 tiles and animated Link sprites. It contains all 128 static overworld terrain
 layouts, fixed-tick cardinal movement, collision, and scrolling room transitions.
 Without imported resources, it falls back to the two placeholder test rooms.
-The starting sword cave now supports entry, dialogue, a persistent session
-pickup, and sword thrusts. Octoroks, rocks, shield blocking, sword damage, knockback, health, heart drops,
-and rupee drops now work. Sword beams are also implemented. Sound, other enemy types, other caves,
-and secrets are not implemented yet.
+Octoroks, rocks, shield blocking, sword damage, knockback, health, heart drops,
+and rupee drops work, as do sword beams, sound, and the common overworld enemies.
+All 59 reachable first-quest caves work: gifts, shops, hints, the money-making
+game, the letter, and secret money. Bombs, candles, and gravestones reveal hidden
+entrances. See [caves, items, and secrets](docs/CAVES_AND_SECRETS.md); the
+no-ROM `scenes/item_lab.tscn` demonstrates editable custom caves and items.
 
 At full health (or half a heart missing), swinging also fires a sword beam.
 See [sword beam rules](docs/SWORD_BEAM.md) for timing and fidelity notes.

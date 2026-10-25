@@ -1,5 +1,5 @@
 extends SceneTree
-## Render deterministic cave, lifting, or sword views for screenshot review.
+## Render deterministic cave, shop, secret, lifting, or sword views for screenshot review.
 func _initialize() -> void:
 	call_deferred("preview")
 
@@ -7,7 +7,7 @@ func preview() -> void:
 	var world = preload("res://scenes/main.tscn").instantiate()
 	root.add_child(world)
 	world.set_physics_process(false)
-	if not world.rooms.has(&"sword_cave"):
+	if not world.rooms.has(&"cave_77"):
 		push_error("Visual previews require a local ROM import")
 		quit(1)
 		return
@@ -104,11 +104,29 @@ func preview() -> void:
 				world.combat.beam.burst_remaining = 12
 		world.queue_redraw()
 		return
-	world.enter_room(world.rooms[&"sword_cave"], Vector2i(112, 109), Vector2i.UP)
-	world.dialogue_elapsed = 10000
+	if args.has("shop"):
+		world.state.rupees = 87
+		for item in ["bombs", "blue_candle", "white_sword"]: world.state.take_item(load("res://content/items/" + item + ".tres"))
+		world.enter_room(world.rooms[&"cave_25"], Vector2i(120, 109), Vector2i.UP)
+		for tick in range(400): world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
+		return
+	if args.has("bomb") or args.has("burned"):
+		world.state.take_item(load("res://content/items/bombs.tres"))
+		world.state.take_item(load("res://content/items/blue_candle.tres"))
+		var id: StringName = &"ow_0d" if args.has("bomb") else &"ow_28"
+		world.enter_room(world.rooms[id], Vector2i(144, 29) if args.has("bomb") else Vector2i(176, 93), Vector2i.UP)
+		world.player.facing = Vector2i.UP if args.has("bomb") else Vector2i.RIGHT
+		world.state.selected_item = &"bombs" if args.has("bomb") else &"candle"
+		world.use_item()
+		for tick in range(56 if args.has("bomb") else 100): world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
+		return
+	world.enter_room(world.rooms[&"cave_77"], Vector2i(112, 109), Vector2i.UP)
+	for tick in range(400): world.simulate_tick(Vector2i.ZERO)
 	if args.has("lift") or args.has("sword"):
-		world.player.place(Vector2i(120, 93))
-		world.try_pickups()
+		world.player.place(Vector2i(120, 85))
+		world.simulate_tick(Vector2i.ZERO)
 	if args.has("sword"):
 		world.lift_remaining = 0
 		world.simulation_tick = 100

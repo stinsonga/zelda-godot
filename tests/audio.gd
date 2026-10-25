@@ -13,7 +13,7 @@ func run() -> void:
 	world.set_physics_process(false)
 	world.combat.enemies.clear()
 	var audio = world.audio
-	check(audio.bank.streams.size() == 12, "Source-only audio must include all cues")
+	check(audio.bank.streams.size() == 17, "Source-only audio must include all cues")
 	var track: AudioStream = audio.music.stream
 	audio.set_music(&"overworld")
 	check(audio.music.stream == track, "Same music selection must retain the current stream")
@@ -101,7 +101,7 @@ func run() -> void:
 		world.set_physics_process(false)
 		if FileAccess.file_exists("res://imported/audio/manifest.json"):
 			check(world.audio.music.stream.loop_begin > 0, "Imported overworld music must preserve intro and repeat the source phrase loop")
-		world.enter_room(world.rooms[&"sword_cave"], Vector2i(120, 125), Vector2i.UP)
+		world.enter_room(world.rooms[&"cave_77"], Vector2i(120, 125), Vector2i.UP)
 		check(world.audio.current_music == &"cave", "Imported cave must select its configured music")
 		world.free()
 	await create_timer(0.1).timeout

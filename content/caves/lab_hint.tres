@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CaveDefinition" load_steps=7 format=3]
+[ext_resource type="Script" path="res://scripts/cave_definition.gd" id="cave"]
+[ext_resource type="Script" path="res://scripts/cave_ware.gd" id="ware"]
+[ext_resource type="Resource" path="res://content/items/rupee.tres" id="rupee"]
+[sub_resource type="Resource" id="ware_0"]
+script = ExtResource("ware")
+item = ExtResource("rupee")
+price = 5
+hint = "THIS AIN'T ENOUGH\nTO TALK!"
+[sub_resource type="Resource" id="ware_1"]
+script = ExtResource("ware")
+item = ExtResource("rupee")
+price = 10
+hint = "BOMB THE WALL\nBY THE SHOP."
+[sub_resource type="Resource" id="ware_2"]
+script = ExtResource("ware")
+item = ExtResource("rupee")
+price = 20
+hint = "PUSH THE GRAVE\nFROM BELOW."
+[resource]
+script = ExtResource("cave")
+id = &"lab_hint"
+text = "PAY ME AND I'LL TALK!"
+wares = Array[Resource]([SubResource("ware_0"), SubResource("ware_1"), SubResource("ware_2")])
+choose = true
+pay = true
+show_items = true
+show_prices = true
+negative_prices = true
+hint = true

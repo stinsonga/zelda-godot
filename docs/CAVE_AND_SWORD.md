@@ -1,5 +1,10 @@
 # Cave, pickup, and sword foundation
 
+The sword cave is now one of the generic imported caves (`cave_77`); see
+[caves, items, and secrets](CAVES_AND_SECRETS.md) for the cave model that
+replaced the pickup and dialogue described below. Pickups and room dialogue
+remain available for authored rooms.
+
 With locally imported content, walk into the opening in the starting room's
 upper-left cliff. Link enters the cave, walks 48 pixels inward, and waits for
 the old man's message. Touch the gift to collect the wooden sword. Leave through

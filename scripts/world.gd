@@ -5,6 +5,13 @@ const Player = preload("res://scripts/player.gd")
 const Saves = preload("res://scripts/save_store.gd")
 const HUD_HEIGHT := 64
 const ROOM_SIZE := Vector2i(256, 176)
+const ItemObject = preload("res://scripts/item_object.gd")
+## Original submenu order; the potion and letter share one cell.
+const B_ITEM_ORDER: Array[StringName] = [&"boomerang", &"bombs", &"arrows", &"candle", &"recorder", &"bait", &"potion", &"letter", &"rod"]
+## Z_05 CheckPersonBlocking: in caves, Link cannot walk up above Y $8E.
+const CAVE_PERSON_LINE := 0x8E - HUD_HEIGHT
+## Item-use pose length is provisional; it matches the sword's 16-tick wield.
+const ITEM_USE_TICKS := 16
 
 @export var item_resources: Array[Resource] = [preload("res://content/items/wooden_sword.tres")]
 @export var scroll_transitions: bool = true
@@ -27,6 +34,17 @@ var state = preload("res://scripts/game_state.gd").new()
 var combat = preload("res://scripts/combat_simulation.gd").new()
 var sword = preload("res://scripts/sword_action.gd").new()
 var attack_requested := false
+var item_requested := false
+var cave_session: RefCounted
+var secrets = preload("res://scripts/secret_runtime.gd").new()
+var item_objects: Array[RefCounted] = []
+var candle_used := false
+var item_use_remaining := 0
+var portal_armed := true
+var rise_remaining := 0
+var rise_square := Rect2i()
+var legacy_ids: Dictionary[String, String] = {}
+var overrides: Dictionary = {}
 var simulation_tick := 0
 var entry_walk_remaining := 0
 var entry_direction := Vector2i.UP
@@ -54,6 +72,7 @@ func _ready() -> void:
 		loot_tables = selected_world.loot_tables
 		combat.spawn_lists = selected_world.spawn_lists
 		combat.projectile_limit = selected_world.projectile_limit
+		legacy_ids = selected_world.legacy_ids
 		world_id = String(selected_world.id)
 		item_resources = item_resources + selected_world.items
 	audio.configure(selected_world.audio_bank if selected_world != null else null, selected_world != null and String(selected_world.id) == "original_quest_1")
@@ -74,6 +93,9 @@ func _ready() -> void:
 	for item in item_resources: register_item(item)
 	for definition in room_resources:
 		for pickup in definition.pickups: register_item(pickup.item)
+		if definition.cave != null:
+			for ware in definition.cave.wares:
+				if ware != null and ware.item != null and "slot" in ware.item: register_item(ware.item)
 	enter_room(first_room, first_room.spawn, Vector2i.UP)
 
 func _input(event: InputEvent) -> void:
@@ -101,6 +123,13 @@ func _input(event: InputEvent) -> void:
 		KEY_Z, KEY_SPACE:
 			if event.pressed:
 				attack_requested = true
+		KEY_X, KEY_SHIFT:
+			if event.pressed:
+				item_requested = true
+		KEY_C, KEY_TAB:
+			# Provisional selection until the original submenu exists.
+			if event.pressed:
+				cycle_item()
 		KEY_R:
 			if event.pressed and transition == null:
 				player.place(room.spawn)
@@ -118,20 +147,22 @@ func _notification(what: int) -> void:
 		audio.apply_pause()
 		held.clear()
 		attack_requested = false
+		item_requested = false
 
 func _physics_process(_delta: float) -> void:
 	status_ticks = maxi(0, status_ticks - 1)
 	var direction: Vector2i = Vector2i.ZERO if held.is_empty() else held.back()
-	simulate_tick(direction, attack_requested)
+	simulate_tick(direction, attack_requested, item_requested)
 	attack_requested = false
+	item_requested = false
 	queue_redraw()
 
-func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: int = 0, restoring: bool = false) -> void:
+func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: int = 0, restoring: bool = false, rise: int = 0) -> void:
 	if not restoring: combat.commit_room(state)
 	transition = null
 	room = target
 	player.grid_origin = room.grid_origin
-	player.place(at)
+	player.place(at + Vector2i(0, rise))
 	player.facing = facing
 	entry_walk_remaining = entry_walk
 	entry_direction = facing
@@ -139,24 +170,55 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	walk_ticks = 0
 	walk_pose = 0
 	sword.phase = -1
+	item_objects.clear()
+	candle_used = false
+	item_use_remaining = 0
+	rise_remaining = rise * 4
+	rise_square = Rect2i(at.x, at.y + 3, 16, 16)
+	portal_armed = true
+	secrets.enter(room, state)
+	overrides = secrets.overrides(room, state)
+	cave_session = null
+	if room.cave != null:
+		cave_session = preload("res://scripts/cave_session.gd").new()
+		cave_session.start(room.cave, room.id, state, combat.source_random)
 	combat.enter_room(room, state, restoring, at, facing)
 	state.visit_room(room)
 	audio.set_music(room.music)
 
 func dialogue_visible() -> bool:
+	if cave_session != null:
+		return cave_session.visible_text() != "" or cave_session.phase in ["prices", "text"]
 	return not room.dialogue.is_empty() and (room.dialogue_until_pickup.is_empty() or not state.has_collected(room.id, room.dialogue_until_pickup))
 
-func simulate_tick(direction: Vector2i, attack_pressed: bool = false) -> void:
+func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_pressed: bool = false) -> void:
 	simulation_tick += 1
 	combat.advance_frame()
+	if state.tick_rupees(simulation_tick):
+		audio.play(&"heart")
 	if state.health <= 0:
 		return
 	if transition != null:
 		if transition.tick():
 			enter_room(transition.target, transition.destination, transition.direction)
 		return
+	tick_item_objects()
+	overrides = secrets.overrides(room, state)
+	# Link updates before objects: a lift started by the resident counts from
+	# the next tick, and the resident keeps updating during a lift.
+	var lifting := lift_remaining > 0
+	var cave_halts := false
+	if cave_session != null and entry_walk_remaining == 0:
+		cave_session.tick(self)
+		cave_halts = cave_session.blocks_player()
 	if lift_remaining > 0:
-		lift_remaining -= 1
+		if lifting: lift_remaining -= 1
+		return
+	if rise_remaining > 0:
+		# Z_07 StepOutside: up one pixel every four ticks, then free to move.
+		rise_remaining -= 1
+		if rise_remaining % 4 == 0: player.subposition.y -= 256
+		portal_armed = false
 		return
 	var before: Vector2i = player.pixel_position()
 	if entry_walk_remaining > 0:
@@ -164,7 +226,9 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false) -> void:
 		var moved: Vector2i = player.pixel_position() - before
 		entry_walk_remaining = maxi(0, entry_walk_remaining - absi(moved.x) - absi(moved.y))
 		assert(player.pixel_position() != before, "Portal entry walk is blocked")
-	elif dialogue_visible() and dialogue_elapsed < room.dialogue.length() * room.dialogue_character_ticks:
+	elif cave_halts:
+		return
+	elif cave_session == null and dialogue_visible() and dialogue_elapsed < room.dialogue.length() * room.dialogue_character_ticks:
 		dialogue_elapsed += 1
 		return
 	elif combat.shove_remaining > 0:
@@ -175,12 +239,22 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false) -> void:
 		sword.tick()
 		combat.tick(self)
 		return
+	elif item_use_remaining > 0:
+		item_use_remaining -= 1
+		combat.tick(self)
+		return
 	elif attack_pressed and sword.start(state.equipped_weapon, player.facing):
 		audio.play(&"attack")
 		combat.tick(self)
 		return
+	elif item_pressed and use_item():
+		combat.tick(self)
+		return
 	else:
-		player.step(direction, can_occupy, can_enter_segment)
+		if not secrets.blocks_player(player.pixel_position()):
+			player.step(direction, can_occupy, can_enter_segment)
+		if secrets.try_push(self, direction):
+			overrides = secrets.overrides(room, state)
 	if player.pixel_position() != before:
 		walk_ticks += 1
 		if walk_ticks >= 6:
@@ -188,7 +262,9 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false) -> void:
 			walk_pose = 1 - walk_pose
 	if entry_walk_remaining > 0:
 		return
-	if try_portal(direction):
+	if not portal_armed and player.pixel_position() != before:
+		portal_armed = true
+	if try_portal(direction, before):
 		return
 	try_exit(direction)
 	if transition != null:
@@ -197,20 +273,49 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false) -> void:
 	if lift_remaining == 0:
 		combat.tick(self)
 
-func try_portal(direction: Vector2i) -> bool:
+func try_portal(direction: Vector2i, from: Vector2i = Vector2i(-1000, -1000)) -> bool:
+	if not portal_armed:
+		return false
 	for portal in room.portals:
-		if not portal.area.has_point(player.pixel_position()):
+		if not portal.area.has_point(player.pixel_position()) and not passed_through(portal.area, from, player.pixel_position()):
+			continue
+		if portal.requires_secret and not secrets.revealed:
 			continue
 		if portal.required_direction != Vector2i.ZERO and portal.required_direction != direction:
 			continue
 		var target: Resource = rooms[portal.target_room]
-		var previous: Resource = room
-		room = target
-		var valid := can_occupy(portal.target_position)
-		room = previous
-		if valid:
-			enter_room(target, portal.target_position, portal.target_facing, portal.entry_walk_pixels)
+		if occupiable_in(target, portal.target_position):
+			enter_room(target, portal.target_position, portal.target_facing, portal.entry_walk_pixels, false, portal.exit_rise_pixels)
+			# Z_05 CheckWarps waits until Link leaves an arrival square.
+			portal_armed = not target_has_portal_at(target, player.pixel_position())
 			return true
+	return false
+
+## Movement carries across grid points, but CheckWarps runs at each one, so
+## an entrance crossed during this tick's straight step still counts.
+func passed_through(area: Rect2i, from: Vector2i, to: Vector2i) -> bool:
+	if from == to or (from.x != to.x and from.y != to.y): return false
+	# The starting point does not count: stepping off an arrival square never warps.
+	var step := (to - from).sign()
+	var first := from + step
+	var low := Vector2i(mini(first.x, to.x), mini(first.y, to.y))
+	var high := Vector2i(maxi(first.x, to.x), maxi(first.y, to.y))
+	return area.intersects(Rect2i(low, high - low + Vector2i.ONE))
+
+## Occupancy in another room, with that room's remembered secrets applied.
+func occupiable_in(target: Resource, at: Vector2i) -> bool:
+	var previous: Resource = room
+	var previous_overrides := overrides
+	room = target
+	overrides = secrets.overrides(target, state)
+	var valid := can_occupy(at)
+	room = previous
+	overrides = previous_overrides
+	return valid
+
+func target_has_portal_at(target: Resource, at: Vector2i) -> bool:
+	for portal in target.portals:
+		if portal.area.has_point(at): return true
 	return false
 
 func try_pickups() -> void:
@@ -225,6 +330,102 @@ func try_pickups() -> void:
 			pickup_ticks[state.pickup_key(room.id, pickup.id)] = simulation_tick
 			return
 
+func take_cave_item(item: Resource) -> void:
+	# Z_01 TakeItem: caves always lift the item for 128 frames with the fanfare.
+	state.take_item(item)
+	audio.play(&"item_fanfare")
+	lifted_item = item
+	lift_remaining = 128
+
+func tick_item_objects() -> void:
+	for object in item_objects:
+		var cue: StringName = object.tick()
+		if not cue.is_empty(): audio.play(cue)
+		if not object.active: continue
+		for actor in combat.enemies:
+			if actor.targetable() and object.hits(actor.position()):
+				var away: Vector2i = actor.position() - object.position
+				var shove := Vector2i(signi(away.x), 0) if absi(away.x) >= absi(away.y) else Vector2i(0, signi(away.y))
+				if actor.receive_hit(object.damage(), shove):
+					audio.play(&"enemy_hit")
+					if actor.health == 0:
+						audio.play(&"enemy_die")
+						combat.record_permanent_kill(self, actor)
+		# Z_07 UpdateFire: Link's own fire harms him, centers closer than $0E.
+		if object.kind == "fire":
+			var delta: Vector2i = (object.position - player.pixel_position()).abs()
+			if delta.x < 0x0E and delta.y < 0x0E:
+				combat.hurt_player(self, 1, object.position)
+	item_objects = item_objects.filter(func(object: RefCounted) -> bool: return object.active)
+	secrets.update(self)
+
+func use_item() -> bool:
+	var slot: StringName = state.selected_item
+	if slot.is_empty() or state.item_value(slot) == 0:
+		return false
+	var ahead: Vector2i = player.pixel_position() + player.facing * 16
+	match slot:
+		&"bombs":
+			# Z_01 WieldBomb: a bomb may replace a fire, but waits for another
+			# bomb to detonate before a second one is set.
+			var bombs: Array = item_objects.filter(func(object: RefCounted) -> bool: return object.kind == "bomb")
+			if bombs.size() >= 2 or bombs.any(func(object: RefCounted) -> bool: return object.stage < 3):
+				return false
+			if item_objects.size() >= 2:
+				item_objects.erase(item_objects.filter(func(object: RefCounted) -> bool: return object.kind == "fire")[0])
+			state.slots[&"bombs"] -= 1
+			item_objects.append(ItemObject.bomb(ahead, player.facing))
+			audio.play(&"bomb_drop")
+			ensure_selected_item()
+		&"candle":
+			# Z_01 WieldCandle: two slots; the blue candle burns once per room.
+			if item_objects.size() >= 2 or (state.item_value(&"candle") == 1 and candle_used):
+				return false
+			candle_used = true
+			item_objects.append(ItemObject.fire(ahead, player.facing))
+			audio.play(&"flame")
+		&"potion":
+			# Provisional: the original refills gradually while Link waits.
+			state.health = state.max_health
+			state.slots[&"potion"] -= 1
+			audio.play(&"heart")
+			ensure_selected_item()
+			return true
+		&"letter":
+			return cave_session != null and cave_session.show_letter(self)
+		_:
+			return false
+	item_use_remaining = ITEM_USE_TICKS
+	return true
+
+func available_items() -> Array[StringName]:
+	var result: Array[StringName] = []
+	for slot in B_ITEM_ORDER:
+		if slot == &"letter" and state.item_value(&"potion") > 0: continue
+		if state.item_value(slot) > 0 and item_for_slot(slot) != null: result.append(slot)
+	return result
+
+## Z_07 EnsureSelectedItem: move off an item that has run out.
+func ensure_selected_item() -> void:
+	if state.item_value(state.selected_item) == 0: cycle_item()
+
+func cycle_item() -> void:
+	var options := available_items()
+	if options.is_empty():
+		state.selected_item = &""
+		return
+	state.selected_item = options[(options.find(state.selected_item) + 1) % options.size()]
+
+## The catalog item drawn for a slot's current value.
+func item_for_slot(slot: StringName) -> Resource:
+	var value := state.item_value(slot)
+	var fallback: Resource = null
+	for item in item_catalog.values():
+		if not "slot" in item or item.slot != slot: continue
+		if item.value == value: return item
+		if item.effect == "count": fallback = item
+	return fallback
+
 func decoration_visible(decoration: Resource) -> bool:
 	if decoration.hide_after_pickup.is_empty() or not state.has_collected(room.id, decoration.hide_after_pickup):
 		return true
@@ -232,6 +433,10 @@ func decoration_visible(decoration: Resource) -> bool:
 	return pickup_ticks.has(key) and simulation_tick - pickup_ticks[key] < 64
 
 func is_blocked(pixel: Vector2i) -> bool:
+	if not overrides.is_empty() and Rect2i(Vector2i.ZERO, ROOM_SIZE).has_point(pixel):
+		var override: Variant = overrides.get(pixel / 16)
+		if override != null:
+			return override[1][(pixel.x % 16) / 8 * 2 + (pixel.y % 16) / 8] != 0
 	if room.is_pixel_solid(pixel):
 		return true
 	for decoration in room.decorations:
@@ -247,6 +452,8 @@ func can_occupy(at: Vector2i) -> bool:
 
 func can_enter_segment(at: Vector2i, direction: Vector2i) -> bool:
 	if not room.movement_bounds.has_point(at + direction * 8):
+		return false
+	if room.cave != null and direction == Vector2i.UP and at.y < CAVE_PERSON_LINE:
 		return false
 	# Z_07 GetCollidingTileMoving / GetCollidableTile. At grid points,
 	# horizontal movement checks one leading column at the foot hotspot;
@@ -275,11 +482,7 @@ func try_exit(direction: Vector2i) -> void:
 		"right": destination.x = target.movement_bounds.position.x
 		"up": destination.y = target.movement_bounds.end.y - 1
 		"down": destination.y = target.movement_bounds.position.y
-	var previous: Resource = room
-	room = target
-	var valid := can_occupy(destination)
-	room = previous
-	if not valid: return
+	if not occupiable_in(target, destination): return
 	if not scroll_transitions:
 		enter_room(target, destination, direction)
 		return
@@ -314,15 +517,20 @@ func _draw() -> void:
 		draw_scrolling_rooms()
 		return
 	draw_terrain(room, Vector2.ZERO)
+	draw_pushed_object()
 	draw_room_objects()
+	draw_item_objects()
 	draw_combat()
-	if combat.player_invulnerability == 0 or simulation_tick % 4 < 2:
+	if rise_remaining > 0:
+		draw_rising_player()
+	elif combat.player_invulnerability == 0 or simulation_tick % 4 < 2:
 		var at: Vector2 = Vector2(player.pixel_position()) + Vector2(0, HUD_HEIGHT)
 		if lift_remaining > 0 and visual_theme.sprites.has(&"lift"):
 			draw_named_sprite(&"lift", Vector2(player.pixel_position()))
-			draw_named_sprite(lifted_item.id, Vector2(player.pixel_position()) - Vector2(4, 16))
-		elif sword.active() and visual_theme.sprites.has(StringName("attack_" + direction_name(sword.direction))):
-			draw_named_sprite(StringName("attack_" + direction_name(sword.direction)), Vector2(player.pixel_position()) + Vector2(0, 2))
+			draw_named_sprite(item_sprite(lifted_item), Vector2(player.pixel_position()) - Vector2(4, 16))
+		elif (sword.active() or item_use_remaining > 0) and visual_theme.sprites.has(StringName("attack_" + direction_name(player.facing))):
+			var facing: Vector2i = sword.direction if sword.active() else player.facing
+			draw_named_sprite(StringName("attack_" + direction_name(facing)), Vector2(player.pixel_position()) + Vector2(0, 2))
 		elif visual_theme.player_sheet:
 			var direction := 0
 			if player.facing == Vector2i.LEFT: direction = 1
@@ -339,7 +547,7 @@ func _draw() -> void:
 			draw_line(at + Vector2(8, 8), at + Vector2(8, 8) + Vector2(player.facing) * 7, Color("263b32"), 2)
 
 		if sword.visible():
-			draw_named_sprite(StringName("sword_" + direction_name(sword.direction)), Vector2(player.pixel_position() + sword.offset()))
+			draw_named_sprite(sword_sprite(sword.weapon, sword.direction), Vector2(player.pixel_position() + sword.offset()))
 
 	if state.health == 0:
 		draw_rect(Rect2(0, 64, 256, 176), Color(0, 0, 0, 0.75))
@@ -349,6 +557,25 @@ func _draw() -> void:
 		else:
 			draw_string(font, Vector2(60, 120), "GAME OVER", HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
 			draw_string(font, Vector2(50, 144), "ENTER TO RETRY", HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
+
+func sword_sprite(weapon: Resource, direction: Vector2i) -> StringName:
+	var prefix: String = String(weapon.sprite_prefix) if "sprite_prefix" in weapon and not weapon.sprite_prefix.is_empty() else "sword"
+	return StringName(prefix + "_" + direction_name(direction))
+
+func item_sprite(item: Resource) -> StringName:
+	return item.sprite_name() if item.has_method("sprite_name") else item.id
+
+## Z_07 StepOutside draws Link behind the background; only the doorway shows him.
+func draw_rising_player() -> void:
+	if not visual_theme.player_sheet: return
+	var width: float = visual_theme.player_sheet.get_width() / 8.0
+	var frame := 4 + (simulation_tick / 6) % 2
+	var at := Vector2(player.pixel_position()) + Vector2(0, HUD_HEIGHT + 2)
+	var destination := Rect2(at, Vector2(16, 16))
+	var visible := destination.intersection(Rect2(Vector2(rise_square.position) + Vector2(0, HUD_HEIGHT), Vector2(rise_square.size)))
+	if not visible.has_area(): return
+	var source := Rect2(frame * width + (visible.position.x - at.x) * width / 16.0, visible.position.y - at.y, visible.size.x * width / 16.0, visible.size.y)
+	draw_texture_rect_region(visual_theme.player_sheet, visible, source)
 
 func direction_name(direction: Vector2i) -> String:
 	if direction == Vector2i.RIGHT: return "right"
@@ -375,11 +602,59 @@ func draw_room_objects() -> void:
 	for pickup in room.pickups:
 		if not state.has_collected(room.id, pickup.id):
 			draw_named_sprite(pickup.item.id, Vector2(pickup.position))
-	if dialogue_visible() and entry_walk_remaining == 0:
+	if cave_session != null:
+		draw_cave()
+	elif dialogue_visible() and entry_walk_remaining == 0:
 		var shown: String = room.dialogue.substr(0, dialogue_elapsed / room.dialogue_character_ticks)
 		var lines: PackedStringArray = shown.split("\n")
 		for i in range(lines.size()):
 			draw_hud_text(lines[i], Vector2(32, 104 + i * 8))
+
+func draw_cave() -> void:
+	var session: RefCounted = cave_session
+	if session.flicker_hidden(simulation_tick): return
+	if session.person_visible():
+		if visual_theme.sprites.has(session.cave.person_sprite):
+			draw_named_sprite(session.cave.person_sprite, Vector2(120, 64))
+		else:
+			draw_rect(Rect2(122, 64 + HUD_HEIGHT, 12, 16), Color("e0a060"))
+	if not session.person_visible(): return
+	for i in range(3):
+		if not session.ware_visible(i): continue
+		var item: Resource = session.cave.wares[i].item
+		var at := Vector2(session.WARE_X[i], session.WARE_Y)
+		var sprite := item_sprite(item)
+		if not visual_theme.sprites.has(sprite): sprite = StringName(String(sprite) + "_" + str((simulation_tick / 8) % 2))
+		if visual_theme.sprites.has(sprite): draw_named_sprite(sprite, at)
+		else: draw_rect(Rect2(at + Vector2(4, HUD_HEIGHT + 2), Vector2(8, 12)), item.fallback_color if "fallback_color" in item else Color("f0d070"))
+	if session.show_prices:
+		if session.price_mark != "":
+			draw_named_sprite(&"rupee_0", Vector2(48, 107))
+		draw_hud_text(session.price_mark, Vector2(64, 176))
+		for i in range(3):
+			var price: String = session.price_text(i)
+			draw_hud_text(price, Vector2(72 + i * 32 + (4 - price.length()) * 8, 176))
+	if entry_walk_remaining == 0:
+		var lines: PackedStringArray = session.visible_text().split("\n")
+		for i in range(lines.size()):
+			draw_hud_text(lines[i], Vector2(32, 104 + i * 8))
+
+func draw_item_objects() -> void:
+	for object in item_objects:
+		if object.kind == "fire":
+			var sprite := StringName("fire_" + str((simulation_tick / 4) % 2))
+			if visual_theme.sprites.has(sprite): draw_named_sprite(sprite, Vector2(object.position))
+			else: draw_circle(Vector2(object.center()) + Vector2(0, HUD_HEIGHT), 6, Color("f07020"))
+		elif object.showing_bomb():
+			if visual_theme.sprites.has(&"bombs"): draw_named_sprite(&"bombs", Vector2(object.position))
+			else: draw_circle(Vector2(object.center()) + Vector2(0, HUD_HEIGHT), 5, Color("3050c0"))
+		else:
+			# Z_07 DrawOtherBombClouds alternates between two offset sets.
+			var offsets := [Vector2i(-7, -13), Vector2i(14, 0), Vector2i(7, 14)] if simulation_tick % 2 == 0 else [Vector2i(7, -13), Vector2i(-13, 0), Vector2i(-7, 14)]
+			var sprite := StringName("bomb_cloud_" + str(object.stage - 2))
+			for offset in [Vector2i.ZERO] + offsets:
+				if visual_theme.sprites.has(sprite): draw_named_sprite(sprite, Vector2(object.position + offset))
+				else: draw_circle(Vector2(object.center() + offset) + Vector2(0, HUD_HEIGHT), 6, Color("e8e8e8"))
 
 func draw_hud_text(text: String, at: Vector2, color: Color = Color.WHITE) -> void:
 	for i in range(text.length()):
@@ -391,7 +666,9 @@ func draw_hud_text(text: String, at: Vector2, color: Color = Color.WHITE) -> voi
 		elif code == 39: tile = 0x2A
 		elif code == 46: tile = 0x29
 		elif code == 33: tile = 0x2C
-		elif code == 63: tile = 0x2B
+		elif code == 63: tile = 0x2E
+		elif code == 43: tile = 0x64
+		elif code == 44: tile = 0x28
 		if tile >= 0:
 			draw_texture_rect_region(visual_theme.hud_tiles, Rect2(at + Vector2(i * 8, 0), Vector2(8, 8)), Rect2((tile % 16) * 8, (tile / 16) * 8, 8, 8), color)
 
@@ -401,9 +678,9 @@ func draw_original_hud() -> void:
 	draw_rect(Rect2(16, 16, 64, 32), Color("666666"))
 	var room_number: int = room.map_room_id if room.map_room_id >= 0 else 0
 	draw_rect(Rect2(16 + room_number % 16 * 4, 16 + (room_number / 16) * 4, 4, 4), Color("80d010"))
-	draw_hud_text("X%02d" % state.rupees, Vector2(96, 16))
-	draw_hud_text("X00", Vector2(96, 32))
-	draw_hud_text("X00", Vector2(96, 40))
+	draw_hud_text("X%d" % state.rupees, Vector2(96, 16))
+	draw_hud_text("X%d" % state.item_value(&"keys"), Vector2(96, 32))
+	draw_hud_text("X%d" % state.item_value(&"bombs"), Vector2(96, 40))
 	draw_rect(Rect2(124, 24, 20, 24), Color("4070c0"), false, 2)
 	draw_rect(Rect2(148, 24, 20, 24), Color("4070c0"), false, 2)
 	draw_hud_text("B", Vector2(128, 16))
@@ -427,6 +704,9 @@ func draw_original_hud() -> void:
 
 	if state.equipped_weapon != null and visual_theme.sprites.has(state.equipped_weapon.id):
 		draw_texture_rect(visual_theme.sprites[state.equipped_weapon.id], Rect2(150, 28, 16, 16), false)
+	var selected: Resource = item_for_slot(state.selected_item) if not state.selected_item.is_empty() and state.item_value(state.selected_item) > 0 else null
+	if selected != null and visual_theme.sprites.has(item_sprite(selected)):
+		draw_texture_rect(visual_theme.sprites[item_sprite(selected)], Rect2(126, 28, 16, 16), false)
 
 func draw_combat() -> void:
 	for actor in combat.enemies:
@@ -517,6 +797,25 @@ func draw_terrain(definition: Resource, offset: Vector2) -> void:
 				draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), visual_theme.wall_color if wall else visual_theme.floor_color)
 				if wall:
 					draw_rect(rect.grow(-3).intersection(Rect2(0, 64, 256, 176)), Color("394f36"), false, 1)
+	var replaced: Dictionary = overrides if definition == room else secrets.overrides(definition, state)
+	for cell in replaced:
+		draw_square(definition, replaced[cell][0], Vector2(cell * 16) + offset, replaced[cell][2])
+
+## A replacement square: atlas index, or a placeholder color for unthemed rooms.
+func draw_square(definition: Resource, index: int, at: Vector2, kind: String) -> void:
+	var rect := Rect2(at + Vector2(0, HUD_HEIGHT), Vector2(16, 16))
+	if definition.tile_atlas and index >= 0:
+		var cell_size: Vector2i = definition.atlas_cell_size
+		var columns: int = definition.tile_atlas.get_width() / cell_size.x
+		draw_clipped_texture(definition.tile_atlas, rect, Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size)))
+	else:
+		var colors := {"floor": visual_theme.floor_color, "object": visual_theme.wall_color, "entrance": Color.BLACK}
+		draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), colors[kind])
+
+func draw_pushed_object() -> void:
+	if room.secret == null or not secrets.moving(): return
+	# Z_04 UpdateRockOrGravestone draws the moving object one pixel high.
+	draw_square(room, room.secret.object_tile, Vector2(secrets.object_position()) - Vector2(0, 1), "object")
 
 func draw_clipped_texture(texture: Texture2D, destination: Rect2, source: Rect2, tint: Color = Color.WHITE) -> void:
 	var visible := destination.intersection(Rect2(0, 64, 256, 176))
@@ -564,7 +863,14 @@ func snapshot() -> Dictionary:
 		"inventory": inventory, "equipped": String(state.equipped_weapon.id) if state.equipped_weapon != null else "",
 		"collected": enabled_keys(state.collected), "defeated": enabled_keys(state.defeated), "flags": enabled_keys(state.flags),
 		"room_history": state.room_history.duplicate(), "history_cursor": state.history_cursor,
-		"room_records": combat.persisted_records(state)}
+		"room_records": combat.persisted_records(state), "slots": saved_slots(),
+		"max_bombs": state.max_bombs, "selected_item": String(state.selected_item) if state.item_value(state.selected_item) > 0 else ""}
+
+func saved_slots() -> Dictionary:
+	var result := {}
+	for slot in state.slots:
+		if state.slots[slot] > 0: result[String(slot)] = state.slots[slot]
+	return result
 
 func enabled_keys(values: Dictionary) -> Array:
 	var keys: Array = []
@@ -574,7 +880,7 @@ func enabled_keys(values: Dictionary) -> Array:
 	return keys
 
 func save_game() -> bool:
-	if transition != null or entry_walk_remaining > 0 or lift_remaining > 0 or state.health <= 0:
+	if transition != null or entry_walk_remaining > 0 or lift_remaining > 0 or rise_remaining > 0 or state.health <= 0 or not state.rupees_settled():
 		show_status("WAIT UNTIL LINK IS READY TO SAVE")
 		return false
 	var result: Dictionary = save_store.write_snapshot(snapshot(), world_id)
@@ -596,7 +902,7 @@ func load_game() -> bool:
 		show_status("LOAD FAILED: " + result.error)
 		return false
 	var data: Dictionary = result.data
-	var id := StringName(data.room_id)
+	var id := StringName(legacy_ids.get(data.room_id, data.room_id))
 	if not rooms.has(id):
 		show_status("LOAD FAILED: ROOM IS UNAVAILABLE")
 		return false
@@ -613,7 +919,15 @@ func load_game() -> bool:
 	restored.rupees = int(data.rupees)
 	restored.kill_cycle = int(data.kill_cycle)
 	restored.spawn_cycle = int(data.spawn_cycle)
-	for key in data.collected: restored.collected[key] = true
+	for key in data.collected: restored.collected[legacy_ids.get(key, key)] = true
+	if data.has("slots"):
+		for slot in data.slots: restored.slots[StringName(slot)] = int(data.slots[slot])
+		restored.max_bombs = int(data.max_bombs)
+		restored.selected_item = StringName(data.selected_item)
+	else:
+		# Version 2 saves only held unique items such as swords.
+		for item in restored.inventory.values():
+			if "slot" in item and item.effect in ["unique", "grade"]: restored.slots[item.slot] = maxi(restored.item_value(item.slot), item.value)
 	for key in data.defeated: restored.defeated[key] = true
 	for key in data.flags: restored.flags[key] = true
 	restored.room_history.assign(data.room_history)

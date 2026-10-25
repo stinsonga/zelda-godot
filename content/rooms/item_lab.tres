@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=14 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/bombs.tres" id="bombs"]
+[ext_resource type="Resource" path="res://content/items/blue_candle.tres" id="blue_candle"]
+[ext_resource type="Resource" path="res://content/items/rupee_purse.tres" id="rupee_purse"]
+[sub_resource type="Resource" id="entrance"]
+script = ExtResource("portal")
+area = Rect2i(64, 13, 1, 1)
+required_direction = Vector2i(0, 0)
+target_room = &"lab_shop"
+target_position = Vector2i(112, 157)
+target_facing = Vector2i(0, -1)
+entry_walk_pixels = 48
+[sub_resource type="Resource" id="vault"]
+script = ExtResource("portal")
+area = Rect2i(192, 13, 1, 1)
+required_direction = Vector2i(0, 0)
+target_room = &"lab_vault"
+target_position = Vector2i(112, 157)
+target_facing = Vector2i(0, -1)
+entry_walk_pixels = 48
+requires_secret = true
+[sub_resource type="Resource" id="wall"]
+script = ExtResource("secret")
+trigger = "bomb"
+cell = Vector2i(12, 1)
+reveal_cell = Vector2i(12, 1)
+reveal_collision = PackedByteArray(1, 0, 1, 0)
+[sub_resource type="Resource" id="bombs"]
+script = ExtResource("pickup")
+id = &"bombs"
+item = ExtResource("bombs")
+position = Vector2i(40, 125)
+[sub_resource type="Resource" id="candle"]
+script = ExtResource("pickup")
+id = &"candle"
+item = ExtResource("blue_candle")
+position = Vector2i(72, 125)
+[sub_resource type="Resource" id="purse"]
+script = ExtResource("pickup")
+id = &"purse"
+item = ExtResource("rupee_purse")
+position = Vector2i(200, 125)
+[resource]
+script = ExtResource("room")
+id = &"item_lab"
+title = "Item lab"
+tiles = "################\n#..#.###########\n#..............#\n#..............#\n#..............#\n#...............\n#..............#\n#..............#\n#..............#\n#..............#\n################"
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+enemy_persistence = "reset"
+tracks_history = false
+spawn = Vector2i(120, 125)
+exits = Dictionary[String, String]({"right": "lab_grove"})
+portals = Array[Resource]([SubResource("entrance"), SubResource("vault")])
+secret = SubResource("wall")
+pickups = Array[Resource]([SubResource("bombs"), SubResource("candle"), SubResource("purse")])

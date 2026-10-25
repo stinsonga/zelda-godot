@@ -161,8 +161,9 @@ func run() -> void:
 	if ResourceLoader.exists("res://imported/world.tres"):
 		world = make_world(true)
 		check(world.world_id == "original_quest_1", "Imported world must have a stable explicit save identity")
-		var cave: Resource = world.rooms[&"sword_cave"]
-		world.state.collect(cave.id, cave.pickups[0])
+		var cave: Resource = world.rooms[&"cave_77"]
+		world.state.collected["cave_77/taken"] = true
+		world.state.take_item(preload("res://content/items/wooden_sword.tres"))
 		world.state.defeated["ow_78/slot_0"] = true
 		world.state.rupees = 73
 		world.state.health = 5
@@ -174,8 +175,20 @@ func run() -> void:
 		world.room_resources.reverse()
 		check(world.load_game() and world.room.id == &"ow_78" and world.state.rupees == 73 and world.state.health == 5, "Original room and counters must survive a fresh instance and reordered content list")
 		check(world.combat.enemies.size() == 3 and world.state.equipped_weapon.id == &"wooden_sword", "Original enemy and inventory state must survive reload")
-		world.enter_room(world.rooms[&"sword_cave"], Vector2i(112, 109), Vector2i.UP)
-		check(not world.dialogue_visible() and not world.state.collect(cave.id, cave.pickups[0]), "Loaded sword gift must stay collected with no repeat dialogue")
+		world.enter_room(cave, Vector2i(112, 109), Vector2i.UP)
+		check(not world.dialogue_visible() and world.cave_session.phase == "gone", "Loaded sword gift must stay collected with no repeat dialogue")
+		# Version 2 saves named the only cave sword_cave; the world maps old IDs.
+		var legacy: Dictionary = world.snapshot()
+		legacy.version = 2
+		legacy.room_id = "sword_cave"
+		legacy.collected = ["sword_cave/sword_gift"]
+		legacy.erase("slots")
+		legacy.erase("max_bombs")
+		legacy.erase("selected_item")
+		var legacy_file := FileAccess.open(world.save_store.path_for(world.world_id), FileAccess.WRITE)
+		legacy_file.store_string(JSON.stringify(legacy))
+		legacy_file.close()
+		check(world.load_game() and world.room.id == &"cave_77" and world.state.has_collected(&"cave_77", &"taken") and world.state.item_value(&"sword") == 1, "Version 2 sword cave saves must load into the renamed cave")
 		world.free()
 	# Only delete files inside the unique temporary directory made by this test.
 	for name in DirAccess.get_files_at(temporary): DirAccess.remove_absolute(temporary.path_join(name))

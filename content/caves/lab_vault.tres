@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="CaveDefinition" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/cave_definition.gd" id="cave"]
+[ext_resource type="Script" path="res://scripts/cave_ware.gd" id="ware"]
+[ext_resource type="Resource" path="res://content/items/heart_container.tres" id="heart_container"]
+[sub_resource type="Resource" id="ware_1"]
+script = ExtResource("ware")
+item = ExtResource("heart_container")
+price = 0
+[resource]
+script = ExtResource("cave")
+id = &"lab_vault"
+text = "A HIDDEN GIFT FOR\nTHE BRAVE."
+wares = Array[Resource]([null, SubResource("ware_1"), null])
+choose = true
+show_items = true
+remember = true
+heart_requirement = 3

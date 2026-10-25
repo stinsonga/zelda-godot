@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="CaveDefinition" load_steps=7 format=3]
+[ext_resource type="Script" path="res://scripts/cave_definition.gd" id="cave"]
+[ext_resource type="Script" path="res://scripts/cave_ware.gd" id="ware"]
+[ext_resource type="Resource" path="res://content/items/rupee.tres" id="rupee"]
+[sub_resource type="Resource" id="ware_0"]
+script = ExtResource("ware")
+item = ExtResource("rupee")
+price = 10
+[sub_resource type="Resource" id="ware_1"]
+script = ExtResource("ware")
+item = ExtResource("rupee")
+price = 10
+[sub_resource type="Resource" id="ware_2"]
+script = ExtResource("ware")
+item = ExtResource("rupee")
+price = 10
+[resource]
+script = ExtResource("cave")
+id = &"lab_money"
+text = "LET'S PLAY MONEY\nMAKING GAME!"
+wares = Array[Resource]([SubResource("ware_0"), SubResource("ware_1"), SubResource("ware_2")])
+choose = true
+show_items = true
+show_prices = true
+negative_prices = true
+money_game = true

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/weapon_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"magical_sword"
+title = "Magical sword"
+value = 3
+damage = 4
+sprite_prefix = &"magical_sword"

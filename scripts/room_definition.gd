@@ -12,6 +12,10 @@ extends Resource
 @export var portals: Array[Resource] = []
 @export var pickups: Array[Resource] = []
 @export var decorations: Array[Resource] = []
+## Cave resident and wares (CaveDefinition); people in caves block the upper half.
+@export var cave: Resource
+## At most one overworld tile object per room, as in the original.
+@export var secret: Resource
 @export_multiline var dialogue: String = ""
 @export var dialogue_until_pickup: StringName
 @export var dialogue_character_ticks: int = 6
@@ -84,6 +88,12 @@ func validation_errors() -> PackedStringArray:
 	for portal in portals:
 		if portal.target_room.is_empty() or portal.area.size.x <= 0 or portal.area.size.y <= 0:
 			errors.append("Portal requires an area and destination")
+		if portal.requires_secret and secret == null:
+			errors.append("Secret portal requires a room secret")
+	if cave != null:
+		errors.append_array(cave.validation_errors())
+	if secret != null:
+		errors.append_array(secret.validation_errors())
 	var lines := rows()
 	if lines.size() != 11:
 		errors.append("Room must have 11 rows")

@@ -107,7 +107,7 @@ func run() -> void:
 		imported.scroll_transitions = false
 		root.add_child(imported)
 		imported.set_physics_process(false)
-		check(imported.rooms.size() == 129, "Imported world must contain 128 overworld rooms and the sword cave")
+		check(imported.rooms.size() == 187, "Imported world must contain 128 overworld rooms and 59 reachable caves")
 		check(imported.room.id == &"ow_77", "Import must start at the original first-quest room")
 		check(imported.player.pixel_position() == Vector2i(120, 77), "Original starting position must come from level info")
 		check(imported.can_occupy(imported.player.pixel_position()), "Imported start must be walkable")
@@ -147,8 +147,8 @@ func check_cave_sequence(world: Node) -> void:
 		world.simulate_tick(Vector2i.LEFT)
 	for tick in range(80):
 		world.simulate_tick(Vector2i.UP)
-		if world.room.id == &"sword_cave": break
-	check(world.room.id == &"sword_cave", "Walking into the visible opening must enter the sword cave")
+		if world.room.id == &"cave_77": break
+	check(world.room.id == &"cave_77", "Walking into the visible opening must enter the sword cave")
 	for tick in range(32):
 		world.simulate_tick(Vector2i.ZERO)
 	check(world.entry_walk_remaining == 0 and world.player.pixel_position() == Vector2i(112, 109), "Cave entry must walk exactly 48 pixels")
@@ -168,7 +168,7 @@ func check_cave_sequence(world: Node) -> void:
 	for tick in range(128):
 		world.simulate_tick(Vector2i.LEFT, true)
 	check(world.player.pixel_position() == before and not world.sword.active(), "Lifting an item must halt movement and attacks")
-	check(not world.state.collect(world.room.id, world.room.pickups[0]), "The same gift cannot be collected twice")
+	check(world.state.has_collected(world.room.id, &"taken") and not world.cave_session.ware_visible(1), "The same gift cannot be collected twice")
 	world.player.facing = Vector2i.RIGHT
 	world.simulate_tick(Vector2i.ZERO, true)
 	check(world.sword.active(), "Collected sword must be usable")
@@ -180,14 +180,21 @@ func check_cave_sequence(world: Node) -> void:
 	check(not world.sword.active() and world.player.pixel_position() == before, "Sword must recover after 16 frames without moving Link")
 	for tick in range(55):
 		world.simulate_tick(Vector2i.DOWN)
+		if world.room.id == &"ow_77": break
 	check(world.room.id == &"ow_77", "Walking out must return from cave to its source room")
+	check(world.player.pixel_position() == Vector2i(64, 29) and world.player.facing == Vector2i.DOWN, "Cave exit must start 16 pixels below the doorway, facing down")
+	for tick in range(64):
+		world.simulate_tick(Vector2i.ZERO)
+	check(world.player.pixel_position() == Vector2i(64, 13) and world.room.id == &"ow_77", "Link must rise into the doorway without re-entering the cave")
+	world.simulate_tick(Vector2i.ZERO)
+	check(world.room.id == &"ow_77", "Standing in the arrival doorway must not trigger the entrance")
 	check(world.state.equipped_weapon != null, "Sword ownership must survive room changes")
 	world.enter_room(world.rooms[&"ow_77"], Vector2i(64, 13), Vector2i.UP)
 	check(world.try_portal(Vector2i.UP), "Cave must support revisiting")
 	for tick in range(32):
 		world.simulate_tick(Vector2i.ZERO)
 	check(not world.dialogue_visible(), "A collected cave gift must not restart its dialogue")
-	check(not world.decoration_visible(world.room.decorations[0]), "The old man must be gone on revisit after the gift")
+	check(not world.cave_session.person_visible(), "The old man must be gone on revisit after the gift")
 
 	cave_checks_completed = true
 

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=7 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/caves/lab_shop.tres" id="cave"]
+[sub_resource type="Resource" id="exit"]
+script = ExtResource("portal")
+area = Rect2i(104, 157, 32, 1)
+required_direction = Vector2i(0, 1)
+target_room = &"item_lab"
+target_position = Vector2i(64, 13)
+target_facing = Vector2i(0, 1)
+entry_walk_pixels = 0
+exit_rise_pixels = 16
+[resource]
+script = ExtResource("room")
+id = &"lab_shop"
+title = "Lab Shop"
+tiles = "################\n################\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n#######..#######\n#######..#######"
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+enemy_persistence = "reset"
+tracks_history = false
+music = &"cave"
+spawn = Vector2i(112, 109)
+portals = Array[Resource]([SubResource("exit")])
+cave = ExtResource("cave")

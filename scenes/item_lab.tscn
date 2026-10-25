@@ -1,0 +1,13 @@
+[gd_scene load_steps=9 format=3]
+[ext_resource type="Script" path="res://scripts/world.gd" id="world"]
+[ext_resource type="Resource" path="res://content/rooms/item_lab.tres" id="lab"]
+[ext_resource type="Resource" path="res://content/rooms/lab_grove.tres" id="grove"]
+[ext_resource type="Resource" path="res://content/rooms/lab_graves.tres" id="graves"]
+[ext_resource type="Resource" path="res://content/rooms/lab_shop.tres" id="shop"]
+[ext_resource type="Resource" path="res://content/rooms/lab_vault.tres" id="vault"]
+[ext_resource type="Resource" path="res://content/rooms/lab_hint.tres" id="hint"]
+[ext_resource type="Resource" path="res://content/rooms/lab_money.tres" id="money"]
+[node name="ItemLab" type="Node2D"]
+script = ExtResource("world")
+use_imported_world = false
+room_resources = Array[Resource]([ExtResource("lab"), ExtResource("grove"), ExtResource("graves"), ExtResource("shop"), ExtResource("vault"), ExtResource("hint"), ExtResource("money")])

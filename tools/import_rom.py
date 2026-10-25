@@ -11,6 +11,10 @@ from pathlib import Path
 import struct
 import zlib
 
+from import_caves import (CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
+                          cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
+                          secret_resource)
+
 PRG_SHA1 = 'a12d74c73a0481599a5d832361d168f4737bbcf6'
 PRG_SIZE = 131072
 # Conventional RGB approximation: the NES itself does not store RGB colors.
@@ -166,16 +170,12 @@ def export_cave(prg, patterns, palettes, output):
     lift_tile = prg[0x714C + prg[0x7127 + 0x21]]
     sprite('lift', lift_tile, 4, mirrored=True, right_override=0x08)
 
-    chars = {0x24: ' ', 0x25: ' ', 0x28: ',', 0x29: '.', 0x2A: "'", 0x2B: '?', 0x2C: '!'}
-    text = ''
-    for byte in prg[16460:16460 + 43]:
-        code = byte & 63
-        text += chr(48 + code) if code < 10 else chr(65 + code - 10) if code < 36 else chars.get(code, ' ')
-        if byte & 0xC0 == 0xC0:
-            break
-        if byte & 0xC0:
-            text += '\n'
-    layout = decode_columns(prg, prg[89000:89016])
+    return {'cave': cave_layout(prg, CAVE_LAYOUT), 'shortcut': cave_layout(prg, SHORTCUT_LAYOUT)}
+
+
+def cave_layout(prg, descriptors):
+    """Cave interiors share overworld squares, drawn with the cave palette atlas."""
+    layout = decode_columns(prg, prg[descriptors:descriptors + 16])
     indices, collision, coarse = [], [0] * 704, []
     outer = prg[99328 + 0x44] & 3
     inner = prg[99328 + 128 + 0x44] & 3
@@ -191,65 +191,7 @@ def export_cave(prg, patterns, palettes, output):
                 blocked.append(value)
             line += '#' if all(blocked) else '.'
         coarse.append(line)
-    (output / 'rooms' / 'sword_cave.tres').write_text(f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps=12 format=3]
-[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
-[ext_resource type="Texture2D" path="res://imported/cave_tiles.png" id="atlas"]
-[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
-[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
-[ext_resource type="Script" path="res://scripts/decoration_definition.gd" id="decoration"]
-[ext_resource type="Resource" path="res://content/items/wooden_sword.tres" id="sword"]
-[sub_resource type="Resource" id="exit"]
-script = ExtResource("portal")
-area = Rect2i(104, 157, 32, 1)
-required_direction = Vector2i(0, 1)
-target_room = &"ow_77"
-target_position = Vector2i(64, 29)
-target_facing = Vector2i(0, 1)
-[sub_resource type="Resource" id="gift"]
-script = ExtResource("pickup")
-id = &"sword_gift"
-item = ExtResource("sword")
-position = Vector2i(120, 88)
-[sub_resource type="Resource" id="old_man"]
-script = ExtResource("decoration")
-position = Vector2i(120, 64)
-sprite = &"old_man"
-hide_after_pickup = &"sword_gift"
-blocking_area = Rect2i(112, 56, 32, 24)
-[sub_resource type="Resource" id="fire_left"]
-script = ExtResource("decoration")
-position = Vector2i(72, 64)
-sprite = &"fire"
-frames = 2
-frame_ticks = 6
-blocking_area = Rect2i(72, 64, 16, 16)
-[sub_resource type="Resource" id="fire_right"]
-script = ExtResource("decoration")
-position = Vector2i(168, 64)
-sprite = &"fire"
-frames = 2
-frame_ticks = 6
-blocking_area = Rect2i(168, 64, 16, 16)
-[resource]
-script = ExtResource("room")
-id = &"sword_cave"
-music = &"cave"
-history_id = &"ow_77"
-title = "Sword cave"
-map_room_id = 119
-tiles = {json.dumps(chr(10).join(coarse))}
-spawn = Vector2i(112, 109)
-movement_bounds = Rect2i(0, -3, 241, 161)
-grid_origin = Vector2i(0, 5)
-tile_atlas = ExtResource("atlas")
-tile_indices = PackedInt32Array({array(indices)})
-collision_tiles = PackedByteArray({array(collision)})
-portals = Array[Resource]([SubResource("exit")])
-pickups = Array[Resource]([SubResource("gift")])
-decorations = Array[Resource]([SubResource("old_man"), SubResource("fire_left"), SubResource("fire_right")])
-dialogue = {json.dumps(text)}
-dialogue_until_pickup = &"sword_gift"
-''')
+    return indices, collision, coarse
 
 
 def export_combat_sprites(prg, patterns, palettes, output):
@@ -567,8 +509,18 @@ def import_rom(prg, output):
     for frame, tile in enumerate((0xF2, 0x65, 0x66)):
         blit_tile(hearts, 24, frame * 8, 0, patterns[0x1000:], tile, palettes[1], transparent=True)
     png(output / 'hud_hearts.png', 24, 8, hearts)
-    export_cave(prg, patterns, palettes, output)
+    cave_layouts = export_cave(prg, patterns, palettes, output)
     combat_names = export_combat_sprites(prg, patterns, palettes, output)
+    people, person_tiles = export_people(prg, patterns, palettes, output, png, blit_tile)
+    combat_names += people + export_item_sprites(prg, patterns, palettes, output, png, blit_tile)
+    caves = cave_types(prg)
+    (output / 'caves').mkdir(exist_ok=True)
+    for cave in caves:
+        cave['person_tile'] = person_tiles[cave['type']]
+        (output / 'caves' / f'{cave["id"]}.tres').write_text(cave_resource(cave), encoding='utf-8')
+    entrances = overworld_entrances(prg, layouts, square_tiles)
+    cellar = list(prg[103168 + 52:103168 + 56])
+    cave_rooms, cave_ids, unreachable = [], [], []
     combat_names += export_beam_sprites(prg, patterns, palettes, output)
     combat_names += export_source_enemies(prg, patterns, palettes, output)
     combat_names += export_overworld_enemies(prg, patterns, palettes, output)
@@ -606,23 +558,39 @@ def import_rom(prg, output):
             for x in range(16):
                 if (x in (0, 15) or y in (0, 10)) and square_tiles(prg, layout[y][x])[0] < 0x84:
                     edge_cells.append((y + 4) * 16 + x)
+        entrance = entrances[room_id]
+        palette_for = lambda x, y: inner if 2 <= x < 14 and 2 <= y < 9 else outer
+        portal_lines_out, portal_ids, secret_lines = [], [], []
+        if entrance['secret']:
+            secret_lines = ['[sub_resource type="Resource" id="secret"]'] + secret_resource(
+                prg, entrance, layout, palette_for, square_tiles, WALKABLE)
+        # Z_05 HandleWarpOW: caves from attribute B $40 up; levels below are future work.
+        places = [(e['cell'], e['mouth'], False) for e in entrance['visible']]
+        if entrance['secret']:
+            places.append((entrance['secret']['reveal'], entrance['secret']['kind'] == 'wall', True))
+        if len(places) > 1 and entrance['destination'] >= FIRST_CAVE:
+            raise ValueError(f'Overworld room {room_id:02X} has {len(places)} cave entrances')
+        if entrance['destination'] >= FIRST_CAVE and not places:
+            # Second-quest, Armos, and recorder entrances are not imported yet.
+            unreachable.append(f'ow_{room_id:02x}')
+        elif entrance['destination'] >= FIRST_CAVE:
+            cell, mouth, hidden = places[0]
+            cave_ids.append(f'cave_{room_id:02x}')
+            cave_rooms.append(cave_room(room_id, entrance['destination'], dict(entrance, mouth=mouth), cellar, entrances, cave_layouts))
+            # CheckWarps: grid-aligned X, Y = 16n + $0D, standing on the entrance square.
+            portal_lines_out = ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
+                (cell[0] * 16, cell[1] * 16 - 3, 1, 1), f'cave_{room_id:02x}', (112, 157), (0, -1), walk=48, requires_secret=hidden)
+            portal_ids.append('SubResource("entrance")')
         portal_resources = ''
-        portal_field = ''
-        if room_id == start_id:
-            portal_resources = '''[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
-[sub_resource type="Resource" id="cave_entry"]
-script = ExtResource("portal")
-area = Rect2i(64, 13, 1, 1)
-required_direction = Vector2i(0, -1)
-target_room = &"sword_cave"
-target_position = Vector2i(112, 157)
-target_facing = Vector2i(0, -1)
-entry_walk_pixels = 48
-'''
-            portal_field = 'portals = Array[Resource]([SubResource("cave_entry")])'
+        if portal_lines_out or secret_lines:
+            portal_resources = '[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]\n'
+            portal_resources += '[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]\n'
+            portal_resources += '\n'.join(portal_lines_out + secret_lines) + '\n'
+        portal_field = ('portals = Array[Resource]([' + ', '.join(portal_ids) + '])\n') if portal_ids else ''
+        if secret_lines: portal_field += 'secret = SubResource("secret")\n'
         enemy_ext, enemy_sub, enemy_field, enemy_count = enemy_resources(prg, room_id, collision, spawn)
         portal_resources = enemy_ext + portal_resources + enemy_sub
-        steps = (5 if room_id == start_id else 3) + (enemy_ext.count("[ext_resource") + enemy_count if enemy_ext else 0)
+        steps = 3 + portal_resources.count('[ext_resource') + portal_resources.count('[sub_resource')
         text = f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]
 [ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
 [ext_resource type="Texture2D" path="res://imported/overworld_tiles.png" id="2"]
@@ -647,7 +615,12 @@ tile_indices = PackedInt32Array({array(indices)})
 collision_tiles = PackedByteArray({array(collision)})
 '''
         (output / 'rooms' / f'ow_{room_id:02x}.tres').write_text(text)
-    names = ['old_man', 'fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
+    for name, text in zip(cave_ids, cave_rooms):
+        (output / 'rooms' / f'{name}.tres').write_text(text)
+    # The single sword cave became cave_77; never leave a stale room behind.
+    if (output / 'rooms' / 'sword_cave.tres').exists():
+        (output / 'rooms' / 'sword_cave.tres').unlink()
+    names = ['fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
     theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={5 + len(names)} format=3]',
              '[ext_resource type="Script" path="res://scripts/visual_theme.gd" id="1"]',
              '[ext_resource type="Texture2D" path="res://imported/player.png" id="2"]',
@@ -658,12 +631,13 @@ collision_tiles = PackedByteArray({array(collision)})
     theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")', 'hud_hearts = ExtResource("hearts")',
               'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
     (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
-    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps=138 format=3]',
+    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={138 + len(cave_ids)} format=3]',
                '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
                '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]']
     for i in range(128):
         catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/ow_{i:02x}.tres" id="r{i}"]')
-    catalog.append('[ext_resource type="Resource" path="res://imported/rooms/sword_cave.tres" id="cave"]')
+    for name in cave_ids:
+        catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/{name}.tres" id="{name}"]')
     catalog += [
         '[ext_resource type="Script" path="res://scripts/loot_table.gd" id="loot_script"]',
         '[ext_resource type="Resource" path="res://content/items/heart.tres" id="heart"]',
@@ -680,7 +654,8 @@ collision_tiles = PackedByteArray({array(collision)})
                 'visual_theme = ExtResource("theme")',
                 'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
                 'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in ENEMY_TYPES.items()) + '})',
-                'rooms = Array[Resource]([' + ', '.join(f'ExtResource("r{i}")' for i in range(128)) + ', ExtResource("cave")])']
+                'legacy_ids = Dictionary[String, String]({"sword_cave": "cave_77", "sword_cave/sword_gift": "cave_77/taken"})',
+                'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in cave_ids]) + '])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
     (output / 'manifest.json').write_text(json.dumps({
         'format_version': 1, 'revision': 'US PRG0', 'prg_sha1': PRG_SHA1,
@@ -688,13 +663,13 @@ collision_tiles = PackedByteArray({array(collision)})
             'supported_types': [name for name,_ in ENEMY_TYPES.values()],
             'encounters': sum(bool(types := room_enemy_types(prg,i)) and all(t in ENEMY_TYPES for t in types) for i in range(128)),
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
-        'rooms': 129, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['Static first-quest terrain only; no secret-state changes or room effects.',
-                        'Only the starting sword cave is functional; other caves, dungeons, and remaining enemy families are unimplemented.',
+        'rooms': 128 + len(cave_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
+        'limitations': ['First-quest terrain; Armos, recorder, and ladder secrets and room effects are not imported.',
+                        'Dungeon entrances are not yet connected; Zora, Armos, Ghini, and boulders are unimplemented.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio
     export_audio(prg, output / 'audio')
-    print(f'Imported 128 overworld rooms, the sword cave, terrain, player, item, and common overworld enemy sprites into {output}')
+    print(f'Imported 128 overworld rooms, {len(cave_ids)} caves, terrain, player, item, and common overworld enemy sprites into {output}')
 
 
 def main():

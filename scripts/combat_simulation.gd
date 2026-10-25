@@ -65,7 +65,7 @@ func can_enemy_occupy(world: Node, at: Vector2i) -> bool:
 
 func hurt_player(world: Node, damage: int, source: Vector2i) -> bool:
 	if player_invulnerability > 0 or world.state.health <= 0: return false
-	world.state.health = maxi(0, world.state.health - damage)
+	world.state.take_damage(damage)
 	if world.state.health == 0: world.audio.silence()
 	world.audio.play(&"player_hurt")
 	player_invulnerability = 48
@@ -159,7 +159,7 @@ func tick(world: Node) -> void:
 			elif rock.hurtbox().intersects(player_box(world)):
 				# The basic shield blocks rocks arriving from the facing direction,
 				# while Link is free to defend (not using the sword).
-				if rock.blockable and world.player.facing == -rock.direction and not world.sword.active():
+				if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
 					world.audio.play(&"parry")
 					rock.alive = false
 				elif hurt_player(world, rock.damage, at):
@@ -175,6 +175,10 @@ func tick(world: Node) -> void:
 				reward.take(world.state)
 				world.audio.play(&"heart" if reward.definition.effect == "health" else &"rupee")
 	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < Reward.LIFETIME)
+
+## The magical shield also turns Lynel sword shots (Z_07 HandleShotBlocked).
+func shield_blocks(world: Node, rock: RefCounted) -> bool:
+	return rock.blockable or (rock.kind == "sword" and world.state.item_value(&"magic_shield") > 0)
 
 func player_box(world: Node) -> Rect2i:
 	return Rect2i(world.player.pixel_position() + Vector2i(2, 2), Vector2i(12, 12))
@@ -353,7 +357,7 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 	var center: Vector2i = rock.position() + (Vector2i(4,8) if rock.kind == "rock" else Vector2i(8,8))
 	var player_center: Vector2i = world.player.pixel_position() + Vector2i(8, 8)
 	if player_invulnerability == 0 and source_contact(center, player_center):
-		if rock.blockable and world.player.facing == -rock.direction and not world.sword.active():
+		if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
 			world.audio.play(&"parry")
 			rock.bounce_direction = world.player.facing
 			rock.bounce_remaining = 16

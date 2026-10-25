@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=7 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[sub_resource type="Resource" id="entrance"]
+script = ExtResource("portal")
+area = Rect2i(128, 77, 1, 1)
+required_direction = Vector2i(0, 0)
+target_room = &"lab_money"
+target_position = Vector2i(112, 157)
+target_facing = Vector2i(0, -1)
+entry_walk_pixels = 48
+requires_secret = true
+[sub_resource type="Resource" id="grave"]
+script = ExtResource("secret")
+trigger = "push"
+cell = Vector2i(8, 5)
+reveal_cell = Vector2i(8, 5)
+persistent = false
+[resource]
+script = ExtResource("room")
+id = &"lab_graves"
+title = "Lab graves"
+tiles = "################\n#..............#\n#..............#\n#..............#\n#..............#\n........#......#\n#..............#\n#..............#\n#..............#\n#..............#\n################"
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+enemy_persistence = "reset"
+tracks_history = false
+spawn = Vector2i(16, 77)
+exits = Dictionary[String, String]({"left": "lab_grove"})
+portals = Array[Resource]([SubResource("entrance")])
+secret = SubResource("grave")
