@@ -22,4 +22,6 @@ func take(state: RefCounted) -> void:
 		state.health = mini(state.max_health, state.health + definition.amount)
 	elif definition.effect == "rupees":
 		state.rupees = mini(255, state.rupees + definition.amount)
+	elif definition.effect == "item" and definition.item != null:
+		state.take_item(definition.item)
 	collected = true

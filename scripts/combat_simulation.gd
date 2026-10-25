@@ -41,6 +41,12 @@ var person_provoked := false
 const STATUE_START_TIMES := [0x50, 0x80, 0xF0, 0x60]
 ## SetUpCommonCaveObjects: residents stand at ($78, $80).
 const PERSON_POSITION := Vector2i(0x78, 0x80 - 64)
+## Z_07 MoveAndDrawRoomItem: a Like Like, Stalfos, or Gibdo in slot 1 carries the room item.
+const CARRIERS := [0x17, 0x2A, 0x30]
+## Help drops: five rupees ($0F), a bomb ($00), or a fairy ($23, not yet built).
+const FIVE_RUPEE_DROP = preload("res://content/items/five_rupees.tres")
+const BOMB_DROP = preload("res://content/items/bomb_drop.tres")
+const FAIRY_DROP: Resource = null
 
 func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entry_position: Vector2i = Vector2i.ZERO, entry_direction: Vector2i = Vector2i.UP) -> void:
 	beam = null
@@ -295,8 +301,15 @@ func tick(world: Node) -> void:
 			if actor.definition.counts_for_persistence: encounter_kills += 1
 			world.state.kill_cycle = (world.state.kill_cycle + 1) % 10 if actor.definition.advances_kill_cycle else world.state.kill_cycle
 			var table: Resource = world.loot_tables.get(actor.definition.id, actor.definition.loot_table) if actor.definition.drops_rewards else null
+			if original and actor.died_from != "": world.state.note_kill(actor.died_from == "bomb")
+			# UpdateDodongo's death leaves a bomb from the fight.
+			if actor.definition.behavior == "dodongo":
+				world.state.help_drop_count = 10
+				world.state.help_drop_bomb = true
+			# SetUpDroppedItem: a slot-1 Stalfos or Gibdo may carry the room item, so it drops nothing.
+			if original and actor.slot == 1 and actor.definition.nes_type in CARRIERS and actor.definition.nes_type != 0x17: table = null
 			if table != null:
-				var item: Resource = table.select(world.state.kill_cycle, actor.source_random if original else actor.rng.randi_range(0, 255))
+				var item: Resource = original_drop(world, table, actor.source_random) if original else table.select(world.state.kill_cycle, actor.rng.randi_range(0, 255))
 				if item != null:
 					var reward = Reward.new()
 					reward.definition = item
@@ -410,6 +423,23 @@ func tick_statues(world: Node) -> void:
 		var fireball: RefCounted = make_fireball(world, origin, 0)
 		fireball.damage = room.statue_damage
 		rocks.append(fireball)
+
+## Z_04 SetUpDroppedItem: the kill-cycle entry of the monster's row, except the
+## sixteenth kill since Link was hurt brings a fairy, and a full help counter
+## guarantees five rupees or a bomb; otherwise the row's rate may cancel it.
+func original_drop(world: Node, table: Resource, roll: int) -> Resource:
+	var state: RefCounted = world.state
+	var item: Resource = table.entry(state.kill_cycle)
+	var helped: bool = state.world_kill_count == 0x10 or state.help_drop_count >= 10
+	if state.world_kill_count == 0x10: item = FAIRY_DROP
+	elif state.help_drop_count >= 10: item = BOMB_DROP if state.help_drop_bomb else FIVE_RUPEE_DROP
+	if helped:
+		# @SetHelpItem clears the help counter and bomb flag, not the kill count.
+		state.help_drop_count = 0
+		state.help_drop_bomb = false
+		return item
+	if roll >= table.chance: return null
+	return item
 
 ## Ganon's intro and Zelda's rescue halt Link while monsters keep updating.
 func holds_player() -> bool:

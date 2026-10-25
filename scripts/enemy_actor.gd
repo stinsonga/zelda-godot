@@ -31,6 +31,8 @@ var split_pending := false
 var capture_ticks := 0
 ## The boomerang (and later the clock) freezes monsters for $A0 frames.
 var stun_ticks := 0
+## The weapon of the killing hit, for HandleMonsterDied's help-drop count.
+var died_from := ""
 
 func setup(spawn: Resource) -> void:
 	id = spawn.id
@@ -89,6 +91,7 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 		parried_hit = true
 		return false
 	health = maxi(0, health - damage)
+	if health == 0: died_from = kind
 	invulnerability = 32
 	windup = 0
 	source.shove_started = false

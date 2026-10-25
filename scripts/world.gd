@@ -65,6 +65,8 @@ var lift_remaining := 0
 const TRIFORCE = preload("res://content/items/triforce.tres")
 var lifted_item: Resource
 var pickup_ticks: Dictionary[String, int] = {}
+## Last positions of carried room items, by pickup ID, for the current room.
+var carried_positions: Dictionary = {}
 var walk_ticks := 0
 var walk_pose := 0
 var room: Resource
@@ -189,6 +191,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	recorder_used_here = false
 	whirlwind_pending = false
 	captor = null
+	carried_positions.clear()
 	candle_used = false
 	item_use_remaining = 0
 	rise_remaining = rise * 4
@@ -383,9 +386,15 @@ func try_pickups() -> void:
 				level_exit_remaining = 192
 			return
 
-## Ganon's ashes move the room item to where he fell.
+## Ganon's ashes move the room item to where he fell; a carrying monster takes
+## it along until it finishes dying, and it stays where it was last carried.
 func pickup_position(pickup: Resource) -> Vector2i:
 	if pickup.id == &"item" and combat.room_item_position != null: return combat.room_item_position
+	if pickup.carrier_slot > 0:
+		for actor in combat.enemies:
+			if actor.slot != pickup.carrier_slot or actor.waiting_spawn: continue
+			if actor.health > 0 or actor.death_remaining > 0: carried_positions[pickup.id] = actor.position() - Vector2i(0, 3)
+		return carried_positions.get(pickup.id, pickup.position)
 	return pickup.position
 
 ## Doors and secrets replace 16-pixel squares and their collision.
@@ -1155,6 +1164,8 @@ func draw_combat() -> void:
 			continue
 		var pose := (simulation_tick / 8) % 2
 		var sprite := StringName(String(reward.definition.sprite) + "_" + str(pose))
+		# Single-image drops such as bombs use the plain item sprite.
+		if not visual_theme.sprites.has(sprite): sprite = reward.definition.sprite
 		if visual_theme.sprites.has(sprite):
 			draw_named_sprite(sprite, Vector2(reward.position))
 		else:

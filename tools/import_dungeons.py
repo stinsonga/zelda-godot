@@ -320,11 +320,17 @@ def export_levels(prg, output, png, blit_tile, entrances):
                 if name is None: missing_items.add(item)
                 else:
                     x, y = item_position(info, attr_f)
+                    # Z_05 CreateRoomObjects: a triforce piece sits 8 pixels left.
+                    if item == 0x1B: x -= 8
+                    # Z_07 MoveAndDrawRoomItem: an active room item rides on a slot-1
+                    # Like Like, Stalfos, or Gibdo, wherever it goes.
+                    first = monster_types(prg, block, info, room)[:1]
+                    carried = trigger not in (3, 7) and first and first[0] in CARRIERS
                     # Z_01 TryTakeItem: |Link X - X| < 9 and |Link Y + 3 - Y| < 9.
                     ext.append(f'[ext_resource type="Resource" path="res://content/items/{name}.tres" id="item"]')
                     subs += ['[sub_resource type="Resource" id="room_item"]', 'script = ExtResource("pickup")', 'id = &"item"',
                              'item = ExtResource("item")', f'position = Vector2i({x}, {y - 3})', 'tolerance = Vector2i(8, 8)', 'lift_ticks = 0',
-                             f'requires_clear = {str(trigger in (3, 7)).lower()}']
+                             f'requires_clear = {str(trigger in (3, 7)).lower()}'] + (['carrier_slot = 1'] if carried else [])
                     fields.append('pickups = Array[Resource]([SubResource("room_item")])')
             types = monster_types(prg, block, info, room)
             coverage['rooms'] += bool(types)
@@ -464,6 +470,9 @@ GATE_MAN = 0x4B                    # The level 9 man who waits for the whole tri
 # PatternToBasePositionIndex (3), StatueXs (8), StatueYs (8).
 STATUES = 0x10634
 RUPEE_STASH = 0x62CE               # Z_01 RupeeStashXs (10), RupeeStashYs (10).
+CARRIERS = (0x17, 0x2A, 0x30)
+# Z_04 NoDropMonsterTypes (dungeon members): Gels, Keese, and Like Likes drop nothing.
+NO_DROP = (0x14, 0x15, 0x1B, 0x1C, 0x1D, 0x17)
 EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
 OBJECT_LISTS = 83775            # ObjListAddrs pointer table, bank 5.
 CELLAR_KEESE = [(0x20, 0x9D), (0x60, 0x5D), (0x90, 0x7D), (0xD0, 0x9D)]   # Z_05 CellarKeeseXs/Ys
@@ -538,6 +547,7 @@ def monster_definition(prg, kind):
     raw = prg[0x72BA + kind]
     fields = {'id': f'&"{name}"', 'title': json.dumps(name.replace('_', ' ').title()), 'behavior': json.dumps(behavior),
               'nes_type': kind, 'health': health, 'fragile': str((pair & 15 if kind & 1 else pair >> 4) == 0).lower(), 'contact_damage': (raw & 15) * 2 + (1 if raw & 240 else 0), 'sprite': f'&"{name}"'}
+    if kind in NO_DROP: fields['drops_rewards'] = 'false'
     if name in ('blue_goriya', 'red_goriya'):
         # Z_04 UpdateGoriya: dominant-axis aim within $51, boomerangs at 2.5 pixels a frame.
         fields.update(speed_subpixels=128, turn_chance=0x80, targeting='"dominant_axis"', projectile_kind='"boomerang"',

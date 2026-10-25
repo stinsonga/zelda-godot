@@ -96,7 +96,27 @@ func has_level_item(slot: StringName, level: int) -> bool:
 	return flags.get(level_key(slot, level), false)
 
 ## Damage in half hearts. Rings halve or quarter it (Z_07 Link_BeHarmed).
+## Z_01 HandleMonsterDied and SetUpDroppedItem: kills since Link was last hurt
+## (the sixteenth brings a fairy), a help counter that guarantees a drop at ten,
+## and whether that drop is a bomb (the tenth kill was by bomb, or a Dodongo).
+var world_kill_count := 0
+var help_drop_count := 0
+var help_drop_bomb := false
+
+func note_kill(by_bomb: bool) -> void:
+	world_kill_count = (world_kill_count + 1) & 0xFF
+	if help_drop_count >= 10: return
+	help_drop_count += 1
+	if help_drop_count == 10 and by_bomb: help_drop_bomb = true
+
+func reset_help_drops() -> void:
+	world_kill_count = 0
+	help_drop_count = 0
+	help_drop_bomb = false
+
 func take_damage(half_hearts: int) -> void:
+	# Z_01: any damage to Link resets the special-drop counters.
+	reset_help_drops()
 	var shift := item_value(&"ring")
 	health_units = maxi(0, health_units - ((half_hearts * HEALTH_UNITS) >> shift))
 

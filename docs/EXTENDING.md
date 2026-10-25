@@ -46,7 +46,7 @@ top-left corner. Link walks on an 8-pixel grid offset by `grid_origin`. Use
 | `monster_bounds` | Where monsters roam. Leave empty for the original overworld or underworld bounds. |
 | `enemies` | `EnemySpawn`s: unique `id`, `enemy` definition, `position`, optional `facing`. |
 | `enemy_persistence` | `permanent` remembers each defeated spawn, `overworld` keeps original kill counts, `reset` restores everyone. |
-| `pickups` | `PickupDefinition`: `item`, `position`, `tolerance` (use `(8, 8)` in dungeons), `lift_ticks` (0 to take without lifting), `requires_clear`. |
+| `pickups` | `PickupDefinition`: `item`, `position`, `tolerance` (use `(8, 8)` in dungeons), `lift_ticks` (0 to take without lifting), `requires_clear`, and `carrier_slot` to have that spawn's monster carry it. |
 | `portals` | Stairs, caves, ladders: an `area`, a `target_room` and `target_position`, plus optional `required_direction`, `entry_walk_pixels`, `exit_rise_pixels`, `requires_secret`. |
 | `secret` | One `SecretDefinition`: bombable wall, burnable bush, push rock, dungeon push `block`, or recorder pond. |
 | `doors`, `shutter_trigger`, `dungeon_level`, `map_room_id` | Dungeon features, below. |

@@ -56,7 +56,7 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Dodongo does not yet drop its bombs. Grumble (type $36) needs the bait item. Second-quest Stalfos
+Grumble (type $36) needs the bait item. Dodongo's bomb drop is in; see the help drops in COMBAT.md. Second-quest Stalfos
 shooting, the clock's freeze, and keys carried by monsters are also not
 implemented. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
 

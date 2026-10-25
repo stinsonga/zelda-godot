@@ -666,9 +666,11 @@ collision_tiles = PackedByteArray({array(collision)})
         '[ext_resource type="Script" path="res://scripts/loot_table.gd" id="loot_script"]',
         '[ext_resource type="Resource" path="res://content/items/heart.tres" id="heart"]',
         '[ext_resource type="Resource" path="res://content/items/rupee.tres" id="rupee"]',
-        '[ext_resource type="Resource" path="res://content/items/five_rupees.tres" id="five_rupees"]']
+        '[ext_resource type="Resource" path="res://content/items/five_rupees.tres" id="five_rupees"]',
+        '[ext_resource type="Resource" path="res://content/items/bomb_drop.tres" id="bomb_drop"]']
     # Original group rates and kill-cycle rows remain generated local data.
-    supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees'}
+    # Clocks ($21) and fairies ($23) are not built yet and still drop nothing.
+    supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees', 0x00: 'bomb_drop'}
     for name, group in [(f'loot_{group}', group) for group in range(4)]:
         row = prg[0x13042 + group * 10:0x13042 + group * 10 + 10]
         entries = [f'ExtResource("{supported[value]}")' if value in supported else 'null' for value in row]

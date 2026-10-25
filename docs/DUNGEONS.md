@@ -68,6 +68,15 @@ doorway geometry the importer derives (`DoorDefinition.STANDARD_CELLS`). See
 
 Entry walks stop exactly on their target, as mode 4 does.
 
+## Carried room items
+
+`MoveAndDrawRoomItem` puts an active room item on a Like Like, Stalfos, or Gibdo
+in monster slot 1. It is not used for triggers 3 and 7, whose items wait for the
+room to clear. The importer marks those pickups `carrier_slot = 1`. The item moves
+with the monster, Link can take it by touching the monster, and it stays where the
+monster died. Level 1's key Stalfos is the best-known case. A triforce piece sits 8
+pixels left of its item position (`CreateRoomObjects`).
+
 ## Residents, statues, and rupee stashes
 
 - Types $4B-$52 are residents (`InitUnderworldPerson`). Each imports as a

@@ -71,9 +71,16 @@ terrain probes, contact thresholds, and shield bounces. See
 Native custom enemies retain the simpler configurable behavior.
 
 Common overworld families and mixed object lists are now imported; see
-[more enemies](MORE_ENEMIES.md) for coverage and behavior limits. Red and blue drop rows may reference bombs,
-clocks, or fairies; those unsupported entries currently produce no drop. Help-drop
-counters and the forced-fairy rule are not implemented. Currency applies instantly
+[more enemies](MORE_ENEMIES.md) for coverage and behavior limits. Drop rows may name bombs,
+which drop as `bomb_drop` (four bombs); clocks and fairies still produce no drop.
+Original monsters follow `SetUpDroppedItem` in order. Gels, Keese, and Like Likes
+never drop. A slot-1 Stalfos or Gibdo drops nothing, since it may carry the room
+item. The sixteenth kill since Link was last hurt brings a fairy (not built yet, so
+nothing). The tenth kill fills the help counter, which guarantees five rupees, or a
+bomb when that kill was by bomb. Otherwise the row's rate may cancel the
+kill-cycle entry. A Dodongo's death fills the counter with a bomb
+(`UpdateDodongo`). Any damage to Link resets the counters (`GameState.note_kill`,
+`reset_help_drops`). Currency applies instantly
 rather than counting upward over multiple frames. Sword beams are implemented; sound effects and music are implemented; see [audio notes](AUDIO.md). See [beam rules](SWORD_BEAM.md).
 
 Imported overworld enemies now use the original six-entry history and kill-count
