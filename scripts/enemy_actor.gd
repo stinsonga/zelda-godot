@@ -99,8 +99,7 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 			if definition.hops and facing.x != 0 and shove_remaining == 0:
 				subposition.y += family.VIRE_HOPS[absi(source.grid_offset) % 16] * 256
 			return shot
-		family.tick(self, target, probe, context)
-		return false
+		return family.tick(self, target, probe, context)
 	if shove_remaining > 0:
 		for pixel in range(mini(4, shove_remaining)):
 			var candidate := position() + shove_direction

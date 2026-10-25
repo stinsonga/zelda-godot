@@ -897,9 +897,9 @@ func draw_combat() -> void:
 			continue
 		var sprite: StringName = &"rock"
 		if rock.kind == "arrow": sprite = StringName("monster_arrow_" + direction_name(rock.direction))
-		elif rock.kind == "sword": sprite = StringName("beam_" + direction_name(rock.direction) + "_" + str(simulation_tick % 4))
+		elif rock.kind in ["sword", "magic"]: sprite = StringName("beam_" + direction_name(rock.direction) + "_" + str(simulation_tick % 4))
 		if visual_theme.sprites.has(sprite):
-			draw_named_sprite(sprite, Vector2(rock.position()) + (Vector2(0,3) if rock.kind == "sword" and rock.direction.x != 0 else Vector2.ZERO))
+			draw_named_sprite(sprite, Vector2(rock.position()) + (Vector2(0,3) if rock.kind in ["sword", "magic"] and rock.direction.x != 0 else Vector2.ZERO))
 		elif rock.kind == "rock":
 			draw_circle(Vector2(rock.position()) + Vector2(8, HUD_HEIGHT + 8), 3, Color("ba9670"))
 		else:

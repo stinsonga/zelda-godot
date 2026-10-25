@@ -26,7 +26,7 @@
   cellars, push blocks, items, and the level map; see docs/DUNGEONS.md.
   First dungeon monsters implemented: Stalfos, Goriyas, Gels, Zols, Keese, and
   Ropes, Darknuts, Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters,
-  and traps; see docs/DUNGEON_MONSTERS.md. Next: Wizzrobes, Lanmolas, Moldorms,
+  traps, and Wizzrobes; see docs/DUNGEON_MONSTERS.md. Next: Lanmolas, Moldorms,
   then bosses, dark rooms, old men, and the recorder entrance to level 7.
 - Improve visual content editing and asset-pack workflows alongside implementation.
 

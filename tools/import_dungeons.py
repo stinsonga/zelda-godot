@@ -398,7 +398,8 @@ MONSTERS = {0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x1
             0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
             0x12: ('vire', 'walker'), 0x16: ('pols_voice', 'pols_voice'), 0x17: ('like_like', 'walker'),
             0x27: ('wallmaster', 'wallmaster'), 0x2B: ('bubble', 'walker'), 0x2C: ('blue_bubble', 'walker'),
-            0x2D: ('red_bubble', 'walker'), 0x30: ('gibdo', 'walker'), 0x49: ('trap', 'trap')}
+            0x2D: ('red_bubble', 'walker'), 0x30: ('gibdo', 'walker'), 0x49: ('trap', 'trap'),
+            0x23: ('blue_wizzrobe', 'blue_wizzrobe'), 0x24: ('red_wizzrobe', 'red_wizzrobe')}
 # Z_01 TrapXs/TrapYs: $49 makes six traps, $4A the first four.
 TRAPS = [(0x20, 0x5D), (0x20, 0xBD), (0xD0, 0x5D), (0xD0, 0xBD), (0x40, 0x8D), (0xB0, 0x8D)]
 EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
@@ -473,6 +474,13 @@ def monster_definition(prg, kind):
         fields.update(invincible_to='PackedStringArray("boomerang", "bomb", "fire", "magic")', sprite_style='"frames"', animation_frame_ticks=8)
     elif name == 'wallmaster':
         fields.update(contact_effect='"capture"', spawn_cloud='false', sprite_style='"frames"', animation_frame_ticks=8)
+    elif 'wizzrobe' in name:
+        # Wizzrobe_DrawAndCheckCollisions: mask $F6; magic shots $58 (blue) and $59 (red).
+        shot = 0x58 if name == 'blue_wizzrobe' else 0x59
+        raw = prg[0x72BA + shot]
+        fields.update(invincible_to='PackedStringArray("boomerang", "arrow", "fire", "magic")', spawn_cloud='false',
+                      projectile_kind='"magic"', projectile_speed_subpixels=768, projectile_blockable='false',
+                      projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0), shooting_enabled='true')
     elif name == 'trap':
         fields.update(invincible_to=f'PackedStringArray({EVERYTHING})', counts_for_clear='false', spawn_cloud='false', sprite_style='"frames"',
                       contact_damage=max(1, fields['contact_damage']))
@@ -527,7 +535,12 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
         name, behavior = MONSTERS[kind]
         base = prg[0x6E04 + kind + 1]
         prefix = f'l{level}_{name}'
-        if name in ('blue_goriya', 'red_goriya'):
+        if 'wizzrobe' in name:
+            # Wizzrobe_DrawAndCheckCollisions: up uses frames 2 and 3; left flips.
+            for direction in ('up', 'down', 'left', 'right'):
+                for pose in range(2):
+                    render(f'{prefix}_{direction}_{pose}', base + (2 if direction == 'up' else 0) + pose, flip_x=direction == 'left')
+        elif name in ('blue_goriya', 'red_goriya'):
             for direction in ('up', 'down', 'left', 'right'):
                 for pose in range(2):
                     frame = base + (3 if direction == 'up' else 2 if direction == 'down' else pose)

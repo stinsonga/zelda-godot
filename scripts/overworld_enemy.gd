@@ -46,16 +46,19 @@ func initialize(actor: RefCounted) -> void:
 
 func visible(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "wallmaster": return phase == 1
+	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase != 0
 
 func vulnerable(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "wallmaster": return phase == 1
+	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	if actor.definition.behavior == "burrower": return phase == 3
 	if actor.definition.behavior == "flyer": return phase == 5 or not actor.definition.flight_vulnerable_resting_only
 	return true
 
 func contact_enabled(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "wallmaster": return phase == 1
+	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase == 3
 
 func frame(actor: RefCounted) -> int:
@@ -85,16 +88,19 @@ func bound(actor: RefCounted) -> bool:
 		return false
 	return true
 
-func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Dictionary) -> void:
+## Returns true when the monster fires a shot this tick.
+func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Dictionary) -> bool:
 	area = context.get("bounds", area)
 	if not initialized: initialize(actor)
 	if timer > 0: timer -= 1
 	if actor.source.turn_timer > 0: actor.source.turn_timer -= 1
 	if actor.shove_remaining > 0:
 		actor.source.shove(actor, probe)
-		return
+		return false
 	actor.source.shove_started = false
 	match actor.definition.behavior:
+		"blue_wizzrobe": return tick_blue_wizzrobe(actor, context, probe)
+		"red_wizzrobe": return tick_red_wizzrobe(actor, context, probe)
 		"jumper": tick_jump(actor, target)
 		"burrower": tick_burrow(actor, target, probe, context)
 		"flyer": tick_flight(actor, target)
@@ -103,6 +109,7 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 		"trap": tick_trap(actor, context)
 		"wallmaster": tick_wallmaster(actor, context)
 		"pols_voice": tick_pols_voice(actor, probe)
+	return false
 
 func begin_jump(actor: RefCounted) -> void:
 	var definition: Resource = actor.definition
@@ -405,3 +412,99 @@ func tick_pols_voice(actor: RefCounted, probe: Callable) -> void:
 			actor.subposition = Vector2i((at.x + 8) & 0xF0, (((at.y + 64 + 8) & 0xF0) - 3) - 64) * 256
 			actor.source.grid_offset = 0
 		bound(actor)
+
+## Wizzrobes flicker while teleporting or fading: hidden and untouchable on odd frames.
+var wizzrobe_hidden := false
+var turn_counter := 0
+var teleport_left := 0
+var cycle := 0
+
+func square_aligned(at: Vector2i) -> Vector2i:
+	return Vector2i((at.x + 8) & 0xF0, ((((at.y + 64) + 8) & 0xF0) - 3) - 64)
+
+## Z_04 UpdateBlueWizzrobe: walk every other frame toward Link, turning every 64
+## steps between axes; teleport $20 pixels diagonally when the timer ends or a
+## block or water stops it; shoot every 32 frames when facing Link along his row
+## or column.
+func tick_blue_wizzrobe(actor: RefCounted, context: Dictionary, probe: Callable) -> bool:
+	var player: Vector2i = context.get("player", Vector2i.ZERO)
+	if not initialized: initialized = true
+	wizzrobe_hidden = teleport_left & 1 == 1
+	if timer == 0:
+		if teleport_left > 0:
+			teleport_left -= 1
+			actor.subposition += actor.facing * 256
+			wizzrobe_hidden = teleport_left & 1 == 1
+			return false
+		actor.subposition = square_aligned(actor.position()) * 256
+		timer = actor.source_random | 0x70
+		turn_wizzrobe(actor, player)
+	elif timer >= 0x10:
+		if actor.animation_ticks % 2 == 0:
+			turn_counter += 1
+			if turn_counter & 0x3F == 0: turn_wizzrobe(actor, player)
+			if probe.call(actor.position(), actor.facing) or actor.source.grid_offset != 0:
+				actor.source.advance_position(actor, actor.facing, 256)
+			else:
+				actor.facing = -actor.facing
+	elif timer == 1:
+		var corners := [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
+		var corner: Vector2i = corners[actor.source_random & 3]
+		var destination: Vector2i = actor.position() + corner * 0x20
+		if area.grow(8).has_point(destination) and context.spawn_allowed.call(destination):
+			actor.facing = corner
+			teleport_left = 0x20
+			turn_counter ^= 0x40
+			timer = 0
+		else:
+			actor.subposition = square_aligned(actor.position()) * 256
+			timer = actor.source_random | 0x70
+	if teleport_left > 0 or context.get("frame", 0) & 0x1F != 0: return false
+	var at: Vector2i = actor.position()
+	if (at.y + 64) & 0xF0 == (player.y + 64) & 0xF0:
+		return actor.facing == (Vector2i.LEFT if at.x >= player.x else Vector2i.RIGHT)
+	if at.x & 0xF0 == player.x:
+		return actor.facing == (Vector2i.UP if at.y >= player.y else Vector2i.DOWN)
+	return false
+
+func turn_wizzrobe(actor: RefCounted, player: Vector2i) -> void:
+	var at: Vector2i = actor.position()
+	var direction: Vector2i
+	if turn_counter & 0x40: direction = Vector2i.UP if at.y >= player.y else Vector2i.DOWN
+	else: direction = Vector2i.LEFT if at.x >= player.x else Vector2i.RIGHT
+	if direction != actor.facing:
+		actor.facing = direction
+		actor.subposition = square_aligned(at) * 256
+		actor.source.grid_offset = 0
+
+## Z_04 UpdateRedWizzrobe: a 256-frame cycle counted down in its state. At $FF it
+## appears beside Link at a RedWizzrobeOffsets spot facing him; it flickers in,
+## stands solid from $BF and shoots at $B0, flickers out from $7F (cut to $4F),
+## and hides below $40.
+const RED_WIZZROBE_X := [0x00, 0x00, 0xE0, 0x20, 0x00, 0x00, 0xC0, 0x40, 0x00, 0x00, 0xD0, 0x30, 0x00, 0x00, 0xB0, 0x50]
+const RED_WIZZROBE_Y := [0xE0, 0x20, 0x00, 0x00, 0xC0, 0x40, 0x00, 0x00, 0xD0, 0x30, 0x00, 0x00, 0xB0, 0x50, 0x00, 0x00]
+
+func tick_red_wizzrobe(actor: RefCounted, context: Dictionary, probe: Callable) -> bool:
+	var player: Vector2i = context.get("player", Vector2i.ZERO)
+	cycle = (cycle - 1) & 0xFF
+	var stage := cycle >> 6
+	wizzrobe_hidden = stage == 0
+	match stage:
+		3:
+			if cycle == 0xFF:
+				var index: int = actor.source_random
+				actor.facing = [Vector2i.DOWN, Vector2i.UP, Vector2i.RIGHT, Vector2i.LEFT][index & 3]
+				var x: int = (player.x + RED_WIZZROBE_X[index & 15]) & 0xF0
+				var y: int = (((player.y + 64 + 3 + RED_WIZZROBE_Y[index & 15]) & 0xF0) - 3) & 0xFF
+				var at := Vector2i(x, y - 64)
+				if y < 0x5D or y >= 0xC4 or not context.spawn_allowed.call(at):
+					cycle = 0   # INC ObjState: try again next frame.
+				else:
+					actor.subposition = at * 256
+			wizzrobe_hidden = cycle & 1 == 1
+		1:
+			if cycle == 0x7F: cycle = 0x4F
+			wizzrobe_hidden = cycle & 1 == 1
+		2:
+			return cycle == 0xB0
+	return false

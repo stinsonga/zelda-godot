@@ -1,10 +1,10 @@
 # Dungeon monsters
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
-Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, and blade traps.
-127 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
+blue and red Wizzrobes. 159 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
 families, and every cellar holds its four blue Keese. Rooms with other monsters
-(mainly Wizzrobes, plus bosses and the old men) stay empty until those exist,
+(bosses, Lanmolas, Moldorms, Patras, and the old men) stay empty until those exist,
 rather than substituting a different monster. The manifest records the counts.
 
 ## Behaviors
@@ -25,8 +25,11 @@ rather than substituting a different monster. The manifest records the counts.
 | Pols Voice | `UpdatePolsVoice` | Only the sword hurts it (mask $FE). Walks a random cardinal distance every other frame and hops with gravity $38/256. Provisional: the original's eight-way jump table is simplified. |
 | Wallmaster | `UpdateWallmaster` | Waits until Link stands against a wall, then emerges ahead of him ($24 pixels, or $32 when he is walking). It follows a seven-square `WallmasterDirsAndAttrs` path at q-speed $18, with $60 frames between emergences. If it catches Link, it carries him back to the level's first room. |
 | Blade trap | `InitTrap_Full`, `UpdateTrap_Full` | Six or four at `TrapXs`/`TrapYs`. When Link lines up within $0E, a trap slides toward the room's middle at 1.75 pixels a frame, stops within 5 pixels, and creeps home at 0.5. Invulnerable; does not count toward clearing. |
+| Blue Wizzrobe | `UpdateBlueWizzrobe` | Walks one pixel every other frame toward Link, switching axes every 64 steps, and reverses at walls. When its timer ends it teleports $20 pixels diagonally, flickering. Every 32 frames it shoots magic if facing Link along his row or column. |
+| Red Wizzrobe | `UpdateRedWizzrobe` | A 256-frame cycle. It appears on a square at a `RedWizzrobeOffsets` spot near Link, facing him, flickers in, and stands solid. It shoots at $B0, flickers out, and hides. |
 
-Health and contact damage come from the original tables; HP 0 means any hit
+Wizzrobe magic ($58 and $59) flies through walls; only the magical shield stops
+it. It uses the sword-beam images for now. Health and contact damage come from the original tables; HP 0 means any hit
 kills. Loot uses the original groups. Spawning reuses the overworld spawn lists
 (`AssignObjSpawnPositions`). Dungeon rooms use `ObjectRoomBoundsUW` for monster bounds
 and shots: X $21-$D0, Y $5E-$BD. Killing every monster opens shutters,
@@ -48,6 +51,6 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Wizzrobes, Lanmolas, Moldorms, Digdoggers, Patras, traps, and all bosses. Second-quest
+Lanmolas, Moldorms, Digdoggers, Patras, traps, and all bosses. Second-quest
 Stalfos shooting, monster stun from the boomerang and clock, and keys carried by
 monsters are also not implemented.

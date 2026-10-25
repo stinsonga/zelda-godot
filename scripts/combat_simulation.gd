@@ -107,7 +107,7 @@ func tick(world: Node) -> void:
 	ambush_timer = maxi(0,ambush_timer-1)
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
 	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds,
-		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0,
+		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11))}
 	var updates: Array = enemies.duplicate()
@@ -197,7 +197,7 @@ func tick(world: Node) -> void:
 
 ## The magical shield also turns Lynel sword shots (Z_07 HandleShotBlocked).
 func shield_blocks(world: Node, rock: RefCounted) -> bool:
-	return rock.blockable or (rock.kind == "sword" and world.state.item_value(&"magic_shield") > 0)
+	return rock.blockable or (rock.kind in ["sword", "magic"] and world.state.item_value(&"magic_shield") > 0)
 
 ## Contact effects: damage, capture (Like Like, Wallmaster), or a Bubble's
 ## effect on the sword (Z_04 UpdateBubble).
@@ -451,7 +451,7 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 		rock.bounce_remaining -= 1
 		if rock.bounce_remaining == 0: rock.alive = false
 		return
-	if not source_within_bounds(rock.position(),rock.direction) or (rock.kind != "sword" and not source_can_enter(world, rock.position(), rock.direction)):
+	if not source_within_bounds(rock.position(),rock.direction) or (rock.kind not in ["sword", "magic"] and not source_can_enter(world, rock.position(), rock.direction)):
 		rock.alive = false
 		return
 	rock.subposition += rock.direction * rock.speed_subpixels

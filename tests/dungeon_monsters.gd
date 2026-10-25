@@ -263,4 +263,32 @@ func check_regulars(world: Node) -> void:
 		pols.tick(Vector2i(0, 0), Callable(), open, true, context)
 	check(Rect2i(16, 0, 224, 160).has_point(pols.position()), "Pols Voice stays inside the room")
 	check(not pols.receive_hit(4, Vector2i.UP, "bomb") and pols.receive_hit(1, Vector2i.UP, "sword"), "Only the sword hurts Pols Voice")
+	# Red Wizzrobe: appears on a square beside Link, shoots once per cycle, vanishes.
+	var red_wizzrobe = actor("red_wizzrobe", Vector2i(0, 0))
+	fresh_room(world, [red_wizzrobe])
+	world.player.place(Vector2i(120, 77))
+	world.combat.player_invulnerability = 100000
+	var shots := 0
+	var seen_hidden := false
+	for i in range(256):
+		world.combat.advance_frame()
+		world.combat.tick(world)
+		shots += world.combat.rocks.filter(func(r: RefCounted) -> bool: return r.kind == "magic" and r.age <= 1).size()
+		if not red_wizzrobe.targetable(): seen_hidden = true
+	var at: Vector2i = red_wizzrobe.position()
+	check(shots == 1 and seen_hidden, "Red Wizzrobes shoot once per 256-frame cycle and spend part of it hidden")
+	check(at.x % 16 == 0 and (at.y + 3) % 16 == 0 and (at - Vector2i(120, 77)).abs().x <= 0x50 and (at - Vector2i(120, 77)).abs().y <= 0x50, "Red Wizzrobes appear on a square near Link")
+	check(not world.combat.shield_blocks(world, world.combat.rocks[0]) if not world.combat.rocks.is_empty() else true, "Only the magical shield stops Wizzrobe magic")
+	# Blue Wizzrobe: walks, teleports, and fires along Link's row.
+	var blue_wizzrobe = actor("blue_wizzrobe", Vector2i(112, 77), Vector2i.RIGHT)
+	fresh_room(world, [blue_wizzrobe])
+	world.player.place(Vector2i(176, 77))
+	var teleported := false
+	var fired := false
+	for i in range(2400):
+		world.combat.advance_frame()
+		world.combat.tick(world)
+		if blue_wizzrobe.family.teleport_left > 0: teleported = true
+		if not world.combat.rocks.is_empty(): fired = true
+	check(teleported and fired, "Blue Wizzrobes teleport and shoot magic")
 	completed = true

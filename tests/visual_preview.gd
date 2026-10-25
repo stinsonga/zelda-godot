@@ -104,7 +104,7 @@ func preview() -> void:
 				world.combat.beam.burst_remaining = 12
 		world.queue_redraw()
 		return
-	if args.has("monsters1") or args.has("monsters2") or args.has("regulars"):
+	if args.has("monsters1") or args.has("monsters2") or args.has("regulars") or args.has("wizzrobes"):
 		var level := 1 if args.has("monsters1") else 2
 		for arg in args:
 			if arg.begins_with("lv"): level = int(arg.substr(2))
@@ -115,6 +115,7 @@ func preview() -> void:
 		world.combat.enemies.clear()
 		var names := ["stalfos", "red_goriya", "blue_goriya", "gel", "zol", "blue_keese", "red_keese", "rope"]
 		if args.has("regulars"): names = ["red_darknut", "blue_darknut", "gibdo", "like_like", "vire", "pols_voice", "bubble", "trap"]
+		if args.has("wizzrobes"): names = ["blue_wizzrobe", "red_wizzrobe", "blue_wizzrobe", "red_wizzrobe"]
 		for i in range(names.size()):
 			var spawn = preload("res://scripts/enemy_spawn.gd").new()
 			spawn.id = StringName(names[i])
