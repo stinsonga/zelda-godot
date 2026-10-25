@@ -15,6 +15,8 @@ var alive := true
 var owner: RefCounted
 var travelled := 0
 var returning := false
+## Fireballs: subpixels per tick on each axis (direction holds the signs).
+var velocity := Vector2i.ZERO
 
 func position() -> Vector2i:
 	return Vector2i(floori(subposition.x / 256.0), floori(subposition.y / 256.0))

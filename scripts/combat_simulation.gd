@@ -115,7 +115,7 @@ func tick(world: Node) -> void:
 	for actor in updates:
 		actor.source_random = source_random.at(actor.slot)
 		actor.source_next_random = source_random.at(actor.slot + 1)
-		if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.position()):
+		if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.hit_position()):
 			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction, "sword"):
 				world.audio.play(&"enemy_hit")
 				if actor.health == 0:
@@ -141,6 +141,12 @@ func tick(world: Node) -> void:
 				rock.direction = actor.facing
 				rock.speed_subpixels = actor.definition.projectile_speed_subpixels
 				rocks.append(rock)
+		for shot in actor.pending_shots:
+			if rocks.size() >= projectile_limit: break
+			var fireball: RefCounted = make_fireball(world, shot.position, shot.spread)
+			fireball.damage = actor.definition.projectile_damage
+			rocks.append(fireball)
+		actor.pending_shots.clear()
 		if actor.health == 0 and actor.death_remaining == 0 and not actor.drop_resolved:
 			actor.drop_resolved = true
 			encounter_kills += 1
@@ -153,7 +159,9 @@ func tick(world: Node) -> void:
 					reward.definition = item
 					reward.position = actor.position()
 					rewards.append(reward)
-		if actor.can_touch_player() and actor.invulnerability == 0 and (source_contact(actor.position(), world.player.pixel_position()) if original else actor.hurtbox().intersects(player_box(world))):
+		var reach: Vector2i = actor.definition.size / 2 + Vector2i.ONE
+		var gap: Vector2i = (actor.position() + actor.definition.size / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
+		if actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
 			touch_player(world, actor)
 	ambush_timer = int(context.ambush_timer)
 	wallmaster_cooldown = int(context.wallmaster_cooldown)
@@ -161,6 +169,9 @@ func tick(world: Node) -> void:
 	for rock in rocks:
 		if rock.kind == "boomerang":
 			tick_boomerang(world, rock)
+			continue
+		if rock.kind == "fireball":
+			tick_fireball(world, rock)
 			continue
 		if rock.source_rules:
 			tick_source_rock(world, rock)
@@ -197,7 +208,7 @@ func tick(world: Node) -> void:
 
 ## The magical shield also turns Lynel sword shots (Z_07 HandleShotBlocked).
 func shield_blocks(world: Node, rock: RefCounted) -> bool:
-	return rock.blockable or (rock.kind in ["sword", "magic"] and world.state.item_value(&"magic_shield") > 0)
+	return rock.blockable or (rock.kind in ["sword", "magic", "fireball"] and world.state.item_value(&"magic_shield") > 0)
 
 ## Contact effects: damage, capture (Like Like, Wallmaster), or a Bubble's
 ## effect on the sword (Z_04 UpdateBubble).
@@ -248,6 +259,57 @@ func split_zols(world: Node) -> void:
 			gel.source.grid_offset = actor.source.grid_offset
 			enemies.append(gel)
 		encounter_total += 1
+
+## Z_04 UpdateFireball: aimed at Link when made (FireballQSpeeds by the
+## _CalcDiagonalSpeedIndex angle), still for 16 frames, then flying through walls
+## until it leaves the room bounds.
+const FIREBALL_X := [0x70, 0x68, 0x60, 0x58, 0x50, 0x3C, 0x26, 0x10, 0x00]
+const FIREBALL_Y := [0x00, 0x10, 0x26, 0x3C, 0x50, 0x58, 0x60, 0x68, 0x70]
+
+func make_fireball(world: Node, at: Vector2i, spread: int) -> RefCounted:
+	var rock = Rock.new()
+	rock.kind = "fireball"
+	rock.subposition = at * 256
+	rock.blockable = false
+	rock.travelled = spread
+	var player: Vector2i = world.player.pixel_position()
+	var dx := player.x - at.x
+	var dy := player.y - at.y
+	var far := absi(dx)
+	var near := absi(dy)
+	var index := 4
+	var step := -1
+	if far < near:
+		var swap := far
+		far = near
+		near = swap
+		step = 1
+	if far - near >= 8:
+		while true:
+			index += step
+			if index == 0 or index == 8: break
+			far -= near
+			if far < near: break
+	rock.direction = Vector2i(signi(dx) if dx != 0 else 1, signi(dy) if dy != 0 else 1)
+	rock.velocity = Vector2i(FIREBALL_X[index], FIREBALL_Y[index]) * 4
+	rock.age = 0
+	return rock
+
+func tick_fireball(world: Node, rock: RefCounted) -> void:
+	rock.age += 1
+	# Aquamentus spreads its three fireballs a pixel every other frame.
+	if rock.travelled != 0 and frame_clock % 2 == 0 and rock.age < 0x70: rock.subposition.y += rock.travelled * 256
+	if rock.age > 0x10:
+		rock.subposition += Vector2i(rock.direction.x * rock.velocity.x, rock.direction.y * rock.velocity.y)
+		if not bounds.grow(8).has_point(rock.position()):
+			rock.alive = false
+			return
+	if player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
+		if shield_blocks(world, rock) and world.player.facing.dot(rock.direction) < 0 and not world.sword.active():
+			world.audio.play(&"parry")
+		else:
+			hurt_player(world, rock.damage, rock.position())
+		rock.alive = false
 
 ## Z_07 UpdateArrowOrBoomerang for monster boomerangs: 2.5 pixels a frame out to
 ## $51 pixels or the room bounds, then back to the thrower.
@@ -310,7 +372,7 @@ func tick_beam(world: Node) -> void:
 			return
 		beam.position = next
 		for actor in enemies:
-			if actor.targetable() and beam.hits(actor.position()):
+			if actor.targetable() and beam.hits(actor.hit_position()):
 				if actor.receive_hit(beam.damage, beam.direction, "beam"):
 					world.audio.play(&"enemy_hit")
 					if actor.health == 0:
@@ -373,7 +435,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

@@ -109,6 +109,7 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 		"trap": tick_trap(actor, context)
 		"wallmaster": tick_wallmaster(actor, context)
 		"pols_voice": tick_pols_voice(actor, probe)
+		"aquamentus": tick_aquamentus(actor, context)
 	return false
 
 func begin_jump(actor: RefCounted) -> void:
@@ -508,3 +509,27 @@ func tick_red_wizzrobe(actor: RefCounted, context: Dictionary, probe: Callable) 
 		2:
 			return cycle == 0xB0
 	return false
+
+## Z_04 UpdateAquamentus: pace between X $88 and $C7 one pixel every eight
+## frames, in random runs of (random AND $F) OR 7 pixels; when the timer ends,
+## breathe three fireballs aimed at Link that drift apart by 0, +1, and -1.
+func tick_aquamentus(actor: RefCounted, context: Dictionary) -> void:
+	if walk_left == 0:
+		walk_left = (actor.source_random & 0x0F) | 7
+		actor.facing = Vector2i.LEFT if actor.source_random & 1 else Vector2i.RIGHT
+	elif int(context.get("frame", 0)) & 7 == 0:
+		var at: Vector2i = actor.position()
+		if at.x < 0x88:
+			at.x = 0x88
+			actor.facing = Vector2i.RIGHT
+			walk_left = 7
+		elif at.x >= 0xC8:
+			at.x = 0xC7
+			actor.facing = Vector2i.LEFT
+			walk_left = 7
+		actor.subposition = Vector2i(at.x + actor.facing.x, at.y) * 256
+		walk_left -= 1
+	if timer == 0:
+		timer = actor.source_random | 0x70
+		for spread in [0, 1, -1]:
+			actor.pending_shots.append({"position": actor.position() + Vector2i(4, 0), "spread": spread})

@@ -145,6 +145,19 @@ func preview() -> void:
 		for tick in range(60): world.simulate_tick(Vector2i.ZERO)
 		world.queue_redraw()
 		return
+	if args.has("boss"):
+		var id := &"l1_35"
+		for arg in args:
+			if arg.begins_with("room="): id = StringName(arg.substr(5))
+		world.state.max_health = 16
+		world.state.health = 16
+		world.enter_room(world.rooms[id], Vector2i(32, 77), Vector2i.RIGHT)
+		for tick in range(150):
+			world.combat.player_invulnerability = 100000
+			world.simulate_tick(Vector2i.ZERO)
+		world.combat.player_invulnerability = 0
+		world.queue_redraw()
+		return
 	if args.has("shop"):
 		world.state.rupees = 87
 		for item in ["bombs", "blue_candle", "white_sword"]: world.state.take_item(load("res://content/items/" + item + ".tres"))

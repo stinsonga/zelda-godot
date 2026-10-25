@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -28,7 +28,7 @@ extends Resource
 @export_range(-1, 255) var shooting_threshold: int = -1
 ## Boomerangs fly out and return; their thrower waits for them (Z_04 UpdateGoriya).
 ## Magic (Wizzrobes) flies through walls like sword shots; only the magical shield stops it.
-@export_enum("rock", "arrow", "sword", "boomerang", "magic") var projectile_kind: String = "rock"
+@export_enum("rock", "arrow", "sword", "boomerang", "magic", "fireball") var projectile_kind: String = "rock"
 ## Throw only when the slot's random byte is one of these; empty throws whenever ready.
 @export var shoot_random_values: PackedInt32Array = PackedInt32Array()
 @export var projectile_damage: int = 1
@@ -72,17 +72,20 @@ extends Resource
 @export var counts_for_clear: bool = true
 ## Touching Link: "hurt", "capture" (Like Like, Wallmaster), or a Bubble sword effect.
 @export_enum("hurt", "capture", "block_sword", "curse_sword", "restore_sword") var contact_effect: String = "hurt"
+## Bosses draw and collide at their own size, centered on their middle.
+@export var size: Vector2i = Vector2i(16, 16)
 ## Vires hop while walking sideways (Z_04 VireJumpOffsets).
 @export var hops: bool = false
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")
 	if speed_subpixels < 0 or contact_damage < 0 or projectile_damage < 0: errors.append("Enemy speeds and damage cannot be negative")
-	if projectile_kind not in ["rock", "arrow", "sword", "boomerang", "magic"]: errors.append("Unknown projectile kind")
+	if projectile_kind not in ["rock", "arrow", "sword", "boomerang", "magic", "fireball"]: errors.append("Unknown projectile kind")
+	if size.x < 8 or size.y < 8: errors.append("Monster size must be at least 8 pixels")
 	if behavior == "gel" and hop_delays.size() != 4: errors.append("Gel hops need four delays")
 	if animation_frame_ticks < 1: errors.append("Animation frames need a positive length")
 	if behavior == "jumper" and (jump_velocity_subpixels >= 0 or mini(jump_up_acceleration, mini(jump_down_acceleration, jump_horizontal_acceleration)) <= 0): errors.append("Jump needs upward velocity and positive acceleration")

@@ -399,7 +399,12 @@ MONSTERS = {0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x1
             0x12: ('vire', 'walker'), 0x16: ('pols_voice', 'pols_voice'), 0x17: ('like_like', 'walker'),
             0x27: ('wallmaster', 'wallmaster'), 0x2B: ('bubble', 'walker'), 0x2C: ('blue_bubble', 'walker'),
             0x2D: ('red_bubble', 'walker'), 0x30: ('gibdo', 'walker'), 0x49: ('trap', 'trap'),
-            0x23: ('blue_wizzrobe', 'blue_wizzrobe'), 0x24: ('red_wizzrobe', 'red_wizzrobe')}
+            0x23: ('blue_wizzrobe', 'blue_wizzrobe'), 0x24: ('red_wizzrobe', 'red_wizzrobe'),
+            0x3D: ('aquamentus', 'aquamentus')}
+# Bosses that start at fixed spots rather than spawn lists (Z_04 InitAquamentus).
+FIXED_POSITIONS = {0x3D: (0xB0, 0x80)}
+AQUAMENTUS_TILES = 0x11834          # Two frames of six 8x16 sprites.
+AQUAMENTUS_PALETTE = 0x1A28E        # AquamentusPaletteRow7TransferBuf.
 # Z_01 TrapXs/TrapYs: $49 makes six traps, $4A the first four.
 TRAPS = [(0x20, 0x5D), (0x20, 0xBD), (0xD0, 0x5D), (0xD0, 0xBD), (0x40, 0x8D), (0xB0, 0x8D)]
 EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
@@ -408,6 +413,8 @@ CELLAR_KEESE = [(0x20, 0x9D), (0x60, 0x5D), (0x90, 0x7D), (0xD0, 0x9D)]   # Z_05
 # Z_03 LevelPatternBlockSrcAddrs: level-group sprite blocks, loaded at $09E0.
 LEVEL_SPRITES = {1: 56763, 2: 56763, 7: 56763, 3: 55419, 5: 55419, 8: 55419, 4: 55963, 6: 55963, 9: 55963}
 UW_COMMON_SPRITES = 56507       # PatternBlockUWSP, $100 bytes at $08E0.
+# Z_03 BossPatternBlockSrcAddrs, loaded at $0C00.
+BOSS_SPRITES = {1: 57307, 2: 57307, 5: 57307, 7: 57307, 3: 58331, 4: 58331, 6: 58331, 8: 58331, 9: 59355}
 
 
 def monster_types(prg, block, info, room):
@@ -481,6 +488,11 @@ def monster_definition(prg, kind):
         fields.update(invincible_to='PackedStringArray("boomerang", "arrow", "fire", "magic")', spawn_cloud='false',
                       projectile_kind='"magic"', projectile_speed_subpixels=768, projectile_blockable='false',
                       projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0), shooting_enabled='true')
+    elif name == 'aquamentus':
+        # InitAquamentus: mask $E2 (immune to boomerang and fire); fireballs are type $55.
+        raw = prg[0x72BA + 0x55]
+        fields.update(size='Vector2i(24, 32)', invincible_to='PackedStringArray("boomerang", "fire")', projectile_kind='"fireball"',
+                      projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0), sprite_style='"frames"', animation_frame_ticks=16)
     elif name == 'trap':
         fields.update(invincible_to=f'PackedStringArray({EVERYTHING})', counts_for_clear='false', spawn_cloud='false', sprite_style='"frames"',
                       contact_damage=max(1, fields['contact_damage']))
@@ -531,6 +543,29 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
         png(output / f'{key}.png', 16, 16, canvas)
         names.append(key)
 
+    if 0x3D in kinds:
+        # Aquamentus_Draw: six 8x16 sprites, AquamentusTiles frames, its own palette row.
+        patterns[0x0C00:0x1000] = prg[BOSS_SPRITES[level]:BOSS_SPRITES[level] + 0x400]
+        row = list(prg[AQUAMENTUS_PALETTE + 3:AQUAMENTUS_PALETTE + 7])
+        for frame in range(2):
+            canvas = bytearray(24 * 32 * 4)
+            for part in range(6):
+                tile = prg[AQUAMENTUS_TILES + frame * 6 + part]
+                bank = patterns[0x1000:] if tile & 1 else patterns
+                for half in range(2):
+                    blit_tile(canvas, 24, (part % 3) * 8, (part // 3) * 16 + half * 8, bank, (tile & 0xFE) + half, row, True)
+            png(output / f'l{level}_aquamentus_{frame}.png', 24, 32, canvas)
+            names.append(f'l{level}_aquamentus_{frame}')
+        # Fireballs ($55) flash between the red and blue rows.
+        tile = prg[0x6E83 + prg[0x6E04 + 0x55 + 1]]
+        for frame, palette in enumerate((6, 5)):
+            canvas = bytearray(16 * 16 * 4)
+            bank = patterns[0x1000:] if tile & 1 else patterns
+            for half in range(2):
+                blit_tile(canvas, 16, 4, half * 8, bank, (tile & 0xFE) + half, palettes[palette], True)
+            png(output / f'fireball_{frame}.png', 16, 16, canvas)
+            if f'fireball_{frame}' not in names: names.append(f'fireball_{frame}')
+        kinds = kinds - {0x3D}
     for kind in sorted(kinds):
         name, behavior = MONSTERS[kind]
         base = prg[0x6E04 + kind + 1]
@@ -587,6 +622,8 @@ def enemy_lines(level, types, positions=None, room=0):
         if kind == 0x49:
             x, y = TRAPS[trap][0], TRAPS[trap][1] - 64
             trap += 1
+        elif kind in FIXED_POSITIONS:
+            x, y = FIXED_POSITIONS[kind][0], FIXED_POSITIONS[kind][1] - 64
         subs += [f'[sub_resource type="Resource" id="enemy_{i}"]', 'script = ExtResource("enemy_spawn")', f'id = &"slot_{i}"',
                  f'enemy = ExtResource("enemy_{kind}")', f'position = Vector2i({x}, {y})', 'facing = Vector2i(0, 0)',
                  f'seed_value = {level * 977 + room * 31 + i + 1}', f'spawn_ticks = {i + 1}']

@@ -48,6 +48,13 @@ func setup(spawn: Resource) -> void:
 func position() -> Vector2i:
 	return Vector2i(floori(subposition.x / 256.0), floori(subposition.y / 256.0))
 
+## Hit checks compare 16-pixel shapes; larger monsters are measured from their middle.
+func hit_position() -> Vector2i:
+	return position() + (definition.size - Vector2i(16, 16)) / 2
+
+## Several shots fired in one tick (Aquamentus): {kind, position, spread}.
+var pending_shots: Array[Dictionary] = []
+
 func alive() -> bool:
 	return health > 0 and spawn_remaining == 0 and not waiting_spawn
 

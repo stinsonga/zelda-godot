@@ -456,7 +456,7 @@ func tick_item_objects() -> void:
 		if not cue.is_empty(): audio.play(cue)
 		if not object.active: continue
 		for actor in combat.enemies:
-			if actor.targetable() and object.hits(actor.position()):
+			if actor.targetable() and object.hits(actor.hit_position()):
 				if actor.receive_hit(object.damage(), object.direction, object.kind):
 					audio.play(&"enemy_hit")
 					if actor.health == 0:
@@ -700,10 +700,10 @@ func direction_name(direction: Vector2i) -> String:
 	if direction == Vector2i.DOWN: return "down"
 	return "up"
 
-func draw_named_sprite(name: StringName, position_in_room: Vector2, tint: Color = Color.WHITE) -> void:
+func draw_named_sprite(name: StringName, position_in_room: Vector2, tint: Color = Color.WHITE, size: Vector2 = Vector2(16, 16)) -> void:
 	if visual_theme.sprites.has(name):
 		var texture: Texture2D = visual_theme.sprites[name]
-		draw_clipped_texture(texture,Rect2(position_in_room + Vector2(0,HUD_HEIGHT),Vector2(16,16)),Rect2(Vector2.ZERO,texture.get_size()),tint)
+		draw_clipped_texture(texture,Rect2(position_in_room + Vector2(0,HUD_HEIGHT),size),Rect2(Vector2.ZERO,texture.get_size()),tint)
 
 func draw_room_objects() -> void:
 	for decoration in room.decorations:
@@ -879,7 +879,7 @@ func draw_combat() -> void:
 			var leveled := StringName("l%d_%s" % [room.dungeon_level, sprite])
 			if room.dungeon_level > 0 and visual_theme.sprites.has(leveled): sprite = leveled
 			if visual_theme.sprites.has(sprite):
-				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint)
+				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint, Vector2(actor.definition.size))
 			else:
 				draw_rect(Rect2(at + Vector2(1, 2), Vector2(14, 12)), actor.definition.fallback_color)
 				draw_line(at + Vector2(8, 8), at + Vector2(8, 8) + Vector2(actor.facing) * 8, Color.BLACK, 2)
@@ -898,6 +898,7 @@ func draw_combat() -> void:
 		var sprite: StringName = &"rock"
 		if rock.kind == "arrow": sprite = StringName("monster_arrow_" + direction_name(rock.direction))
 		elif rock.kind in ["sword", "magic"]: sprite = StringName("beam_" + direction_name(rock.direction) + "_" + str(simulation_tick % 4))
+		elif rock.kind == "fireball": sprite = StringName("fireball_" + str(simulation_tick % 2))
 		if visual_theme.sprites.has(sprite):
 			draw_named_sprite(sprite, Vector2(rock.position()) + (Vector2(0,3) if rock.kind in ["sword", "magic"] and rock.direction.x != 0 else Vector2.ZERO))
 		elif rock.kind == "rock":

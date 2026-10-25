@@ -291,4 +291,37 @@ func check_regulars(world: Node) -> void:
 		if blue_wizzrobe.family.teleport_left > 0: teleported = true
 		if not world.combat.rocks.is_empty(): fired = true
 	check(teleported and fired, "Blue Wizzrobes teleport and shoot magic")
+	# Aquamentus: paces its patch, breathes three fireballs, and guards the heart container.
+	world.enter_room(world.rooms[&"l1_35"], Vector2i(32, 77), Vector2i.RIGHT)
+	var boss: RefCounted = world.combat.enemies[0]
+	check(boss.definition.id == &"aquamentus" and boss.position() == Vector2i(0xB0, 0x80 - 64) and boss.definition.size == Vector2i(24, 32), "Aquamentus starts at ($B0, $80)")
+	world.state.max_health = 32
+	world.state.health = 32
+	var volley := 0
+	var left := 255
+	var right := 0
+	for i in range(400):
+		world.combat.player_invulnerability = 100000
+		world.simulate_tick(Vector2i.ZERO)
+		volley = maxi(volley, world.combat.rocks.filter(func(r: RefCounted) -> bool: return r.kind == "fireball").size())
+		left = mini(left, boss.position().x)
+		right = maxi(right, boss.position().x)
+	check(volley == 3, "Aquamentus breathes three fireballs at once")
+	check(left >= 0x88 and right <= 0xC8 and right > left, "Aquamentus paces between X $88 and $C7")
+	world.combat.rocks.clear()
+	world.combat.player_invulnerability = 0
+	var fireball: RefCounted = world.combat.make_fireball(world, world.player.pixel_position() + Vector2i(40, 0), 0)
+	fireball.damage = boss.definition.projectile_damage
+	world.combat.rocks.append(fireball)
+	var before: int = world.state.health
+	for i in range(40): world.combat.tick(world)
+	check(world.state.health < before, "Fireballs fly at Link and hurt him")
+	check(not boss.receive_hit(1, Vector2i.RIGHT, "fire") and not boss.receive_hit(1, Vector2i.RIGHT, "boomerang"), "Aquamentus ignores fire and the boomerang")
+	var reward: Resource = world.room.pickups[0]
+	world.player.place(reward.position)
+	world.try_pickups()
+	check(not world.state.has_collected(&"l1_35", &"item"), "The heart container waits for Aquamentus to fall")
+	boss.health = 0
+	world.try_pickups()
+	check(world.state.has_collected(&"l1_35", &"item"), "Defeating Aquamentus releases the heart container")
 	completed = true
