@@ -41,8 +41,8 @@ Enemy slots update in descending order, but the simulation still groups enemies
 and projectiles instead of reproducing the complete NES object-slot scheduler.
 Native checkpoints preserve room outcomes and the spawn cycle, not in-flight AI,
 random state, timers, or projectiles. Loading rebuilds the encounter.
-Only repeated Octorok lists are imported; other enemy types and mixed lists remain
-future work. Unsupported drops and help-drop counters are described in COMBAT.md.
+Common overworld enemy families and mixed lists are now imported; see
+[more enemies](MORE_ENEMIES.md). Unsupported drops and help-drop counters are described in COMBAT.md.
 
 ## Verification
 

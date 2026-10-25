@@ -3,6 +3,9 @@ extends RefCounted
 var subposition := Vector2i.ZERO
 var direction := Vector2i.RIGHT
 var speed_subpixels := 512
+var kind := "rock"
+var damage := 1
+var blockable := true
 var source_rules := false
 var age := 0
 var bounce_remaining := 0

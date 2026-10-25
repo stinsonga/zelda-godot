@@ -3,6 +3,7 @@ extends Resource
 ## A room is 16 x 11 logical tiles. IDs are independent of NES addresses.
 ## Native unique encounters default to permanent; imported overworld uses counts.
 @export_enum("permanent", "overworld", "reset") var enemy_persistence: String = "permanent"
+@export var source_spawn_lists: bool = false
 @export var source_edge_spawns: bool = false
 @export var source_edge_cells: PackedByteArray = PackedByteArray()
 @export var history_id: StringName
@@ -67,6 +68,8 @@ func validation_errors() -> PackedStringArray:
 		if spawn.id.is_empty() or enemy_ids.has(spawn.id):
 			errors.append("Enemy spawn IDs must be unique and nonempty")
 		enemy_ids[spawn.id] = true
+		if spawn.enemy != null:
+			errors.append_array(spawn.enemy.validation_errors())
 		if spawn.enemy == null:
 			errors.append("Enemy spawn is missing a definition")
 		elif spawn.enemy.health < 1 or spawn.enemy.speed_subpixels < 0 or spawn.enemy.shoot_windup < 1:

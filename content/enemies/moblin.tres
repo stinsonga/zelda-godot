@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"moblin"
+title = "Moblin"
+behavior = "walker"
+nes_type = 4
+health = 2
+sprite = &"red_moblin"
+projectile_kind = "arrow"
+projectile_speed_subpixels = 512
+turn_chance = 160
+fallback_color = Color(0.75, 0.4, 0.2, 1)

@@ -13,6 +13,7 @@ var chase_other := false
 var chase_timer := 0
 var frame_clock := 0
 var edge_timer := 0
+var ambush_timer := 50
 var edge_cursor := 0x40
 var encounter_room: Resource
 var encounter_total := 0
@@ -32,6 +33,7 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	rocks.clear()
 	rewards.clear()
 	shove_remaining = 0
+	ambush_timer = 50
 	encounter_room = room
 	encounter_kills = 0
 	base_kills = 0
@@ -49,10 +51,10 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	encounter_total = enemies.size()
 	if room.source_edge_spawns:
 		for actor in enemies:
-			if actor.definition.behavior == "nes_octorok":
+			if actor.definition.behavior != "native":
 				actor.waiting_spawn = true
 				actor.spawn_remaining = 0
-	else:
+	elif room.source_spawn_lists:
 		assign_source_spawns(room, state, entry_position, entry_direction)
 
 func can_enemy_occupy(world: Node, at: Vector2i) -> bool:
@@ -96,24 +98,31 @@ func tick(world: Node) -> void:
 	if not launched: tick_beam(world)
 	update_chase_target(world.player.pixel_position())
 	update_edge_spawns(world)
+	ambush_timer = maxi(0,ambush_timer-1)
+	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing,
+		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
+		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11))}
 	var updates: Array = enemies.duplicate()
 	updates.reverse()
 	for actor in updates:
 		actor.source_random = source_random.at(actor.slot)
 		actor.source_next_random = source_random.at(actor.slot + 1)
-		if actor.alive() and world.sword.hits(world.player.pixel_position(), actor.position()):
+		if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.position()):
 			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction):
 				world.audio.play(&"enemy_hit")
 				if actor.health == 0:
 					world.audio.play(&"enemy_die")
 					record_permanent_kill(world, actor)
-		var original: bool = actor.definition.behavior == "nes_octorok"
+		var original: bool = actor.definition.behavior != "native"
 		var target: Vector2i = chase_target if original else world.player.pixel_position()
 		if actor.tick(target, func(at: Vector2i) -> bool: return can_enemy_occupy(world, at),
-			func(at: Vector2i, direction: Vector2i) -> bool: return source_can_enter(world, at, direction), rocks.size() < projectile_limit):
+			func(at: Vector2i, direction: Vector2i) -> bool: return source_can_enter(world, at, direction), rocks.size() < projectile_limit, context):
 			if rocks.size() < projectile_limit:
 				var rock = Rock.new()
 				rock.source_rules = original
+				rock.kind = actor.definition.projectile_kind
+				rock.damage = actor.definition.projectile_damage
+				rock.blockable = actor.definition.projectile_blockable
 				rock.subposition = actor.subposition if original else (actor.position() + actor.facing * 12) * 256
 				rock.direction = actor.facing
 				rock.speed_subpixels = actor.definition.projectile_speed_subpixels
@@ -130,8 +139,9 @@ func tick(world: Node) -> void:
 					reward.definition = item
 					reward.position = actor.position()
 					rewards.append(reward)
-		if actor.alive() and actor.invulnerability == 0 and (source_contact(actor.position(), world.player.pixel_position()) if original else actor.hurtbox().intersects(player_box(world))):
+		if actor.can_touch_player() and actor.invulnerability == 0 and (source_contact(actor.position(), world.player.pixel_position()) if original else actor.hurtbox().intersects(player_box(world))):
 			hurt_player(world, actor.definition.contact_damage, actor.position())
+	ambush_timer = int(context.ambush_timer)
 	for rock in rocks:
 		if rock.source_rules:
 			tick_source_rock(world, rock)
@@ -149,10 +159,10 @@ func tick(world: Node) -> void:
 			elif rock.hurtbox().intersects(player_box(world)):
 				# The basic shield blocks rocks arriving from the facing direction,
 				# while Link is free to defend (not using the sword).
-				if world.player.facing == -rock.direction and not world.sword.active():
+				if rock.blockable and world.player.facing == -rock.direction and not world.sword.active():
 					world.audio.play(&"parry")
 					rock.alive = false
-				elif hurt_player(world, 1, at):
+				elif hurt_player(world, rock.damage, at):
 					rock.alive = false
 	rocks = rocks.filter(func(rock: RefCounted) -> bool: return rock.alive)
 	for reward in rewards:
@@ -200,7 +210,7 @@ func tick_beam(world: Node) -> void:
 			return
 		beam.position = next
 		for actor in enemies:
-			if actor.alive() and beam.hits(actor.position()):
+			if actor.targetable() and beam.hits(actor.position()):
 				if actor.receive_hit(beam.damage, beam.direction):
 					world.audio.play(&"enemy_hit")
 					if actor.health == 0:
@@ -258,7 +268,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 	return not world.is_blocked(probe) and not world.is_blocked(probe + Vector2i(8, 0))
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior == "nes_octorok")
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior != "native")
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1
@@ -336,17 +346,24 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 		rock.bounce_remaining -= 1
 		if rock.bounce_remaining == 0: rock.alive = false
 		return
-	if not source_can_enter(world, rock.position(), rock.direction):
+	if not source_within_bounds(rock.position(),rock.direction) or (rock.kind != "sword" and not source_can_enter(world, rock.position(), rock.direction)):
 		rock.alive = false
 		return
 	rock.subposition += rock.direction * rock.speed_subpixels
-	var center: Vector2i = rock.position() + Vector2i(4, 8)
+	var center: Vector2i = rock.position() + (Vector2i(4,8) if rock.kind == "rock" else Vector2i(8,8))
 	var player_center: Vector2i = world.player.pixel_position() + Vector2i(8, 8)
 	if player_invulnerability == 0 and source_contact(center, player_center):
-		if world.player.facing == -rock.direction and not world.sword.active():
+		if rock.blockable and world.player.facing == -rock.direction and not world.sword.active():
 			world.audio.play(&"parry")
 			rock.bounce_direction = world.player.facing
 			rock.bounce_remaining = 16
 		else:
-			hurt_player(world, 1, rock.position())
+			hurt_player(world, rock.damage, rock.position())
 			rock.alive = false
+
+func source_within_bounds(at: Vector2i, direction: Vector2i) -> bool:
+	if direction.x < 0 and at.x < 17: return false
+	if direction.x > 0 and at.x >= 224: return false
+	if direction.y < 0 and at.y < 14: return false
+	if direction.y > 0 and at.y >= 141: return false
+	return true

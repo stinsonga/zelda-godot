@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"resting_peahat"
+title = "Resting Peahat"
+behavior = "flyer"
+health = 3
+shooting_enabled = false
+sprite = &"peahat"
+flight_max_speed = 96
+flight_acceleration = 2
+flight_rest_min = 150
+flight_rest_random_mask = 7
+flight_turn_count = 2
+tint = Color(0.7, 0.8, 1, 1)
+fallback_color = Color(0.4, 0.6, 0.85, 1)

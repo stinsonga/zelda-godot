@@ -70,8 +70,8 @@ terrain probes, contact thresholds, and shield bounces. See
 [Octorok fidelity](OCTOROK_FIDELITY.md) for the rules and remaining limits.
 Native custom enemies retain the simpler configurable behavior.
 
-Only repeated Octorok types 7 through 10 are imported. Mixed object lists and all
-other monsters remain unimplemented. Red and blue drop rows may reference bombs,
+Common overworld families and mixed object lists are now imported; see
+[more enemies](MORE_ENEMIES.md) for coverage and behavior limits. Red and blue drop rows may reference bombs,
 clocks, or fairies; those unsupported entries currently produce no drop. Help-drop
 counters and the forced-fairy rule are not implemented. Currency applies instantly
 rather than counting upward over multiple frames. Sword beams are implemented; sound effects and music are implemented; see [audio notes](AUDIO.md). See [beam rules](SWORD_BEAM.md).

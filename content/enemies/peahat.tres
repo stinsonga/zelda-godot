@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"peahat"
+title = "Peahat"
+behavior = "flyer"
+health = 2
+shooting_enabled = false
+sprite = &"peahat"
+fallback_color = Color(0.6, 0.65, 0.25, 1)

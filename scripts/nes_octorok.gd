@@ -55,6 +55,12 @@ func shove(actor: RefCounted, probe: Callable) -> void:
 func select_target(actor: RefCounted, target: Vector2i, random_byte: int, next_random: int) -> void:
 	if move_speed == 0 or grid_offset != 0: return
 	var delta: Vector2i = target - actor.position()
+	if actor.definition.targeting == "dominant_axis":
+		wants_to_shoot = false
+		if maxi(absi(delta.x), absi(delta.y)) < 81:
+			actor.facing = (Vector2i.DOWN if delta.y >= 0 else Vector2i.UP) if absi(delta.y) >= absi(delta.x) else (Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT)
+			wants_to_shoot = true
+		return
 	var aimed := Vector2i.ZERO
 	if next_random <= actor.definition.turn_chance:
 		if absi(delta.x) < 9: aimed = Vector2i.DOWN if delta.y >= 0 else Vector2i.UP
@@ -86,7 +92,9 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool,
 		move_speed = actor.definition.speed_subpixels
 		return false
 	# Red Octoroks only begin the timer when Random[X] >= $F8; blue bypasses it.
-	if actor.definition.nes_type < 9 and shoot_timer == 0 and random_byte < 0xF8: return false
+	var threshold: int = actor.definition.shooting_threshold
+	if threshold < 0: threshold = 0 if actor.definition.nes_type in [1, 3, 9, 10] else 248
+	if shoot_timer == 0 and random_byte < threshold: return false
 	if actor.invulnerability > 0: shoot_timer = 0
 	elif shoot_timer > 0: shoot_timer -= 1
 	elif wants_to_shoot: shoot_timer = 0x30

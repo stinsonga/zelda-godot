@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lynel"
+title = "Lynel"
+behavior = "walker"
+nes_type = 2
+health = 4
+contact_damage = 2
+sprite = &"red_lynel"
+targeting = "dominant_axis"
+projectile_kind = "sword"
+projectile_damage = 2
+projectile_blockable = false
+fallback_color = Color(0.8, 0.2, 0.3, 1)

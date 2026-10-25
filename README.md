@@ -83,3 +83,7 @@ Imported overworld enemies now respawn using the original six-entry room history
 Sound effects and room music are implemented; press **M** to mute. Local ROM imports
 include audio; clean source projects use original placeholder tones. See
 [audio setup and fidelity notes](docs/AUDIO.md).
+
+Common overworld enemies and mixed encounters are implemented. Run
+`scenes/enemy_gallery.tscn` for the source-only family and variant gallery.
+See [enemy behaviors and editable variants](docs/MORE_ENEMIES.md).

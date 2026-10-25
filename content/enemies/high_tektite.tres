@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"high_tektite"
+title = "High Tektite"
+behavior = "jumper"
+health = 3
+shooting_enabled = false
+speed_subpixels = 192
+jump_velocity_subpixels = -1280
+jump_up_acceleration = 100
+jump_down_acceleration = 160
+jump_horizontal_acceleration = 160
+sprite = &"blue_tektite"
+tint = Color(0.6, 0.9, 1, 1)
+fallback_color = Color(0.2, 0.6, 0.85, 1)

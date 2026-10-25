@@ -1,0 +1,103 @@
+[gd_resource type="Resource" script_class="RoomDefinition" format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/enemy_spawn.gd" id="spawn"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/wooden_sword.tres" id="sword"]
+[ext_resource type="Resource" path="res://content/enemies/moblin.tres" id="moblin"]
+[ext_resource type="Resource" path="res://content/enemies/lynel.tres" id="lynel"]
+[ext_resource type="Resource" path="res://content/enemies/tektite.tres" id="tektite"]
+[ext_resource type="Resource" path="res://content/enemies/leever.tres" id="leever"]
+[ext_resource type="Resource" path="res://content/enemies/ambush_leever.tres" id="ambush_leever"]
+[ext_resource type="Resource" path="res://content/enemies/peahat.tres" id="peahat"]
+[ext_resource type="Resource" path="res://content/enemies/swift_moblin.tres" id="swift_moblin"]
+[ext_resource type="Resource" path="res://content/enemies/resting_peahat.tres" id="resting_peahat"]
+[ext_resource type="Resource" path="res://content/enemies/high_tektite.tres" id="high_tektite"]
+[sub_resource type="Resource" id="spawn_0"]
+script = ExtResource("spawn")
+id = &"moblin"
+enemy = ExtResource("moblin")
+position = Vector2i(32, 45)
+facing = Vector2i(1, 0)
+seed_value = 50
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_1"]
+script = ExtResource("spawn")
+id = &"lynel"
+enemy = ExtResource("lynel")
+position = Vector2i(72, 45)
+facing = Vector2i(1, 0)
+seed_value = 51
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_2"]
+script = ExtResource("spawn")
+id = &"tektite"
+enemy = ExtResource("tektite")
+position = Vector2i(112, 45)
+facing = Vector2i(1, 0)
+seed_value = 52
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_3"]
+script = ExtResource("spawn")
+id = &"leever"
+enemy = ExtResource("leever")
+position = Vector2i(152, 45)
+facing = Vector2i(1, 0)
+seed_value = 53
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_4"]
+script = ExtResource("spawn")
+id = &"ambush_leever"
+enemy = ExtResource("ambush_leever")
+position = Vector2i(192, 45)
+facing = Vector2i(1, 0)
+seed_value = 54
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_5"]
+script = ExtResource("spawn")
+id = &"peahat"
+enemy = ExtResource("peahat")
+position = Vector2i(32, 93)
+facing = Vector2i(1, 0)
+seed_value = 55
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_6"]
+script = ExtResource("spawn")
+id = &"swift_moblin"
+enemy = ExtResource("swift_moblin")
+position = Vector2i(72, 93)
+facing = Vector2i(1, 0)
+seed_value = 56
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_7"]
+script = ExtResource("spawn")
+id = &"resting_peahat"
+enemy = ExtResource("resting_peahat")
+position = Vector2i(112, 93)
+facing = Vector2i(1, 0)
+seed_value = 57
+spawn_ticks = 0
+[sub_resource type="Resource" id="spawn_8"]
+script = ExtResource("spawn")
+id = &"high_tektite"
+enemy = ExtResource("high_tektite")
+position = Vector2i(152, 93)
+facing = Vector2i(1, 0)
+seed_value = 58
+spawn_ticks = 0
+[sub_resource type="Resource" id="sword_pickup"]
+script = ExtResource("pickup")
+id = &"gallery_sword"
+item = ExtResource("sword")
+position = Vector2i(120, 141)
+lift_ticks = 0
+[resource]
+script = ExtResource("room")
+id = &"enemy_gallery"
+title = "Enemy resource gallery"
+spawn = Vector2i(120, 141)
+grid_origin = Vector2i(0, 13)
+movement_bounds = Rect2i(0, -3, 241, 161)
+enemy_persistence = "reset"
+pickups = Array[Resource]([SubResource("sword_pickup")])
+enemies = Array[Resource]([SubResource("spawn_0"), SubResource("spawn_1"), SubResource("spawn_2"), SubResource("spawn_3"), SubResource("spawn_4"), SubResource("spawn_5"), SubResource("spawn_6"), SubResource("spawn_7"), SubResource("spawn_8")])
+tiles = "################\n#..............#\n#..............#\n#...#..........#\n#...#....##....#\n#...#..........#\n#..............#\n#..............#\n#..............#\n#..............#\n################"

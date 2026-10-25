@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"ambush_leever"
+title = "Ambush Leever"
+behavior = "burrower"
+burrow_style = "ambush"
+health = 2
+shooting_enabled = false
+sprite = &"red_leever"
+burrow_times = PackedInt32Array(0, 18, 10, 240, 10, 18)
+burrow_speeds = PackedInt32Array(0, 0, 0, 128, 0, 0)
+fallback_color = Color(0.9, 0.3, 0.2, 1)

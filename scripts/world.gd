@@ -358,7 +358,8 @@ func direction_name(direction: Vector2i) -> String:
 
 func draw_named_sprite(name: StringName, position_in_room: Vector2, tint: Color = Color.WHITE) -> void:
 	if visual_theme.sprites.has(name):
-		draw_texture_rect(visual_theme.sprites[name], Rect2(position_in_room + Vector2(0, HUD_HEIGHT), Vector2(16, 16)), false, tint)
+		var texture: Texture2D = visual_theme.sprites[name]
+		draw_clipped_texture(texture,Rect2(position_in_room + Vector2(0,HUD_HEIGHT),Vector2(16,16)),Rect2(Vector2.ZERO,texture.get_size()),tint)
 
 func draw_room_objects() -> void:
 	for decoration in room.decorations:
@@ -434,7 +435,7 @@ func draw_combat() -> void:
 		if actor.spawn_remaining > 0:
 			var phase: int = 0 if actor.spawn_remaining > 12 else 1 if actor.spawn_remaining > 6 else 2
 			var sprite := StringName("spawn_cloud_" + str(phase))
-			if actor.definition.behavior == "nes_octorok" and visual_theme.sprites.has(sprite):
+			if actor.definition.behavior != "native" and visual_theme.sprites.has(sprite):
 				draw_named_sprite(sprite, Vector2(actor.position()))
 			else:
 				draw_circle(at + Vector2(8, 8), 3 + actor.spawn_remaining % 4, Color("f0e6c8"))
@@ -442,23 +443,28 @@ func draw_combat() -> void:
 			if actor.death_remaining > 0:
 				var phase: int = 1 if actor.death_remaining > 12 or actor.death_remaining <= 6 else 0
 				var sprite := StringName("death_spark_" + str(phase))
-				if actor.definition.behavior == "nes_octorok" and visual_theme.sprites.has(sprite):
+				if actor.definition.behavior != "native" and visual_theme.sprites.has(sprite):
 					if actor.death_remaining < 19: draw_named_sprite(sprite, Vector2(actor.position()))
 				else:
 					draw_circle(at + Vector2(8, 8), actor.death_remaining / 2.0, Color("fff4c8"))
-		elif actor.invulnerability == 0 or simulation_tick % 4 < 2:
-			var pose: int = (actor.animation_ticks / 6) % 2
-			var sprite := StringName(String(actor.definition.sprite) + "_" + direction_name(actor.facing) + "_" + str(pose))
+		elif actor.body_visible() and (actor.invulnerability == 0 or simulation_tick % 4 < 2):
+			var sprite: StringName = actor.sprite_name()
 			if visual_theme.sprites.has(sprite):
 				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint)
 			else:
 				draw_rect(Rect2(at + Vector2(1, 2), Vector2(14, 12)), actor.definition.fallback_color)
 				draw_line(at + Vector2(8, 8), at + Vector2(8, 8) + Vector2(actor.facing) * 8, Color.BLACK, 2)
 	for rock in combat.rocks:
-		if visual_theme.sprites.has(&"rock"):
-			draw_named_sprite(&"rock", Vector2(rock.position()))
-		else:
+		var sprite: StringName = &"rock"
+		if rock.kind == "arrow": sprite = StringName("monster_arrow_" + direction_name(rock.direction))
+		elif rock.kind == "sword": sprite = StringName("beam_" + direction_name(rock.direction) + "_" + str(simulation_tick % 4))
+		if visual_theme.sprites.has(sprite):
+			draw_named_sprite(sprite, Vector2(rock.position()) + (Vector2(0,3) if rock.kind == "sword" and rock.direction.x != 0 else Vector2.ZERO))
+		elif rock.kind == "rock":
 			draw_circle(Vector2(rock.position()) + Vector2(8, HUD_HEIGHT + 8), 3, Color("ba9670"))
+		else:
+			var center: Vector2 = Vector2(rock.position()) + Vector2(8,HUD_HEIGHT+8)
+			draw_line(center-Vector2(rock.direction)*6,center+Vector2(rock.direction)*6,Color("eeeecc"),3)
 
 	for reward in combat.rewards:
 		if reward.age < 32 and (reward.age / 2) % 2 != 0:
@@ -512,12 +518,12 @@ func draw_terrain(definition: Resource, offset: Vector2) -> void:
 				if wall:
 					draw_rect(rect.grow(-3).intersection(Rect2(0, 64, 256, 176)), Color("394f36"), false, 1)
 
-func draw_clipped_texture(texture: Texture2D, destination: Rect2, source: Rect2) -> void:
+func draw_clipped_texture(texture: Texture2D, destination: Rect2, source: Rect2, tint: Color = Color.WHITE) -> void:
 	var visible := destination.intersection(Rect2(0, 64, 256, 176))
 	if not visible.has_area(): return
 	var ratio := source.size / destination.size
 	var cropped := Rect2(source.position + (visible.position - destination.position) * ratio, visible.size * ratio)
-	draw_texture_rect_region(texture, visible, cropped)
+	draw_texture_rect_region(texture, visible, cropped, tint)
 
 func draw_scrolling_rooms() -> void:
 	var offset := Vector2(transition.direction * transition.distance)

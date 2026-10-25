@@ -369,31 +369,149 @@ turn_chance = {160 if kind >= 9 else 112}
     return names
 
 
-def enemy_resources(prg, room_id, collision, spawn):
-    attr_c = prg[99328 + 256 + room_id]
-    attr_d = prg[99328 + 384 + room_id]
-    enemy_type = (attr_c & 63) | ((attr_d >> 7) << 6)
-    definitions = {7: 'red_octorok', 8: 'fast_red_octorok', 9: 'blue_octorok', 10: 'fast_blue_octorok'}
-    if enemy_type not in definitions:
-        return '', '', '', 0
+# Semantic IDs and native behaviors; numeric game tables are read only from ROM.
+ENEMY_TYPES = {
+    1: ('blue_lynel','walker'), 2: ('red_lynel','walker'),
+    3: ('blue_moblin','walker'), 4: ('red_moblin','walker'),
+    7: ('red_octorok','nes_octorok'), 8: ('fast_red_octorok','nes_octorok'),
+    9: ('blue_octorok','nes_octorok'), 10: ('fast_blue_octorok','nes_octorok'),
+    13: ('blue_tektite','jumper'), 14: ('red_tektite','jumper'),
+    15: ('blue_leever','burrower'), 16: ('red_leever','burrower'),
+    26: ('peahat','flyer'),
+}
+
+
+def room_enemy_types(prg, room_id):
+    attr_c, attr_d = prg[99328 + 256 + room_id], prg[99328 + 384 + room_id]
+    template = (attr_c & 63) | ((attr_d >> 7) << 6)
     count = prg[103168 + 36 + (attr_c >> 6)]
-    # Runtime selects source position lists or the edge-spawn scheduler.
-    positions = [spawn] * count
+    if template == 0: return []
+    if template < 0x62: return [template] * (1 if template >= 0x32 else count)
+    pointer_offset = 83775 + (template - 0x62) * 2
+    address = int.from_bytes(prg[pointer_offset:pointer_offset + 2], 'little')
+    offset = 0x14000 + address - 0x8000
+    if not 0x14000 <= offset < 0x18000 or offset + count > 0x18000:
+        raise ValueError('Invalid enemy list pointer')
+    return list(prg[offset:offset + count])
+
+
+def enemy_resources(prg, room_id, collision, spawn):
+    types = room_enemy_types(prg, room_id)
+    # Never silently reinterpret unsupported monsters as another family.
+    if not types or any(kind not in ENEMY_TYPES for kind in types): return '', '', '', 0
     ext = '[ext_resource type="Script" path="res://scripts/enemy_spawn.gd" id="enemy_spawn"]\n'
-    ext += f'[ext_resource type="Resource" path="res://imported/enemies/{definitions[enemy_type]}.tres" id="enemy_def"]\n'
+    for kind in sorted(set(types)):
+        name = ENEMY_TYPES[kind][0]
+        ext += f'[ext_resource type="Resource" path="res://imported/enemies/{name}.tres" id="enemy_def_{kind}"]\n'
     sub = ''
-    for i, (x, y) in enumerate(positions):
+    for i,kind in enumerate(types):
+        delay = 32 + i * 16 if kind in (7,8,9,10) else i + 1
         sub += f'''[sub_resource type="Resource" id="enemy_{i}"]
 script = ExtResource("enemy_spawn")
 id = &"slot_{i}"
-enemy = ExtResource("enemy_def")
-position = Vector2i({x}, {y})
+enemy = ExtResource("enemy_def_{kind}")
+position = Vector2i({spawn[0]}, {spawn[1]})
 facing = Vector2i(0, 0)
 seed_value = {room_id * 31 + i + 1}
-spawn_ticks = {32 + i * 16}
+spawn_ticks = {delay}
 '''
-    field = 'enemies = Array[Resource]([' + ', '.join(f'SubResource("enemy_{i}")' for i in range(len(positions))) + '])'
-    return ext, sub, field, len(positions)
+    field = 'enemies = Array[Resource]([' + ', '.join(f'SubResource("enemy_{i}")' for i in range(len(types))) + '])'
+    return ext, sub, field, len(types)
+
+
+def loot_group(prg, kind):
+    for group,(start,count) in enumerate(((0x13022,6),(0x13028,9),(0x13031,9))):
+        if kind in prg[start:start+count]: return group
+    return 3
+
+
+def export_overworld_enemies(prg, patterns, palettes, output):
+    names = []
+    def render(key, frame, mirrored=False, flip_x=False, narrow=False, palette_override=None, flip_y=False):
+        tile = prg[0x6E83 + frame]
+        attr = prg[0x6F4F + frame]
+        palette = palettes[4 + (attr & 3) if palette_override is None else palette_override]
+        tile_base = tile & 0xFE
+        bank = patterns[0x1000:] if tile & 1 else patterns
+        canvas = bytearray(16 * 16 * 4)
+        for column in range(1 if narrow else 2):
+            for row in range(2):
+                block = bytearray(8 * 8 * 4)
+                blit_tile(block,8,0,0,bank,tile_base + row + (0 if mirrored else column*2),palette,True)
+                for y in range(8):
+                    for x in range(8):
+                        sx = 7-x if mirrored and column == 1 else x
+                        dx,dy = column*8+x+(4 if narrow else 0),row*8+y
+                        if flip_x: dx = 15-dx
+                        if bool(attr & 128) != flip_y: dy = 15-dy
+                        canvas[(dy*16+dx)*4:(dy*16+dx)*4+4] = block[(y*8+sx)*4:(y*8+sx)*4+4]
+        png(output/(key+'.png'),16,16,canvas)
+        names.append(key)
+    for kind,(name,behavior) in ENEMY_TYPES.items():
+        pair = prg[0x1FB4E + kind//2]
+        hp = pair & 15 if kind & 1 else pair >> 4
+        raw_damage = prg[0x72BA + kind]
+        damage = (raw_damage & 15)*2 + (1 if raw_damage & 240 else 0)
+        fields = {'id':f'&"{name}"', 'title':json.dumps(name.replace('_',' ').title()), 'behavior':json.dumps(behavior),
+                  'nes_type':kind,'health':hp, 'contact_damage':damage,'sprite':f'&"{name}"'}
+        if behavior == 'nes_octorok':
+            fields.update(sprite=f'&"{"blue_octorok" if kind >= 9 else "red_octorok"}"',
+                          speed_subpixels=256 if kind in (8,10) else 128,turn_chance=160 if kind>=9 else 112)
+        elif behavior == 'walker':
+            fields.update(turn_chance=160, projectile_kind=json.dumps('sword' if kind in (1,2) else 'arrow'),
+                          projectile_speed_subpixels=768 if kind in (1,2) else 512,
+                          projectile_damage=2 if kind in (1,2) else 1,
+                          projectile_blockable='false' if kind in (1,2) else 'true',
+                          targeting=json.dumps('dominant_axis' if kind in (1,2) else 'aligned'))
+        else:
+            fields['shooting_enabled'] = 'false'
+            if behavior == 'jumper':
+                red = kind == 14
+                fields.update(speed_subpixels=256,jump_velocity_subpixels=-1024 if red else -768,
+                              jump_horizontal_acceleration=prg[0x108D5 + (11 if red else 0)+1],
+                              jump_up_acceleration=prg[0x108D5 + (11 if red else 0)+9],
+                              jump_down_acceleration=prg[0x108D5 + (11 if red else 0)+5],
+                              jump_wait_style=json.dumps('red' if red else 'blue'))
+            elif behavior == 'burrower':
+                red = kind == 16
+                # Locate state tables through fixed verified-ROM offsets below.
+                base = 0x10af7 if red else 0x10a53
+                fields.update(burrow_style=json.dumps('ambush' if red else 'roam'))
+                # Exact addresses are supplied by the verified source table search.
+                for field,offset,scale in [('burrow_speeds',0,4),('burrow_times',6,1),('burrow_animation_ticks',12,1)]:
+                    values = [v*scale for v in prg[base+offset:base+offset+6]]
+                    fields[field] = 'PackedInt32Array('+array(values)+')'
+                fields['turn_chance'] = 160
+        text = '[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]\n[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]\n[resource]\nscript = ExtResource("1")\n'
+        (output/'enemies'/(name+'.tres')).write_text(text+'\n'.join(f'{key} = {value}' for key,value in fields.items())+'\n')
+        if behavior == 'nes_octorok': continue
+        base = prg[0x6E04 + kind + 1]
+        if behavior == 'walker':
+            for direction in ('up','down','left','right'):
+                for pose in range(2):
+                    frame = base + (3 if direction=='up' else 2 if direction=='down' else pose)
+                    render(f'{name}_{direction}_{pose}',frame,flip_x=(pose==1 if direction in ('up','down') else direction=='left'))
+        else:
+            for frame in range(10 if behavior == 'burrower' else 2): render(f'{name}_{frame}',base+frame,mirrored=True)
+    # Arrow item uses the weapon-image heap rather than the object animation heap.
+    for direction in ('up','down','left','right'):
+        tile = prg[0x714C + prg[0x7127+2] + int(direction in ('left','right'))]
+        canvas = bytearray(16*16*4)
+        narrow = direction in ('up','down')
+        bank = patterns[0x1000:] if tile & 1 else patterns
+        for col in range(1 if narrow else 2):
+            for row in range(2):
+                block = bytearray(8*8*4)
+                blit_tile(block,8,0,0,bank,(tile&254)+col*2+row,palettes[6],True)
+                for y in range(8):
+                    for x in range(8):
+                        dx,dy = col*8+x+(4 if narrow else 0),row*8+y
+                        if direction=='left': dx=15-dx
+                        if direction=='down': dy=15-dy
+                        canvas[(dy*16+dx)*4:(dy*16+dx)*4+4]=block[(y*8+x)*4:(y*8+x)*4+4]
+        key='monster_arrow_'+direction
+        png(output/(key+'.png'),16,16,canvas);names.append(key)
+    return names
 
 
 def import_rom(prg, output):
@@ -453,6 +571,7 @@ def import_rom(prg, output):
     combat_names = export_combat_sprites(prg, patterns, palettes, output)
     combat_names += export_beam_sprites(prg, patterns, palettes, output)
     combat_names += export_source_enemies(prg, patterns, palettes, output)
+    combat_names += export_overworld_enemies(prg, patterns, palettes, output)
     start_id = prg[103168 + 47]
     start_y = prg[103168 + 40] - 64
     for room_id, layout in enumerate(layouts):
@@ -503,7 +622,7 @@ entry_walk_pixels = 48
             portal_field = 'portals = Array[Resource]([SubResource("cave_entry")])'
         enemy_ext, enemy_sub, enemy_field, enemy_count = enemy_resources(prg, room_id, collision, spawn)
         portal_resources = enemy_ext + portal_resources + enemy_sub
-        steps = (5 if room_id == start_id else 3) + (2 + enemy_count if enemy_ext else 0)
+        steps = (5 if room_id == start_id else 3) + (enemy_ext.count("[ext_resource") + enemy_count if enemy_ext else 0)
         text = f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]
 [ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
 [ext_resource type="Texture2D" path="res://imported/overworld_tiles.png" id="2"]
@@ -511,6 +630,7 @@ entry_walk_pixels = 48
 script = ExtResource("1")
 id = &"ow_{room_id:02x}"
 enemy_persistence = "overworld"
+source_spawn_lists = true
 source_edge_spawns = {str(bool(prg[99328 + 640 + room_id] & 8)).lower()}
 source_edge_cells = PackedByteArray({array(edge_cells)})
 title = "Overworld {room_id:02X}"
@@ -551,7 +671,7 @@ collision_tiles = PackedByteArray({array(collision)})
         '[ext_resource type="Resource" path="res://content/items/five_rupees.tres" id="five_rupees"]']
     # Original group rates and kill-cycle rows remain generated local data.
     supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees'}
-    for name, group in [('red_loot', 0), ('blue_loot', 2)]:
+    for name, group in [(f'loot_{group}', group) for group in range(4)]:
         row = prg[0x13042 + group * 10:0x13042 + group * 10 + 10]
         entries = [f'ExtResource("{supported[value]}")' if value in supported else 'null' for value in row]
         catalog += [f'[sub_resource type="Resource" id="{name}"]', 'script = ExtResource("loot_script")',
@@ -559,18 +679,22 @@ collision_tiles = PackedByteArray({array(collision)})
     catalog += ['[resource]', 'script = ExtResource("script")', 'id = &"original_quest_1"', f'start_room = &"ow_{start_id:02x}"',
                 'visual_theme = ExtResource("theme")',
                 'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
-                'loot_tables = Dictionary[StringName, Resource]({&"red_octorok": SubResource("red_loot"), &"fast_red_octorok": SubResource("red_loot"), &"blue_octorok": SubResource("blue_loot"), &"fast_blue_octorok": SubResource("blue_loot")})',
+                'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in ENEMY_TYPES.items()) + '})',
                 'rooms = Array[Resource]([' + ', '.join(f'ExtResource("r{i}")' for i in range(128)) + ', ExtResource("cave")])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
     (output / 'manifest.json').write_text(json.dumps({
         'format_version': 1, 'revision': 'US PRG0', 'prg_sha1': PRG_SHA1,
+        'enemy_coverage': {
+            'supported_types': [name for name,_ in ENEMY_TYPES.values()],
+            'encounters': sum(bool(types := room_enemy_types(prg,i)) and all(t in ENEMY_TYPES for t in types) for i in range(128)),
+            'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 129, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
         'limitations': ['Static first-quest terrain only; no secret-state changes or room effects.',
-                        'Only the starting sword cave is functional; other caves, dungeons, non-Octorok enemies remain unimplemented.',
+                        'Only the starting sword cave is functional; other caves, dungeons, and remaining enemy families are unimplemented.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio
     export_audio(prg, output / 'audio')
-    print(f'Imported 128 overworld rooms, the sword cave, terrain, player, item, and Octorok sprites into {output}')
+    print(f'Imported 128 overworld rooms, the sword cave, terrain, player, item, and common overworld enemy sprites into {output}')
 
 
 def main():

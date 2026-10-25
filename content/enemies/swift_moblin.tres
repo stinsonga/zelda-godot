@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"swift_moblin"
+title = "Swift Moblin"
+behavior = "walker"
+nes_type = 3
+health = 3
+speed_subpixels = 192
+sprite = &"blue_moblin"
+projectile_kind = "arrow"
+projectile_speed_subpixels = 768
+shooting_threshold = 0
+turn_chance = 200
+tint = Color(0.6, 1, 0.8, 1)
+fallback_color = Color(0.15, 0.8, 0.6, 1)

@@ -16,7 +16,9 @@
   see docs/OCTOROK_FIDELITY.md.
 - Audio fidelity follow-up: fuller APU synthesis and reference listening comparisons.
   Effects, room music, fanfares, and swappable audio banks are implemented; see docs/AUDIO.md.
-- More overworld enemies and data-defined variants.
+- Common overworld enemies implemented: Moblins, Lynels, Tektites, Leevers,
+  Peahats, and editable variants; see docs/MORE_ENEMIES.md. Follow up with
+  replay fidelity, Zora, Armos, Ghini, boulders, and special overworld actors.
 - Items, equipment, secrets, caves, then dungeon foundations and bosses.
 - Improve visual content editing and asset-pack workflows alongside implementation.
 

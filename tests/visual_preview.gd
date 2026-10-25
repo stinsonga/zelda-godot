@@ -12,6 +12,24 @@ func preview() -> void:
 		quit(1)
 		return
 	var args := OS.get_cmdline_user_args()
+	if args.has("enemies"):
+		world.enter_room(world.rooms[&"ow_78"],Vector2i(120,141),Vector2i.UP)
+		world.combat.enemies.clear()
+		var labels := ["red_moblin", "blue_moblin", "red_lynel", "blue_lynel", "red_tektite", "blue_tektite", "red_leever", "blue_leever", "peahat"]
+		for i in range(labels.size()):
+			var spawn = preload("res://scripts/enemy_spawn.gd").new()
+			spawn.id = StringName(labels[i])
+			spawn.enemy = load("res://imported/enemies/" + labels[i] + ".tres")
+			spawn.position = Vector2i(64+(i%3)*48,29+(i/3)*48)
+			spawn.facing = [Vector2i.RIGHT,Vector2i.DOWN,Vector2i.UP][i%3]
+			var actor = preload("res://scripts/enemy_actor.gd").new()
+			actor.setup(spawn)
+			actor.spawn_remaining = 0
+			actor.family.initialized = true
+			if actor.definition.behavior == "burrower": actor.family.phase = 3
+			world.combat.enemies.append(actor)
+		world.queue_redraw()
+		return
 	if args.has("octorok") or args.has("octorok_cloud"):
 		var room_id: StringName = &"ow_67" if args.has("octorok_cloud") else &"ow_78"
 		var at := Vector2i(120, 157) if args.has("octorok_cloud") else Vector2i(0, 77)
