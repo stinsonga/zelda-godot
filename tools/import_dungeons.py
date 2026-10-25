@@ -392,7 +392,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
 
 
 # Dungeon monster types (Z_07 UpdateObject_JumpTable) with their native behavior.
-MONSTERS = {0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
+MONSTERS = {0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
             0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
             0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
             0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
@@ -408,7 +408,7 @@ DODONGO_IMAGES = [0x00, 0x01, 0x06, None, 0x08, 0x02, 0x03, 0x06, None, 0x08]
 DODONGO_BLOATED = [0x04, 0x05, 0x07, None, 0x09]
 # Bosses that start at fixed spots rather than spawn lists (Z_04 InitAquamentus).
 # Gohma's position is its middle part; ours is the left leg, 16 pixels earlier.
-FIXED_POSITIONS = {0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
+FIXED_POSITIONS = {0x42:(0x74,0x57), 0x43:(0x74,0x57), 0x44:(0x74,0x57), 0x45:(0x74,0x57),0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
 AQUAMENTUS_TILES = 0x11834          # Two frames of six 8x16 sprites.
 AQUAMENTUS_PALETTE = 0x1A28E        # AquamentusPaletteRow7TransferBuf.
 ORANGE_BOSS_PALETTE = 0x1A296       # OrangeBossPaletteRow7TransferBuf (Dodongo, Gohma).
@@ -496,11 +496,17 @@ def monster_definition(prg, kind):
         fields.update(invincible_to='PackedStringArray("boomerang", "arrow", "fire", "magic")', spawn_cloud='false',
                       projectile_kind='"magic"', projectile_speed_subpixels=768, projectile_blockable='false',
                       projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0), shooting_enabled='true')
+    elif behavior == 'gleeok':
+        raw = prg[0x72BA+0x56]
+        fields.update(size='Vector2i(24,32)', collision_size='Vector2i(16,16)', collision_offset='Vector2i(8,24)',
+                      spawn_cloud='false', stunnable='false', invincible_to=f'PackedStringArray({EVERYTHING})',
+                      gleeok_neck_count=kind-0x41, projectile_kind='"fireball"', projectile_blockable='false',
+                      projectile_magic_blockable='false', projectile_damage=(raw&15)*2+bool(raw&240))
     elif name == 'manhandla':
         raw = prg[0x72BA + 0x56]
         fields.update(spawn_cloud='false', stunnable='false', sprite_style='"frames"',
                       invincible_to=f'PackedStringArray({EVERYTHING})', projectile_kind='"fireball"',
-                      projectile_blockable='false', projectile_damage=(raw & 15)*2+bool(raw & 240))
+                      projectile_blockable='false', projectile_magic_blockable='false', projectile_damage=(raw & 15)*2+bool(raw & 240))
     elif name == 'aquamentus':
         # InitAquamentus: mask $E2 (immune to boomerang and fire); fireballs are type $55.
         raw = prg[0x72BA + 0x55]
@@ -534,6 +540,17 @@ def write_monsters(prg, output):
     for kind in MONSTERS:
         name, fields = monster_definition(prg, kind)
         ext = ['[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]']
+        if fields['behavior'] == '"gleeok"':
+            head = fields.copy()
+            for key in ['size','collision_size','collision_offset','gleeok_neck_count']: head.pop(key,None)
+            head.update(id='&"gleeok_head"', title='"Gleeok head"',behavior='"gleeok_head"', nes_type=0x46,
+                        health=10, sprite='&"gleeok_head"', counts_for_clear='false',counts_for_persistence='false',
+                        advances_kill_cycle='false',loot_table='null', flight_initial_speed=0xBF,flight_max_speed=0xE0,
+                        invincible_to='PackedStringArray("boomerang","arrow","bomb","fire","magic")')
+            header = '[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]\n'+ext[0]+'\n[resource]\nscript = ExtResource("1")\n'
+            (output/'enemies'/'gleeok_head.tres').write_text(header+'\n'.join(f'{key} = {value}' for key,value in head.items())+'\n')
+            ext.append('[ext_resource type="Resource" path="res://imported/enemies/gleeok_head.tres" id="head"]')
+            fields['gleeok_head'] = 'ExtResource("head")'
         if name == 'manhandla':
             hand = fields.copy()
             hand.update(id='&"manhandla_hand"', title='"Manhandla hand"', counts_for_clear='false', advances_kill_cycle='false',
@@ -584,6 +601,25 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
         png(output / f'{key}.png', 16, 16, canvas)
         names.append(key)
 
+    if kinds & {0x42,0x43,0x44,0x45}:
+        row = palettes[7]
+        # GleeokBodyTiles0..2 and GleeokBodyBaseTileOffsets, in the verified ROM.
+        for frame in range(4):
+            offset = prg[0x1281B+frame]
+            canvas = bytearray(24*32*4)
+            for part in range(6):
+                tile = prg[0x12809+offset+part]
+                for half in range(2): blit_tile(canvas,24,(part%3)*8,(part//3)*16+half*8,patterns,(tile&254)+half,row,True)
+            key = f'l{level}_gleeok_body_{frame}'
+            png(output/f'{key}.png',24,32,canvas);names.append(key)
+        for name,tile in [('neck',0xDA),('head',0xDC)]:
+            canvas = bytearray(16*16*4)
+            for half in range(2): blit_tile(canvas,16,0,half*8,patterns,tile+half,row,True)
+            key=f'l{level}_gleeok_{name}'
+            png(output/f'{key}.png',16,16,canvas);names.append(key)
+        base=prg[0x6E04+0x47]
+        for pose in range(2): render(f'l{level}_gleeok_flying_{pose}',base+pose,mirrored=True)
+        kinds=kinds-{0x42,0x43,0x44,0x45}
     if 0x3C in kinds:
         base = prg[0x6E04+0x3D]
         for part,offset in [('up',0),('down',0),('left',2),('right',2),('body',4)]:

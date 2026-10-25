@@ -52,7 +52,10 @@ func position() -> Vector2i:
 
 ## Hit checks compare 16-pixel shapes; larger monsters are measured from their middle.
 func hit_position() -> Vector2i:
-	return position() + (size() - Vector2i(16, 16)) / 2
+	return position() + definition.collision_offset + (collision_size() - Vector2i(16, 16)) / 2
+
+func collision_size() -> Vector2i:
+	return definition.collision_size if definition.collision_size != Vector2i.ZERO else size()
 
 func size() -> Vector2i:
 	if definition.wide_when_horizontal and facing.x != 0: return Vector2i(32, 16)
@@ -75,6 +78,10 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 	parried_hit = false
 	if not targetable() or invulnerability > 0:
 		return false
+	if definition.behavior == "gleeok" and kind in ["sword", "beam"] and family.gleeok != null:
+		family.gleeok.writhing = 6
+		family.gleeok.animation_timer = 6
+	if definition.behavior == "gleeok_head" and family.gleeok != null and family.gleeok.hit_timer > 0: return false
 	# Darknuts parry weapons arriving head-on; masks parry whole damage types.
 	if kind in definition.invincible_to or (definition.front_shield and direction == -facing):
 		parried_hit = true
@@ -85,6 +92,10 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 	source.shove_started = false
 	shove_direction = direction
 	shove_remaining = 64
+	if definition.behavior == "gleeok_head" and family.gleeok != null:
+		shove_remaining = 0
+		family.gleeok.head_hit(self)
+		return true
 	if health == 0:
 		death_remaining = 19 if definition.behavior != "native" else 12
 	elif definition.splits_into != null:
@@ -184,6 +195,8 @@ func body_visible() -> bool:
 	return family.visible(self)
 
 func sprite_name() -> StringName:
+	if definition.behavior == "gleeok": return StringName("gleeok_body_"+str(family.gleeok.animation if family.gleeok != null else 0))
+	if definition.behavior == "gleeok_head": return StringName("gleeok_flying_"+str(animation_ticks&1)) if family.gleeok_detached else &"gleeok_head"
 	if definition.behavior in ["jumper", "burrower", "flyer"]:
 		return StringName(String(definition.sprite) + "_" + str(family.frame(self)))
 	if definition.behavior == "manhandla":

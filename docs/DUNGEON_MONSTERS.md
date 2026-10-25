@@ -2,7 +2,7 @@
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
 Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
-blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, and Manhandla. 177 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, and Gleeok. 180 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
 families, and every cellar holds its four blue Keese. Rooms with other monsters
 (the other bosses, Lanmolas, Moldorms, Patras, and the old men) stay empty until those exist,
 rather than substituting a different monster. The manifest records the counts.
@@ -55,7 +55,7 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Lanmolas, Moldorms, Patras, and the remaining bosses: Gleeok and Ganon. Dodongo does not yet drop its bombs. Second-quest
+Lanmolas, Moldorms, Patras, and Ganon. Dodongo does not yet drop its bombs. Second-quest
 Stalfos shooting, monster stun from the boomerang and clock, and keys carried by
 monsters are also not implemented.
 
@@ -87,3 +87,46 @@ palette. `visual_preview.gd -- manhandla` renders the assembled boss.
 Exact within-frame collision/movement ordering, per-part boundary bounce delays,
 and original boss cries still need emulator comparison; this is a native boss
 implementation, not a claim of frame-perfect parity.
+
+## Gleeok
+
+All four neck-count variants ($42–$45) now import, including the first-quest
+encounters in levels 4, 6, and 8. The fixed 24x32 body draws at ($74,$57); its
+collision reference is the bottom neck segment at ($7C,$6F). Five segments per
+neck begin five pixels apart. One neck moves each video frame, selected by
+frame & 3. Head movement preserves the original counters: initially 6 horizontal,
+3 vertical, reversing after 12/6 groups of four selected updates; initial delays
+are neck index times 12 selected updates. Neck contraction, expansion, reference
+alignment, and the original same-X subtraction quirk are translated from
+`Gleeok_MoveNeck` and `Gleeok_StretchNeck`.
+
+The source shares a 10-HP pool and damage cooldown across attached heads. Only
+swords and sword beams hurt them. Severing the struck head resets the pool to 6
+for the surviving necks (`Gleeok_CheckCollisions`, STA ObjHP,#$60). The detached
+head cannot be damaged, ignores terrain, and flies at speed $BF increasing to
+$E0, choosing chase/wander states without ever resting. It and the selected
+attached head can shoot Fireball2 ($56), which penetrates even the magical shield.
+The fireball model now distinguishes these from blockable Aquamentus fireballs.
+Base hits cause fast body writhing without killing the boss. Neck links are
+visual; only their base and heads cause contact damage. Weapon hits do not shove
+any Gleeok component.
+
+After the final attached head falls, the body dies and all detached heads vanish.
+The encounter counts and persists once; partial fights rebuild on room entry.
+Existing room-clear logic then releases shutters and rewards. The general
+four-shot cap is retained; exact NES shot-slot scheduling and which leftover
+fireball survives the death sequence remain fidelity follow-ups.
+
+`EnemyDefinition.gleeok_head`, `gleeok_neck_count`, `gleeok_head_delay`, and
+`gleeok_next_head_health` configure native variants. The head resource's HP controls
+the initial pool. Native presets in content/enemies/ contain authored placeholder
+settings. All original patterns, palettes, and imported boss variants stay under
+ignored imported/.
+
+`tests/gleeok.gd` runs with or without a ROM: selected-neck timing, shared HP and
+cooldown, masks, detachment, continuous flight, shield rules, final cleanup,
+partial-fight reconstruction, persistent defeat, and editable four-head variants.
+With imports it exercises every Gleeok room. `tests/test_gleeok.py` checks variants
+and every body/neck/attached-head pixel in level groups 4/6/8. Preview arguments
+are `gleeok2`, `gleeok4`, and optional `detached`. Frame-by-frame emulator
+comparison, sprite priority/flash details, and boss cries remain pending.

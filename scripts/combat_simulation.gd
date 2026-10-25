@@ -62,8 +62,30 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 				actor.spawn_remaining = 0
 	elif room.source_spawn_lists:
 		assign_source_spawns(room, state, entry_position, entry_direction)
+	setup_gleeoks()
 	setup_multipart_bosses()
 	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
+
+func setup_gleeoks() -> void:
+	for actor in enemies.duplicate():
+		if actor.definition.behavior != "gleeok": continue
+		var group = preload("res://scripts/gleeok.gd").new()
+		group.setup(actor)
+		actor.family.gleeok = group
+		for i in range(actor.definition.gleeok_neck_count):
+			var spawn = preload("res://scripts/enemy_spawn.gd").new()
+			spawn.id = StringName(String(actor.id)+"_neck_"+str(i))
+			spawn.enemy = actor.definition.gleeok_head
+			spawn.spawn_ticks = 0
+			var head = Actor.new()
+			head.setup(spawn)
+			head.spawn_remaining = 0
+			head.slot = i+7
+			head.family.gleeok = group
+			group.add_head(head,i,actor.hit_position(),actor.definition.gleeok_head_delay)
+			enemies.append(head)
+		enemies.erase(actor)
+		enemies.append(actor)
 
 func setup_multipart_bosses() -> void:
 	for actor in enemies.duplicate():
@@ -135,7 +157,7 @@ func tick(world: Node) -> void:
 	update_edge_spawns(world)
 	ambush_timer = maxi(0,ambush_timer-1)
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
-	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds, "chase_target":chase_target,
+	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds, "chase_target":chase_target, "random":source_random.at(0), "head_random":source_random.at(5),
 		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
@@ -172,11 +194,14 @@ func tick(world: Node) -> void:
 				rock.direction = actor.facing
 				rock.speed_subpixels = actor.definition.projectile_speed_subpixels
 				rocks.append(rock)
-		if was_alive and actor.health == 0: record_permanent_kill(world,actor)
+		if was_alive and actor.health == 0:
+			record_permanent_kill(world,actor)
+			if actor.definition.behavior == "gleeok": world.audio.play(&"enemy_die")
 		for shot in actor.pending_shots:
 			if rocks.size() >= projectile_limit: break
 			var fireball: RefCounted = make_fireball(world, shot.position, shot.spread)
 			fireball.damage = actor.definition.projectile_damage
+			fireball.magic_blockable = actor.definition.projectile_magic_blockable
 			rocks.append(fireball)
 		actor.pending_shots.clear()
 		if actor.health == 0 and actor.death_remaining == 0 and not actor.drop_resolved:
@@ -191,8 +216,8 @@ func tick(world: Node) -> void:
 					reward.definition = item
 					reward.position = actor.position()
 					rewards.append(reward)
-		var reach: Vector2i = actor.size() / 2 + Vector2i.ONE
-		var gap: Vector2i = (actor.position() + actor.size() / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
+		var reach: Vector2i = actor.collision_size() / 2 + Vector2i.ONE
+		var gap: Vector2i = (actor.position() + actor.definition.collision_offset + actor.collision_size() / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
 		if actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
 			touch_player(world, actor)
 	ambush_timer = int(context.ambush_timer)
@@ -240,7 +265,7 @@ func tick(world: Node) -> void:
 
 ## The magical shield also turns Lynel sword shots (Z_07 HandleShotBlocked).
 func shield_blocks(world: Node, rock: RefCounted) -> bool:
-	return rock.blockable or (rock.kind in ["sword", "magic", "fireball"] and world.state.item_value(&"magic_shield") > 0)
+	return rock.blockable or (rock.kind in ["sword", "magic", "fireball"] and rock.magic_blockable and world.state.item_value(&"magic_shield") > 0)
 
 ## Contact effects: damage, capture (Like Like, Wallmaster), or a Bubble's
 ## effect on the sword (Z_04 UpdateBubble).
@@ -474,7 +499,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

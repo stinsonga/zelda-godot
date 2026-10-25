@@ -996,6 +996,22 @@ func draw_original_hud() -> void:
 		draw_texture_rect(visual_theme.sprites[item_sprite(selected)], Rect2(126, 28, 16, 16), false)
 
 func draw_combat() -> void:
+	# Gleeok's fixed body and necks sit behind the attached/detached head sprites.
+	for actor in combat.enemies:
+		if actor.health <= 0 or actor.definition.behavior != "gleeok" or actor.family.gleeok == null: continue
+		var prefix := "l%d_" % room.dungeon_level if room.dungeon_level > 0 else ""
+		var body_sprite := StringName(prefix+String(actor.sprite_name()))
+		if visual_theme.sprites.has(body_sprite): draw_named_sprite(body_sprite,Vector2(actor.position()),actor.definition.tint,Vector2(actor.size()))
+		else: draw_rect(Rect2(Vector2(actor.position())+Vector2(0,HUD_HEIGHT),Vector2(actor.size())),actor.definition.fallback_color)
+		var group: RefCounted = actor.family.gleeok
+		for i in range(group.heads.size()):
+			var head = group.heads[i].get_ref()
+			if head == null or head.health <= 0 or head.family.gleeok_detached: continue
+			for segment in range(4):
+				var at: Vector2 = group.necks[i][segment]
+				var neck_sprite := StringName(prefix+"gleeok_neck")
+				if visual_theme.sprites.has(neck_sprite): draw_named_sprite(neck_sprite,at)
+				else: draw_circle(at+Vector2(4,HUD_HEIGHT+8),3,actor.definition.fallback_color)
 	for actor in combat.enemies:
 		var at: Vector2 = Vector2(actor.position()) + Vector2(0, HUD_HEIGHT)
 		if actor.waiting_spawn: continue

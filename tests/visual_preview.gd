@@ -12,6 +12,23 @@ func preview() -> void:
 		quit(1)
 		return
 	var args := OS.get_cmdline_user_args()
+	if args.has("gleeok2") or args.has("gleeok4"):
+		var count := 4 if args.has("gleeok4") else 2
+		for candidate in world.room_resources:
+			if not candidate.enemies.any(func(s: Resource)->bool: return s.enemy.behavior=="gleeok" and s.enemy.gleeok_neck_count==count):continue
+			world.enter_room(candidate,candidate.spawn,Vector2i.UP)
+			for tick in range(100):
+				world.combat.player_invulnerability=10000
+				world.simulate_tick(Vector2i.ZERO)
+			if args.has("detached"):
+				var group = world.combat.enemies.back().family.gleeok
+				group.heads[0].get_ref().receive_hit(100,Vector2i.UP,"sword")
+				for tick in range(25):world.simulate_tick(Vector2i.ZERO)
+			world.queue_redraw()
+			return
+		push_error("Gleeok preview room missing")
+		quit(1)
+		return
 	if args.has("manhandla"):
 		for candidate in world.room_resources:
 			if candidate.dungeon_level != 3 or not candidate.enemies.any(func(spawn: Resource) -> bool: return spawn.enemy.behavior == "manhandla"): continue

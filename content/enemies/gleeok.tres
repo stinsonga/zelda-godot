@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://content/enemies/gleeok_head.tres" id="head"]
+[resource]
+script = ExtResource("1")
+id = &"lab_neck_boss"
+behavior = "gleeok"
+health = 1
+size = Vector2i(24, 32)
+collision_size = Vector2i(16, 16)
+collision_offset = Vector2i(8, 24)
+spawn_cloud = false
+stunnable = false
+gleeok_head = ExtResource("head")
+gleeok_next_head_health = 2
+invincible_to = PackedStringArray("sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic")
+fallback_color = Color(0.6, 0.3, 0.2, 1)

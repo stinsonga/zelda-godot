@@ -2,6 +2,14 @@ class_name OverworldEnemy
 extends RefCounted
 ## Family state stays on the actor; shared editable definitions stay immutable.
 const DIRS := [Vector2i.UP, Vector2i(1,-1), Vector2i.RIGHT, Vector2i(1,1), Vector2i.DOWN, Vector2i(-1,1), Vector2i.LEFT, Vector2i(-1,-1)]
+var gleeok: RefCounted
+var gleeok_index := 0
+var gleeok_detached := false
+var gleeok_delay := 0
+var gleeok_step := Vector2i(-1,1)
+var gleeok_horizontal := 6
+var gleeok_vertical := 3
+var gleeok_direction_timer := 0
 var manhandla: RefCounted
 var manhandla_offset := Vector2i.ZERO
 var manhandla_index := 0
@@ -51,11 +59,13 @@ func initialize(actor: RefCounted) -> void:
 		actor.facing = DIRS[actor.source_random & 7]
 
 func visible(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "gleeok": return false
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase != 0
 
 func vulnerable(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
 	# Dodongo_CheckCollisionsStandardSize: mask $FF except while stunned.
 	if actor.definition.behavior == "dodongo": return phase == 2
 	if actor.definition.behavior == "digdogger": return actor.definition.size.x == 16
@@ -103,6 +113,9 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	if not initialized: initialize(actor)
 	if timer > 0: timer -= 1
 	if actor.source.turn_timer > 0: actor.source.turn_timer -= 1
+	if actor.definition.behavior in ["gleeok", "gleeok_head"]:
+		if gleeok != null: gleeok.tick(actor,context)
+		return false
 	if actor.definition.behavior == "manhandla":
 		if manhandla != null: manhandla.tick(actor,context)
 		return false
@@ -217,7 +230,7 @@ func tick_flight(actor: RefCounted, target: Vector2i) -> void:
 				timer = definition.flight_rest_min + (actor.source_random & definition.flight_rest_random_mask)
 			elif (flight_speed & 224) >= definition.flight_max_speed: phase = 1
 		1:
-			phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3 if actor.source_random >= 32 else 4
+			phase = (2 if actor.source_next_random < 208 else 3) if definition.behavior == "gleeok_head" else (2 if actor.source_random >= definition.flight_chase_threshold else 3 if actor.source_random >= 32 else 4)
 			turns = definition.flight_turn_count
 		2,3:
 			if timer == 0:

@@ -6,6 +6,7 @@ var speed_subpixels := 512
 var kind := "rock"
 var damage := 1
 var blockable := true
+var magic_blockable := true
 var source_rules := false
 var age := 0
 var bounce_remaining := 0
