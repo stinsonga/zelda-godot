@@ -92,11 +92,11 @@ choice.
 
 ## Scope limits
 
-These resources represent initial terrain, not a complete playable overworld.
-The starting sword cave is functional; other cave entrances remain visual.
-Dungeons, non-Octorok monsters, secrets, pushed objects, maze rules, room effects,
-and general room state are not implemented. See [cave and sword notes](CAVE_AND_SWORD.md). Some overworld terrain needs those mechanics to be
-traversable. Collision now follows the original direction-dependent hotspot probes at grid
+The import covers the first-quest overworld, its reachable caves, and all nine
+levels. See [caves and secrets](CAVES_AND_SECRETS.md), [dungeons](DUNGEONS.md), and
+[dungeon monsters](DUNGEON_MONSTERS.md) for what each part covers. Armos, the
+recorder, the raft and ladder, maze rules, room effects, the second quest, and the
+remaining monsters and bosses are not implemented yet. Collision now follows the original direction-dependent hotspot probes at grid
 boundaries. Full frame-by-frame fidelity, multi-button input priorities, and
 special collision rules for doorways and room effects still need implementation.
 

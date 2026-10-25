@@ -6,7 +6,7 @@
 script = ExtResource("ware")
 item = ExtResource("rupee")
 price = 5
-hint = "THIS AIN'T ENOUGH\nTO TALK!"
+hint = "TOO CHEAP FOR\nA SECRET."
 [sub_resource type="Resource" id="ware_1"]
 script = ExtResource("ware")
 item = ExtResource("rupee")
@@ -20,7 +20,7 @@ hint = "PUSH THE GRAVE\nFROM BELOW."
 [resource]
 script = ExtResource("cave")
 id = &"lab_hint"
-text = "PAY ME AND I'LL TALK!"
+text = "SECRETS FOR SALE."
 wares = Array[Resource]([SubResource("ware_0"), SubResource("ware_1"), SubResource("ware_2")])
 choose = true
 pay = true

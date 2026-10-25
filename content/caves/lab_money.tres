@@ -17,7 +17,7 @@ price = 10
 [resource]
 script = ExtResource("cave")
 id = &"lab_money"
-text = "LET'S PLAY MONEY\nMAKING GAME!"
+text = "PICK A RUPEE.\nWIN OR LOSE!"
 wares = Array[Resource]([SubResource("ware_0"), SubResource("ware_1"), SubResource("ware_2")])
 choose = true
 show_items = true

@@ -72,6 +72,20 @@ class CaveImportTests(unittest.TestCase):
         self.assertIsNone(rooms[0x00]['secret'])
         self.assertEqual(list(prg[103168 + 52:103168 + 56]), [0x1D, 0x23, 0x49, 0x79])
 
+    def test_local_text_stays_out_of_shared_content(self):
+        """docs/ASSET_BOUNDARY.md: original dialogue may only live in imported/."""
+        prg = self.local()
+        lines = set()
+        for selector in range(0, 0x4C, 2):
+            for line in caves.person_text(prg, selector).replace('\u00a0', ' ').split('\n'):
+                if len(line.strip()) >= 8: lines.add(line.strip())
+        for folder in ('content', 'scenes'):
+            for path in (ROOT / folder).rglob('*'):
+                if path.suffix not in ('.tres', '.tscn', '.gd'): continue
+                text = path.read_text(errors='ignore').replace('\\n', ' ')
+                for line in lines:
+                    self.assertNotIn(line, text, f'{path} contains original text')
+
     def test_local_item_sprites(self):
         self.local()
         for name in ['bombs', 'blue_candle', 'heart_container', 'magic_shield', 'letter', 'old_woman', 'merchant', 'cave_moblin', 'bomb_cloud_1', 'white_sword_up']:

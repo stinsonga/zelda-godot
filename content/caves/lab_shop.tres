@@ -19,7 +19,7 @@ price = 20
 [resource]
 script = ExtResource("cave")
 id = &"lab_shop"
-text = "BUY SOMETHIN' WILL YA!"
+text = "LAB SUPPLIES HERE."
 wares = Array[Resource]([SubResource("ware_0"), SubResource("ware_1"), SubResource("ware_2")])
 choose = true
 pay = true
