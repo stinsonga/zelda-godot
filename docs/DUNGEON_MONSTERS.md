@@ -2,9 +2,9 @@
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
 Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
-blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, and Gleeok. 180 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, and Moldorm. 184 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
 families, and every cellar holds its four blue Keese. Rooms with other monsters
-(the other bosses, Lanmolas, Moldorms, Patras, and the old men) stay empty until those exist,
+(the other bosses, Lanmolas, Patras, and the old men) stay empty until those exist,
 rather than substituting a different monster. The manifest records the counts.
 
 ## Behaviors
@@ -55,7 +55,7 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Lanmolas, Moldorms, Patras, and Ganon. Dodongo does not yet drop its bombs. Second-quest
+Lanmolas, Patras, and Ganon. Dodongo does not yet drop its bombs. Second-quest
 Stalfos shooting, monster stun from the boomerang and clock, and keys carried by
 monsters are also not implemented.
 
@@ -130,3 +130,47 @@ With imports it exercises every Gleeok room. `tests/test_gleeok.py` checks varia
 and every body/neck/attached-head pixel in level groups 4/6/8. Preview arguments
 are `gleeok2`, `gleeok4`, and optional `detached`. Frame-by-frame emulator
 comparison, sprite priority/flash details, and boss cries remain pending.
+
+## Moldorm
+
+`InitMoldorm` creates two five-segment worms, with every segment initially at
+($80,$70). Heads occupy the highest slot in each chain (5 and 10), choose random
+eight-way directions, and start moving at half a pixel per tick. Other segments
+start with no direction: they are hidden and cannot collide until direction
+propagation activates them. Heads chase or wander for eight turns, choosing chase
+when random >= $40. Every 16 ticks, each segment receives the preceding segment's
+old direction. This creates the original eight-pixel following delay. Head bounces
+are deferred until the next propagation; followers ignore terrain.
+
+Segments retain individual HP and nonlethal damage cooldowns. `UpdateMoldorm`
+handles a lethal hit by removing the lowest remaining slot (the tail). The death
+spark appears at the struck position. If the struck part was not the tail, it
+continues in the same slot with two HP, preserving the head and chain ordering.
+Lethal hits reset invulnerability; weapon hits never shove Moldorm. Only a chain's
+last/head segment advances the world loot cycle and rolls its original drop group;
+removed body segments produce no drops. The invisible native encounter controller
+never draws, collides, advances loot, or produces a reward.
+
+All ten segments must die to clear the live room. Separately, the original
+`InitMoldorm` sets RoomObjCount to eight, the history format's maximum kill count.
+Imported Moldorm rooms use `persistence_enemy_count = 8`: resolved segment deaths
+are capped at eight, and a retained eight-kill room does not respawn, even if two
+segments were still alive when Link left. Below the cap, reentry instantiates the
+original full ten segments; the previous kill count remains in history. Native
+authored fixtures leave that override at zero and persist one complete encounter.
+Checkpoint format remains version 3; live segment positions and fractional motion
+are transient, as for other enemy families.
+
+`EnemyDefinition.moldorm_segment`, `moldorm_chain_count`,
+`moldorm_segments_per_chain`, `moldorm_segment_reset_health`, and `boss_turn_ticks`
+configure variants. The segment resource controls HP, speed, contact damage,
+art, and damage masks. The authored content/enemies/moldorm*.tres presets and
+`tests/moldorm.gd` work without a ROM. Tests cover real sword collision, individual
+HP, head-preserving tail replacement, activation/following, no knockback, history,
+full room clearance, and a faster one-chain/three-segment variant. With imports,
+they simulate all Moldorm rooms. Python checks source stats and each sprite pixel
+in levels 2 and 7. `visual_preview.gd -- moldorm` renders a deterministic encounter.
+
+Per-slot movement/collision order, initial timer phase, exact death-spark timing,
+and boss cries remain emulator-comparison follow-ups. Original art, palettes,
+room data, and extracted definitions stay under ignored imported/.

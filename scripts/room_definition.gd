@@ -3,6 +3,8 @@ extends Resource
 ## A room is 16 x 11 logical tiles. IDs are independent of NES addresses.
 ## Native unique encounters default to permanent; imported overworld uses counts.
 @export_enum("permanent", "overworld", "reset") var enemy_persistence: String = "permanent"
+## Original Moldorm uses ten live segments but stores at most eight kills.
+@export var persistence_enemy_count: int = 0
 @export var source_spawn_lists: bool = false
 @export var source_edge_spawns: bool = false
 @export var source_edge_cells: PackedByteArray = PackedByteArray()

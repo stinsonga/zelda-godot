@@ -62,9 +62,42 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 				actor.spawn_remaining = 0
 	elif room.source_spawn_lists:
 		assign_source_spawns(room, state, entry_position, entry_direction)
+	setup_moldorms()
 	setup_gleeoks()
 	setup_multipart_bosses()
 	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
+
+func setup_moldorms() -> void:
+	for actor in enemies.duplicate():
+		if actor.definition.behavior!="moldorm":continue
+		var group=preload("res://scripts/moldorm.gd").new()
+		group.setup(actor)
+		actor.family.moldorm=group
+		for chain_index in range(actor.definition.moldorm_chain_count):
+			var parts: Array[RefCounted]=[]
+			for i in range(actor.definition.moldorm_segments_per_chain):
+				var spawn=preload("res://scripts/enemy_spawn.gd").new()
+				spawn.id=StringName(String(actor.id)+"_chain_"+str(chain_index)+"_"+str(i))
+				spawn.enemy=actor.definition.moldorm_segment.duplicate()
+				var head: bool=i==actor.definition.moldorm_segments_per_chain-1
+				spawn.enemy.advances_kill_cycle=head
+				spawn.enemy.drops_rewards=head
+				if head:spawn.enemy.id=actor.definition.id
+				spawn.position=actor.position()
+				spawn.facing=Vector2i.ZERO
+				spawn.spawn_ticks=0
+				var part=Actor.new()
+				part.setup(spawn)
+				part.spawn_remaining=0
+				part.slot=chain_index*actor.definition.moldorm_segments_per_chain+i+1
+				part.family.moldorm=group
+				part.family.moldorm_chain=chain_index
+				part.family.moldorm_is_head=head
+				enemies.append(part)
+				parts.append(part)
+			group.add_chain(parts,OverworldEnemy.DIRS[source_random.at(parts.back().slot)&7])
+		enemies.erase(actor)
+		enemies.append(actor)
 
 func setup_gleeoks() -> void:
 	for actor in enemies.duplicate():
@@ -157,7 +190,7 @@ func tick(world: Node) -> void:
 	update_edge_spawns(world)
 	ambush_timer = maxi(0,ambush_timer-1)
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
-	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds, "chase_target":chase_target, "random":source_random.at(0), "head_random":source_random.at(5),
+	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds, "chase_target":chase_target, "rng":source_random, "random":source_random.at(0), "head_random":source_random.at(5),
 		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
@@ -197,6 +230,9 @@ func tick(world: Node) -> void:
 		if was_alive and actor.health == 0:
 			record_permanent_kill(world,actor)
 			if actor.definition.behavior == "gleeok": world.audio.play(&"enemy_die")
+		if actor.definition.behavior=="moldorm" and actor.family.moldorm!=null and actor.family.moldorm.death_cues>0:
+			world.audio.play(&"enemy_die")
+			actor.family.moldorm.death_cues=0
 		for shot in actor.pending_shots:
 			if rocks.size() >= projectile_limit: break
 			var fireball: RefCounted = make_fireball(world, shot.position, shot.spread)
@@ -208,7 +244,7 @@ func tick(world: Node) -> void:
 			actor.drop_resolved = true
 			if actor.definition.counts_for_persistence: encounter_kills += 1
 			world.state.kill_cycle = (world.state.kill_cycle + 1) % 10 if actor.definition.advances_kill_cycle else world.state.kill_cycle
-			var table: Resource = world.loot_tables.get(actor.definition.id, actor.definition.loot_table)
+			var table: Resource = world.loot_tables.get(actor.definition.id, actor.definition.loot_table) if actor.definition.drops_rewards else null
 			if table != null:
 				var item: Resource = table.select(world.state.kill_cycle, actor.source_random if original else actor.rng.randi_range(0, 255))
 				if item != null:
@@ -456,6 +492,13 @@ func record_permanent_kill(world: Node, actor: RefCounted) -> void:
 func persisted_records(state: RefCounted) -> Dictionary:
 	var records: Dictionary = state.room_records.duplicate(true)
 	if encounter_room != null and encounter_room.enemy_persistence == "overworld" and not encounter_room.enemies.is_empty():
+		if encounter_room.persistence_enemy_count>0:
+			var kills: int=base_kills
+			for actor in enemies:
+				if actor.definition.behavior=="moldorm" and actor.family.moldorm!=null:kills+=actor.family.moldorm.resolved_kills()
+			var limit: int=encounter_room.persistence_enemy_count
+			records[String(encounter_room.id)]={"kills":mini(kills,limit),"cleared":kills>=limit}
+			return records
 		var cleared := encounter_total == 0 or encounter_kills >= encounter_total
 		records[String(encounter_room.id)] = {
 			"kills": encounter_room.enemies.size() if cleared else base_kills + encounter_kills,
@@ -499,7 +542,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

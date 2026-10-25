@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://content/enemies/moldorm_segment.tres" id="segment"]
+[resource]
+script = ExtResource("1")
+id = &"lab_worms"
+behavior = "moldorm"
+health = 1
+spawn_cloud = false
+shooting_enabled = false
+stunnable = false
+drops_rewards = false
+advances_kill_cycle = false
+moldorm_segment = ExtResource("segment")
+fallback_color = Color(0.85, 0.4, 0.2, 1)

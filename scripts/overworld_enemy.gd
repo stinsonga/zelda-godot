@@ -2,6 +2,10 @@ class_name OverworldEnemy
 extends RefCounted
 ## Family state stays on the actor; shared editable definitions stay immutable.
 const DIRS := [Vector2i.UP, Vector2i(1,-1), Vector2i.RIGHT, Vector2i(1,1), Vector2i.DOWN, Vector2i(-1,1), Vector2i.LEFT, Vector2i(-1,-1)]
+var moldorm: RefCounted
+var moldorm_chain := 0
+var moldorm_is_head := false
+var moldorm_old_direction := Vector2i.ZERO
 var gleeok: RefCounted
 var gleeok_index := 0
 var gleeok_detached := false
@@ -59,12 +63,16 @@ func initialize(actor: RefCounted) -> void:
 		actor.facing = DIRS[actor.source_random & 7]
 
 func visible(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "moldorm": return false
+	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok": return false
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase != 0
 
 func vulnerable(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "moldorm": return false
+	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
 	# Dodongo_CheckCollisionsStandardSize: mask $FF except while stunned.
 	if actor.definition.behavior == "dodongo": return phase == 2
@@ -76,6 +84,8 @@ func vulnerable(actor: RefCounted) -> bool:
 	return true
 
 func contact_enabled(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "moldorm": return false
+	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase == 3
@@ -113,6 +123,9 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	if not initialized: initialize(actor)
 	if timer > 0: timer -= 1
 	if actor.source.turn_timer > 0: actor.source.turn_timer -= 1
+	if actor.definition.behavior in ["moldorm", "moldorm_segment"]:
+		if moldorm != null: moldorm.tick(actor,context)
+		return false
 	if actor.definition.behavior in ["gleeok", "gleeok_head"]:
 		if gleeok != null: gleeok.tick(actor,context)
 		return false

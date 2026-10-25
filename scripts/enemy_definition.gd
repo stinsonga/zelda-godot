@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -95,6 +95,11 @@ extends Resource
 @export var boss_turn_ticks: int = 16
 @export var advances_kill_cycle: bool = true
 @export var counts_for_persistence: bool = true
+@export var moldorm_segment: Resource
+@export_range(1, 4) var moldorm_chain_count: int = 2
+@export_range(1, 8) var moldorm_segments_per_chain: int = 5
+@export var moldorm_segment_reset_health: int = 2
+@export var drops_rewards: bool = true
 @export var gleeok_head: Resource
 @export_range(1, 4) var gleeok_neck_count: int = 2
 @export var gleeok_head_delay: int = 12
@@ -106,7 +111,7 @@ extends Resource
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")
@@ -126,4 +131,5 @@ func validation_errors() -> PackedStringArray:
 	if behavior == "manhandla" and boss_hand != null:
 		if boss_hand_offsets.size() != 4 or boss_turn_ticks < 1 or boss_initial_speed < 0 or boss_lost_hand_speed < 0: errors.append("Invalid multipart boss configuration")
 	if behavior == "gleeok" and (gleeok_head == null or gleeok_neck_count < 1 or gleeok_neck_count > 4 or gleeok_head_delay < 0): errors.append("Gleeok needs a head resource and one to four necks")
+	if behavior == "moldorm" and (moldorm_segment == null or moldorm_chain_count < 1 or moldorm_chain_count > 4 or moldorm_segments_per_chain < 1 or moldorm_segments_per_chain > 8 or boss_turn_ticks < 1 or moldorm_segment_reset_health < 1): errors.append("Invalid Moldorm chains")
 	return errors

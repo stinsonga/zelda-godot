@@ -12,6 +12,18 @@ func preview() -> void:
 		quit(1)
 		return
 	var args := OS.get_cmdline_user_args()
+	if args.has("moldorm"):
+		for candidate in world.room_resources:
+			if not candidate.enemies.any(func(s:Resource)->bool:return s.enemy.behavior=="moldorm"):continue
+			world.enter_room(candidate,candidate.spawn,Vector2i.UP)
+			for tick in range(140):
+				world.combat.player_invulnerability=10000
+				world.simulate_tick(Vector2i.ZERO)
+			world.queue_redraw()
+			return
+		push_error("Moldorm preview room missing")
+		quit(1)
+		return
 	if args.has("gleeok2") or args.has("gleeok4"):
 		var count := 4 if args.has("gleeok4") else 2
 		for candidate in world.room_resources:

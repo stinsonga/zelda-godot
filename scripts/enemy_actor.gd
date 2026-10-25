@@ -92,12 +92,14 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 	source.shove_started = false
 	shove_direction = direction
 	shove_remaining = 64
+	if definition.behavior == "moldorm_segment": shove_remaining=0
 	if definition.behavior == "gleeok_head" and family.gleeok != null:
 		shove_remaining = 0
 		family.gleeok.head_hit(self)
 		return true
 	if health == 0:
 		death_remaining = 19 if definition.behavior != "native" else 12
+		if definition.behavior == "moldorm_segment" and family.moldorm != null: family.moldorm.lose_segment(self)
 	elif definition.splits_into != null:
 		split_pending = true
 	return true
@@ -195,6 +197,7 @@ func body_visible() -> bool:
 	return family.visible(self)
 
 func sprite_name() -> StringName:
+	if definition.behavior == "moldorm_segment": return &"moldorm"
 	if definition.behavior == "gleeok": return StringName("gleeok_body_"+str(family.gleeok.animation if family.gleeok != null else 0))
 	if definition.behavior == "gleeok_head": return StringName("gleeok_flying_"+str(animation_ticks&1)) if family.gleeok_detached else &"gleeok_head"
 	if definition.behavior in ["jumper", "burrower", "flyer"]:

@@ -147,4 +147,5 @@ func prepare_overworld_room(room: Resource, restoring: bool = false) -> int:
 		record = {"kills": 0, "cleared": false}
 		room_records[key] = record
 	if record.cleared: return 0
+	if room.persistence_enemy_count > 0: return room.enemies.size()
 	return maxi(0, room.enemies.size() - int(record.kills))
