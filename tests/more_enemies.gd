@@ -143,7 +143,7 @@ func run() -> void:
 		var mixed := 0
 		var rooms_checked := 0
 		for definition in world.room_resources:
-			if definition.enemies.is_empty(): continue
+			if definition.enemies.is_empty() or definition.dungeon_level > 0: continue
 			world.enter_room(definition,definition.spawn,Vector2i.UP)
 			var types := {}
 			for enemy in definition.enemies:

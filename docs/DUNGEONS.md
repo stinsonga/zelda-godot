@@ -5,9 +5,10 @@ are 255 rooms, cellars included. Enter a level through its overworld entrance an
 start room's south doorway. Level 7's entrance needs the recorder, which is not
 implemented, but its rooms and exit are imported.
 
-Dungeon monsters and bosses are not implemented yet. Their rooms are empty, so
-shutters and "defeat the enemies" items open or appear at once, and boss-room heart
-containers can be taken immediately. That is the next step.
+The first dungeon monster families are in; see [dungeon monsters](DUNGEON_MONSTERS.md).
+Rooms whose monsters are not implemented yet are empty, so their shutters and
+"defeat the enemies" items open or appear at once. Boss-room heart containers can
+be taken immediately.
 
 ## Rooms from the original code
 

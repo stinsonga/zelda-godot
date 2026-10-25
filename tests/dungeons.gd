@@ -140,6 +140,14 @@ func check_items(world: Node) -> void:
 func check_blocks_and_shutters(world: Node) -> void:
 	world.enter_room(world.rooms[&"l1_42"], Vector2i(112, 93), Vector2i.UP)
 	var shutter: Resource = door(world, &"l1_42", "shutter")
+	world.state.slots[&"keys"] = 0
+	ticks(world, 16, Vector2i.UP)
+	check(not world.secrets.pushed, "Blocks do not move while monsters live")
+	for monster in world.combat.enemies:
+		monster.spawn_remaining = 0
+		monster.waiting_spawn = false
+		monster.health = 0
+	world.player.place(Vector2i(112, 93))
 	check(not world.door_passable(world.room, shutter), "A push-block shutter starts closed")
 	ticks(world, 15, Vector2i.UP)
 	check(not world.secrets.pushed, "Blocks need 16 ticks of pushing")

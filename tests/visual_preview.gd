@@ -104,6 +104,24 @@ func preview() -> void:
 				world.combat.beam.burst_remaining = 12
 		world.queue_redraw()
 		return
+	if args.has("monsters1") or args.has("monsters2"):
+		var level := 1 if args.has("monsters1") else 2
+		world.enter_room(world.rooms[&"l1_73" if level == 1 else &"l2_7d"], Vector2i(120, 141), Vector2i.UP)
+		world.combat.enemies.clear()
+		var names := ["stalfos", "red_goriya", "blue_goriya", "gel", "zol", "blue_keese", "red_keese", "rope"]
+		for i in range(names.size()):
+			var spawn = preload("res://scripts/enemy_spawn.gd").new()
+			spawn.id = StringName(names[i])
+			spawn.enemy = load("res://imported/enemies/" + names[i] + ".tres")
+			spawn.position = Vector2i(48 + (i % 4) * 48, 45 + (i / 4) * 48)
+			spawn.facing = [Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP][i % 4]
+			var actor = preload("res://scripts/enemy_actor.gd").new()
+			actor.setup(spawn)
+			actor.spawn_remaining = 0
+			actor.family.initialized = true
+			world.combat.enemies.append(actor)
+		world.queue_redraw()
+		return
 	if args.has("dungeon") or args.has("cellar") or args.has("level9"):
 		world.state.max_health = 16
 		world.state.health = 16

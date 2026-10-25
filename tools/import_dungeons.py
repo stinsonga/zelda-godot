@@ -243,7 +243,8 @@ def export_levels(prg, output, png, blit_tile, entrances):
     for source, length, target in [(34687, 1792, 0x1000), (36479, 224, 0x1F20), (49435, 0x820, 0x1700)]:
         patterns[target:target + length] = prg[source:source + length]
     (output / 'levels').mkdir(exist_ok=True)
-    rooms_written, starts, missing_items = [], {}, set()
+    write_monsters(prg, output)
+    rooms_written, starts, missing_items, sprite_names, coverage = [], {}, set(), [], {'rooms': 0, 'populated': 0, 'unsupported': 0}
     for level in range(1, 10):
         layouts = Layouts(prg, level)
         block, info = layouts.block, layouts.info
@@ -257,6 +258,12 @@ def export_levels(prg, output, png, blit_tile, entrances):
             for side, room in enumerate((block[cellar], block[128 + cellar])):
                 cellar_of.setdefault(room, (cellar, side))
         texts = {}
+        kinds = {0x1B} if cellars else set()
+        for room in rooms:
+            types = monster_types(prg, block, info, room)
+            if types and all(kind in MONSTERS for kind in types): kinds.update(types)
+        if 0x13 in kinds: kinds.add(0x14)
+        sprite_names += monster_sprites(prg, level, kinds, output, png, blit_tile)
         for room in rooms:
             closed, closed_attrs = layouts.room(room)
             opened, open_attrs = layouts.room(room, 0x0F)
@@ -317,11 +324,23 @@ def export_levels(prg, output, png, blit_tile, entrances):
                              'item = ExtResource("item")', f'position = Vector2i({x}, {y - 3})', 'tolerance = Vector2i(8, 8)', 'lift_ticks = 0',
                              f'requires_clear = {str(trigger in (3, 7)).lower()}']
                     fields.append('pickups = Array[Resource]([SubResource("room_item")])')
+            types = monster_types(prg, block, info, room)
+            coverage['rooms'] += bool(types)
+            persistence = 'reset'
+            if types and all(kind in MONSTERS for kind in types):
+                # Z_05 AssignObjSpawnPositions uses the same spawn lists as the overworld.
+                enemy_ext, enemy_subs, enemy_field = enemy_lines(level, types, room=room)
+                ext += enemy_ext
+                subs += enemy_subs
+                fields += [enemy_field, 'source_spawn_lists = true']
+                persistence = 'overworld'
+                coverage['populated'] += 1
+            elif types: coverage['unsupported'] += 1
             indices = [atlas.index(closed, closed_attrs, cx, cy) for cy in range(11) for cx in range(16)]
-            fields += [f'dungeon_level = {level}', f'map_room_id = {room}', f'shutter_trigger = {trigger}',
+            fields += [f'dungeon_level = {level}', f'enemy_persistence = "{persistence}"', f'map_room_id = {room}', f'shutter_trigger = {trigger}',
                        f'doors = Array[Resource]([{", ".join(doors)}])', f'portals = Array[Resource]([{", ".join(portals)}])']
             text = resource(ext + subs + ['[resource]', 'script = ExtResource("room")', f'id = &"{room_id(level, room)}"',
-                f'title = "Level {level} room {room:02X}"', f'music = &"{music}"', 'enemy_persistence = "reset"',
+                f'title = "Level {level} room {room:02X}"', f'music = &"{music}"',
                 f'tiles = {json.dumps(chr(10).join("." * 16 for _ in range(11)))}', f'exits = Dictionary[String, String]({json.dumps(exits)})',
                 f'spawn = Vector2i({spawn_point(base)[0]}, {spawn_point(base)[1]})', 'movement_bounds = Rect2i(0, -3, 241, 161)', 'grid_origin = Vector2i(0, 5)',
                 'tile_atlas = ExtResource("atlas")', f'tile_indices = PackedInt32Array({cell_lines(indices)})',
@@ -350,6 +369,11 @@ def export_levels(prg, output, png, blit_tile, entrances):
                          'item = ExtResource("item")', f'position = Vector2i({x}, {y - 3})', 'tolerance = Vector2i(8, 8)']
                 fields.append('pickups = Array[Resource]([SubResource("cellar_item")])')
             elif item != NO_ITEM: missing_items.add(item)
+            # Z_05 AssignObjSpawnPositions: every cellar holds four blue Keese.
+            enemy_ext, enemy_subs, enemy_field = enemy_lines(level, [0x1B] * 4, [(x, y - 64) for x, y in CELLAR_KEESE], cellar)
+            ext += enemy_ext
+            subs += enemy_subs
+            fields.append(enemy_field)
             indices = [atlas.index(tiles, attrs, cx, cy) for cy in range(11) for cx in range(16)]
             texts[cellar_id(level, cellar)] = resource(ext + subs + ['[resource]', 'script = ExtResource("room")',
                 f'id = &"{cellar_id(level, cellar)}"', f'title = "Level {level} cellar {cellar:02X}"', f'music = &"{music}"',
@@ -364,4 +388,136 @@ def export_levels(prg, output, png, blit_tile, entrances):
             rooms_written.append(name)
     if missing_items:
         raise ValueError('Dungeons hold unsupported items: ' + ', '.join(f'${item:02X}' for item in sorted(missing_items)))
-    return rooms_written, starts
+    return rooms_written, starts, sprite_names, coverage
+
+
+# Dungeon monster types (Z_07 UpdateObject_JumpTable) with their native behavior.
+MONSTERS = {0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
+            0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
+            0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
+            0x2A: ('stalfos', 'walker')}
+OBJECT_LISTS = 83775            # ObjListAddrs pointer table, bank 5.
+CELLAR_KEESE = [(0x20, 0x9D), (0x60, 0x5D), (0x90, 0x7D), (0xD0, 0x9D)]   # Z_05 CellarKeeseXs/Ys
+# Z_03 LevelPatternBlockSrcAddrs: level-group sprite blocks, loaded at $09E0.
+LEVEL_SPRITES = {1: 56763, 2: 56763, 7: 56763, 3: 55419, 5: 55419, 8: 55419, 4: 55963, 6: 55963, 9: 55963}
+UW_COMMON_SPRITES = 56507       # PatternBlockUWSP, $100 bytes at $08E0.
+
+
+def monster_types(prg, block, info, room):
+    """Z_05 object templates: one type with a count, or a mixed list from ObjListAddrs."""
+    attr_c, attr_d = block[256 + room], block[384 + room]
+    template = (attr_c & 63) | ((attr_d >> 7) << 6)
+    count = info[36 + (attr_c >> 6)]
+    if template == 0: return []
+    if template < 0x62: return [template] * (1 if template >= 0x32 else count)
+    address = prg[OBJECT_LISTS + (template - 0x62) * 2] | prg[OBJECT_LISTS + (template - 0x62) * 2 + 1] << 8
+    offset = 0x14000 + address - 0x8000
+    return list(prg[offset:offset + count])
+
+
+def monster_definition(prg, kind):
+    name, behavior = MONSTERS[kind]
+    pair = prg[0x1FB4E + kind // 2]
+    health = max(1, pair & 15 if kind & 1 else pair >> 4)   # HP 0 dies to any hit.
+    raw = prg[0x72BA + kind]
+    fields = {'id': f'&"{name}"', 'title': json.dumps(name.replace('_', ' ').title()), 'behavior': json.dumps(behavior),
+              'nes_type': kind, 'health': health, 'contact_damage': (raw & 15) * 2 + (1 if raw & 240 else 0), 'sprite': f'&"{name}"'}
+    if name in ('blue_goriya', 'red_goriya'):
+        # Z_04 UpdateGoriya: dominant-axis aim within $51, boomerangs at 2.5 pixels a frame.
+        fields.update(speed_subpixels=128, turn_chance=0x80, targeting='"dominant_axis"', projectile_kind='"boomerang"',
+                      projectile_damage=1, projectile_blockable='true')
+        if name == 'red_goriya': fields['shoot_random_values'] = 'PackedInt32Array(35, 119)'
+    elif name == 'stalfos':
+        # Z_04 UpdateStalfos: turn rate $80, q-speed $20; first-quest Stalfos never shoot.
+        fields.update(speed_subpixels=128, turn_chance=0x80, shooting_enabled='false', sprite_style='"frames"', animation_frame_ticks=8)
+    elif behavior == 'gel':
+        # Z_04 UpdateNormalZolOrGel: turn rate $20; Zol q-speed $18, Gel $40; ZolGelDelays.
+        zol = name == 'zol'
+        fields.update(speed_subpixels=96 if zol else 256, turn_chance=0x20, shooting_enabled='false', sprite_style='"frames"',
+                      animation_frame_ticks=8 if zol else 2, hop_delays='PackedInt32Array(24, 40, 56, 72)' if zol else 'PackedInt32Array(8, 24, 40, 56)')
+    elif behavior == 'flyer':
+        # Z_04 InitBlueKeese / InitRedOrBlackKeese and Flyer_KeeseDecideState.
+        fields.update(flight_max_speed=0xC0, flight_initial_speed=0x1F if name == 'blue_keese' else 0x7F, flight_random_start='true',
+                      flight_vulnerable_resting_only='false', flight_chase_threshold=0xA0, flight_rest_min=0x40, flight_rest_random_mask=0x3F)
+    elif behavior == 'rope':
+        fields.update(speed_subpixels=128, shooting_enabled='false')
+    return name, fields
+
+
+def write_monsters(prg, output):
+    (output / 'enemies').mkdir(exist_ok=True)
+    for kind in MONSTERS:
+        name, fields = monster_definition(prg, kind)
+        ext = ['[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]']
+        if name == 'zol':
+            ext.append('[ext_resource type="Resource" path="res://imported/enemies/child_gel.tres" id="gel"]')
+            fields['splits_into'] = 'ExtResource("gel")'
+        text = [f'[gd_resource type="Resource" script_class="EnemyDefinition" load_steps={len(ext) + 1} format=3]'] + ext
+        text += ['[resource]', 'script = ExtResource("1")'] + [f'{key} = {value}' for key, value in fields.items()]
+        (output / 'enemies' / f'{name}.tres').write_text('\n'.join(text) + '\n')
+
+
+def monster_sprites(prg, level, kinds, output, png, blit_tile):
+    """Per-level sprites: level-group pattern blocks and the level's sprite palettes."""
+    patterns = bytearray(8192)
+    for source, length, target in [(32895, 1792, 0), (19892, 2304, 0x0700), (UW_COMMON_SPRITES, 0x100, 0x08E0),
+                                    (LEVEL_SPRITES[level], 0x220, 0x09E0)]:
+        patterns[target:target + length] = prg[source:source + length]
+    info = level_info(prg, level)
+    palettes = [list(info[3 + p * 4:7 + p * 4]) for p in range(8)]
+    names = []
+
+    def render(key, frame, mirrored=False, flip_x=False, narrow=False, palette=None):
+        tile, attr = prg[0x6E83 + frame], prg[0x6F4F + frame]
+        row = palettes[4 + ((attr if palette is None else palette) & 3)]
+        bank = patterns[0x1000:] if tile & 1 else patterns
+        canvas = bytearray(16 * 16 * 4)
+        for column in range(1 if narrow else 2):
+            for part in range(2):
+                piece = bytearray(8 * 8 * 4)
+                blit_tile(piece, 8, 0, 0, bank, (tile & 0xFE) + part + (0 if mirrored else column * 2), row, True)
+                for y in range(8):
+                    for x in range(8):
+                        sx = 7 - x if mirrored and column == 1 else x
+                        dx, dy = column * 8 + x + (4 if narrow else 0), part * 8 + y
+                        if flip_x: dx = 15 - dx
+                        canvas[(dy * 16 + dx) * 4:(dy * 16 + dx) * 4 + 4] = piece[(y * 8 + sx) * 4:(y * 8 + sx) * 4 + 4]
+        png(output / f'{key}.png', 16, 16, canvas)
+        names.append(key)
+
+    for kind in sorted(kinds):
+        name, behavior = MONSTERS[kind]
+        base = prg[0x6E04 + kind + 1]
+        prefix = f'l{level}_{name}'
+        if behavior == 'walker' and name != 'stalfos':
+            for direction in ('up', 'down', 'left', 'right'):
+                for pose in range(2):
+                    frame = base + (3 if direction == 'up' else 2 if direction == 'down' else pose)
+                    render(f'{prefix}_{direction}_{pose}', frame, flip_x=(pose == 1 if direction in ('up', 'down') else direction == 'left'))
+        elif name == 'stalfos':
+            # AnimateAndDrawCommonObject: one image, flipped every eight frames.
+            render(f'{prefix}_0', base, mirrored=True)
+            render(f'{prefix}_1', base, mirrored=True, flip_x=True)
+        elif behavior == 'gel' and name != 'zol':
+            for pose in range(2): render(f'{prefix}_{pose}', base + pose, narrow=True, palette=3)
+        elif behavior == 'rope':
+            for pose in range(2):
+                for direction in ('up', 'down', 'right', 'left'):
+                    render(f'{prefix}_{direction}_{pose}', base + pose, flip_x=direction == 'left')
+        else:
+            for pose in range(2): render(f'{prefix}_{pose}', base + pose, mirrored=True)
+    return names
+
+
+def enemy_lines(level, types, positions=None, room=0):
+    """EnemySpawn sub-resources; source spawn lists place them unless positions are given."""
+    ext = ['[ext_resource type="Script" path="res://scripts/enemy_spawn.gd" id="enemy_spawn"]']
+    for kind in sorted(set(types)):
+        ext.append(f'[ext_resource type="Resource" path="res://imported/enemies/{MONSTERS[kind][0]}.tres" id="enemy_{kind}"]')
+    subs = []
+    for i, kind in enumerate(types):
+        x, y = positions[i] if positions else (120, 77)
+        subs += [f'[sub_resource type="Resource" id="enemy_{i}"]', 'script = ExtResource("enemy_spawn")', f'id = &"slot_{i}"',
+                 f'enemy = ExtResource("enemy_{kind}")', f'position = Vector2i({x}, {y})', 'facing = Vector2i(0, 0)',
+                 f'seed_value = {level * 977 + room * 31 + i + 1}', f'spawn_ticks = {i + 1}']
+    return ext, subs, 'enemies = Array[Resource]([' + ', '.join(f'SubResource("enemy_{i}")' for i in range(len(types))) + '])'

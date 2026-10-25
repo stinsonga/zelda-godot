@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -12,6 +12,9 @@ extends Resource
 @export var contact_damage: int = 1
 @export var speed_subpixels: int = 128
 @export var sprite: StringName = &"red_octorok"
+## "directional" sprites are name_direction_pose; "frames" are name_frame, flipped by the renderer.
+@export_enum("directional", "frames") var sprite_style: String = "directional"
+@export var animation_frame_ticks: int = 6
 @export var tint: Color = Color.WHITE
 @export var fallback_color: Color = Color("d94b3d")
 @export_range(0, 255) var turn_chance: int = 112
@@ -23,7 +26,10 @@ extends Resource
 ## Walker settings. Negative shooting threshold selects the NES type's red/blue gate.
 @export_enum("aligned", "dominant_axis") var targeting: String = "aligned"
 @export_range(-1, 255) var shooting_threshold: int = -1
-@export_enum("rock", "arrow", "sword") var projectile_kind: String = "rock"
+## Boomerangs fly out and return; their thrower waits for them (Z_04 UpdateGoriya).
+@export_enum("rock", "arrow", "sword", "boomerang") var projectile_kind: String = "rock"
+## Throw only when the slot's random byte is one of these; empty throws whenever ready.
+@export var shoot_random_values: PackedInt32Array = PackedInt32Array()
 @export var projectile_damage: int = 1
 @export var projectile_blockable: bool = true
 ## Jump settings; no terrain collision while airborne.
@@ -46,13 +52,26 @@ extends Resource
 @export var flight_turn_count: int = 6
 @export var flight_rest_min: int = 64
 @export var flight_rest_random_mask: int = 63
+## Peahats can be hurt only at rest; Keese always. Keese decide to chase at Random >= $A0.
+@export var flight_vulnerable_resting_only: bool = true
+@export_range(0, 255) var flight_chase_threshold: int = 176
+@export var flight_initial_speed: int = 31
+@export var flight_random_start: bool = false
+## Gel and Zol pause at each square for one of four delays (Z_04 ZolGelDelays).
+@export var hop_delays: PackedInt32Array = PackedInt32Array([8, 24, 40, 56])
+## Peahats skip the spawn cloud; Keese and walkers use it.
+@export var spawn_cloud: bool = true
+## A Zol hit without dying becomes two of these.
+@export var splits_into: Resource
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope"]: errors.append("Unknown enemy behavior")
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")
 	if speed_subpixels < 0 or contact_damage < 0 or projectile_damage < 0: errors.append("Enemy speeds and damage cannot be negative")
-	if projectile_kind not in ["rock", "arrow", "sword"]: errors.append("Unknown projectile kind")
+	if projectile_kind not in ["rock", "arrow", "sword", "boomerang"]: errors.append("Unknown projectile kind")
+	if behavior == "gel" and hop_delays.size() != 4: errors.append("Gel hops need four delays")
+	if animation_frame_ticks < 1: errors.append("Animation frames need a positive length")
 	if behavior == "jumper" and (jump_velocity_subpixels >= 0 or mini(jump_up_acceleration, mini(jump_down_acceleration, jump_horizontal_acceleration)) <= 0): errors.append("Jump needs upward velocity and positive acceleration")
 	if behavior == "burrower":
 		if burrow_times.size() != 6 or burrow_speeds.size() != 6 or burrow_animation_ticks.size() != 6:

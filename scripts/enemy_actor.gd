@@ -23,6 +23,10 @@ var animation_ticks := 0
 var cooldown := 0
 var windup := 0
 var rng := RandomNumberGenerator.new()
+## A thrown boomerang is out; the thrower waits for it.
+var shot_out := false
+## Set when a Zol survives a hit; the combat simulation splits it.
+var split_pending := false
 
 func setup(spawn: Resource) -> void:
 	id = spawn.id
@@ -37,7 +41,7 @@ func setup(spawn: Resource) -> void:
 		source.setup(definition.nes_type)
 		spawn_remaining += 12
 		if definition.behavior != "nes_octorok": source.move_speed = definition.speed_subpixels
-		if definition.behavior == "flyer": spawn_remaining = 0
+		if not definition.spawn_cloud: spawn_remaining = 0
 
 func position() -> Vector2i:
 	return Vector2i(floori(subposition.x / 256.0), floori(subposition.y / 256.0))
@@ -59,6 +63,8 @@ func receive_hit(damage: int, direction: Vector2i) -> bool:
 	shove_remaining = 64
 	if health == 0:
 		death_remaining = 19 if definition.behavior != "native" else 12
+	elif definition.splits_into != null:
+		split_pending = true
 	return true
 
 ## Returns true on the frame a rock should be emitted.
@@ -149,5 +155,7 @@ func body_visible() -> bool:
 func sprite_name() -> StringName:
 	if definition.behavior in ["jumper", "burrower", "flyer"]:
 		return StringName(String(definition.sprite) + "_" + str(family.frame(self)))
+	if definition.sprite_style == "frames":
+		return StringName(String(definition.sprite) + "_" + str((animation_ticks / definition.animation_frame_ticks) % 2))
 	var direction := "right" if facing.x > 0 else "left" if facing.x < 0 else "down" if facing.y > 0 else "up"
 	return StringName(String(definition.sprite) + "_" + direction + "_" + str((animation_ticks / 6) % 2))

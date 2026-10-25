@@ -76,6 +76,9 @@ func select_target(actor: RefCounted, target: Vector2i, random_byte: int, next_r
 
 func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool, random_byte: int, next_random: int) -> bool:
 	initialize_facing(actor, target)
+	if shoot_timer > 0 and actor.definition.projectile_kind == "boomerang": shoot_timer -= 1
+	# Z_04 UpdateGoriya: state $80 waits, unmoving, until the boomerang returns.
+	if actor.shot_out: return false
 	if turn_timer > 0: turn_timer -= 1
 	if actor.shove_remaining > 0:
 		shove(actor, probe)
@@ -87,6 +90,8 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool,
 		if grid_offset == 0: direction = choose_movement(actor, probe, random_byte)
 		if direction != Vector2i.ZERO: advance_position(actor, direction, move_speed)
 	select_target(actor, target, random_byte, next_random)
+	if actor.definition.projectile_kind == "boomerang":
+		return throw_boomerang(actor, can_shoot, random_byte)
 	if not actor.definition.shooting_enabled or actor.definition.shoot_cooldown <= 0:
 		shoot_timer = 0
 		move_speed = actor.definition.speed_subpixels
@@ -105,3 +110,13 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool,
 		wants_to_shoot = false
 		return true
 	return false
+
+## Z_04 L_Walker_SetInputDirAndTryShootingBoomerang: blue Goriyas throw whenever
+## ready; red ones only on chosen random bytes. Afterwards wait up to $3F frames.
+func throw_boomerang(actor: RefCounted, can_shoot: bool, random_byte: int) -> bool:
+	if not actor.definition.shooting_enabled or shoot_timer > 0 or not wants_to_shoot or not can_shoot: return false
+	var values: PackedInt32Array = actor.definition.shoot_random_values
+	if not values.is_empty() and random_byte not in values: return false
+	wants_to_shoot = false
+	shoot_timer = random_byte & 0x3F
+	return true

@@ -11,7 +11,7 @@ from pathlib import Path
 import struct
 import zlib
 
-from import_dungeons import export_levels, level_rooms
+from import_dungeons import MONSTERS, export_levels, level_rooms
 from import_caves import (CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
                           cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
                           secret_resource)
@@ -408,6 +408,8 @@ def export_overworld_enemies(prg, patterns, palettes, output):
                           targeting=json.dumps('dominant_axis' if kind in (1,2) else 'aligned'))
         else:
             fields['shooting_enabled'] = 'false'
+            # Z_04 InitPeahat: no spawn cloud.
+            if behavior == 'flyer': fields['spawn_cloud'] = 'false'
             if behavior == 'jumper':
                 red = kind == 14
                 fields.update(speed_subpixels=256,jump_velocity_subpixels=-1024 if red else -768,
@@ -533,7 +535,8 @@ def import_rom(prg, output):
         second_quest = prg[99328 + 640 + room_id] >> 6 == 2
         if places or (level not in level_entrances and not second_quest):
             level_entrances[level] = (f'ow_{room_id:02x}', entrance['exit'], 16 if places and places[0] else 0)
-    level_room_ids, level_starts = export_levels(prg, output, png, blit_tile, level_entrances)
+    level_room_ids, level_starts, dungeon_sprites, dungeon_coverage = export_levels(prg, output, png, blit_tile, level_entrances)
+    combat_names += dungeon_sprites
     combat_names += export_beam_sprites(prg, patterns, palettes, output)
     combat_names += export_source_enemies(prg, patterns, palettes, output)
     combat_names += export_overworld_enemies(prg, patterns, palettes, output)
@@ -674,7 +677,7 @@ collision_tiles = PackedByteArray({array(collision)})
     catalog += ['[resource]', 'script = ExtResource("script")', 'id = &"original_quest_1"', f'start_room = &"ow_{start_id:02x}"',
                 'visual_theme = ExtResource("theme")',
                 'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
-                'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in ENEMY_TYPES.items()) + '})',
+                'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in list(ENEMY_TYPES.items()) + list(MONSTERS.items())) + '})',
                 'legacy_ids = Dictionary[String, String]({"sword_cave": "cave_77", "sword_cave/sword_gift": "cave_77/taken"})',
                 'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in cave_ids + level_room_ids]) + '])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
@@ -683,6 +686,7 @@ collision_tiles = PackedByteArray({array(collision)})
         'enemy_coverage': {
             'supported_types': [name for name,_ in ENEMY_TYPES.values()],
             'encounters': sum(bool(types := room_enemy_types(prg,i)) and all(t in ENEMY_TYPES for t in types) for i in range(128)),
+            'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
         'limitations': ['First-quest terrain; Armos, recorder, and ladder secrets and room effects are not imported.',

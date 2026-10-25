@@ -845,12 +845,26 @@ func draw_combat() -> void:
 					draw_circle(at + Vector2(8, 8), actor.death_remaining / 2.0, Color("fff4c8"))
 		elif actor.body_visible() and (actor.invulnerability == 0 or simulation_tick % 4 < 2):
 			var sprite: StringName = actor.sprite_name()
+			# Dungeon monsters use their level's pattern blocks and palettes.
+			var leveled := StringName("l%d_%s" % [room.dungeon_level, sprite])
+			if room.dungeon_level > 0 and visual_theme.sprites.has(leveled): sprite = leveled
 			if visual_theme.sprites.has(sprite):
 				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint)
 			else:
 				draw_rect(Rect2(at + Vector2(1, 2), Vector2(14, 12)), actor.definition.fallback_color)
 				draw_line(at + Vector2(8, 8), at + Vector2(8, 8) + Vector2(actor.facing) * 8, Color.BLACK, 2)
 	for rock in combat.rocks:
+		if rock.kind == "boomerang":
+			# Spinning: the image flips every few frames.
+			var spin := (simulation_tick / 3) % 4
+			var at: Vector2 = Vector2(rock.position()) + Vector2(0, HUD_HEIGHT)
+			if visual_theme.sprites.has(&"boomerang"):
+				var texture: Texture2D = visual_theme.sprites[&"boomerang"]
+				var size := Vector2(-16 if spin & 1 else 16, -16 if spin & 2 else 16)
+				draw_texture_rect(texture, Rect2(at + Vector2(16 if spin & 1 else 0, 16 if spin & 2 else 0), size), false)
+			else:
+				draw_circle(at + Vector2(8, 8), 4, Color("c87830"))
+			continue
 		var sprite: StringName = &"rock"
 		if rock.kind == "arrow": sprite = StringName("monster_arrow_" + direction_name(rock.direction))
 		elif rock.kind == "sword": sprite = StringName("beam_" + direction_name(rock.direction) + "_" + str(simulation_tick % 4))

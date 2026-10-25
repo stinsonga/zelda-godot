@@ -24,8 +24,10 @@
   recorder secrets, raft and ladder, bait, bow and arrows, and traced item-use timing.
 - Dungeon foundations implemented: all nine first-quest levels, doors, keys,
   cellars, push blocks, items, and the level map; see docs/DUNGEONS.md.
-  Next: dungeon monsters (Keese, Gels, Stalfos, Goriyas, ...), then bosses,
-  dark rooms, old men, and the recorder entrance to level 7.
+  First dungeon monsters implemented: Stalfos, Goriyas, Gels, Zols, Keese, and
+  Ropes; see docs/DUNGEON_MONSTERS.md. Next: Wallmasters, Darknuts, Gibdos, Like
+  Likes, Pols Voices, Vires, Bubbles, Wizzrobes, then bosses, dark rooms, old
+  men, and the recorder entrance to level 7.
 - Improve visual content editing and asset-pack workflows alongside implementation.
 
 See docs/ for completed save/load, room persistence, combat, beam, and scrolling work.

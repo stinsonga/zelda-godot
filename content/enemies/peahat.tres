@@ -9,3 +9,4 @@ health = 2
 shooting_enabled = false
 sprite = &"peahat"
 fallback_color = Color(0.6, 0.65, 0.25, 1)
+spawn_cloud = false

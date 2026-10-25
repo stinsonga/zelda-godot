@@ -91,5 +91,27 @@ class DungeonImportTests(unittest.TestCase):
         self.assertEqual(dungeons.item_position(info, block[640 + 0x7F])[0] % 16, 0)
 
 
+class DungeonMonsterTests(unittest.TestCase):
+    def local(self):
+        inputs = list((ROOT / 'reference-inputs').glob('*.nes'))
+        if not inputs: self.skipTest('No local ROM')
+        return rom.read_rom(inputs[0])
+
+    def test_local_monster_lists(self):
+        prg = self.local()
+        block, info = dungeons.level_block(prg, 1), dungeons.level_info(prg, 1)
+        self.assertEqual(set(dungeons.monster_types(prg, block, info, 0x33)), {0x2A})
+        self.assertEqual(set(dungeons.monster_types(prg, block, info, 0x23)), {0x06})
+        self.assertEqual(dungeons.monster_types(prg, block, info, 0x73), [])
+
+    def test_local_monster_stats(self):
+        prg = self.local()
+        name, fields = dungeons.monster_definition(prg, 0x2A)
+        self.assertEqual((name, fields['health'], fields['behavior']), ('stalfos', 2, '"walker"'))
+        self.assertEqual(dungeons.monster_definition(prg, 0x05)[1]['health'], 5)
+        self.assertEqual(dungeons.monster_definition(prg, 0x1B)[1]['health'], 1)  # HP 0 dies to any hit.
+        self.assertEqual(dungeons.monster_definition(prg, 0x06)[1]['shoot_random_values'], 'PackedInt32Array(35, 119)')
+
+
 if __name__ == '__main__':
     unittest.main()

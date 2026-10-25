@@ -26,6 +26,10 @@ var rocks: Array[RefCounted] = []
 var player_invulnerability := 0
 var shove_remaining := 0
 var shove_direction := Vector2i.ZERO
+## Z_05 ObjectRoomBoundsOW and ObjectRoomBoundsUW in play-area pixels.
+const BOUNDS_OVERWORLD := Rect2i(17, 14, 207, 127)
+const BOUNDS_UNDERWORLD := Rect2i(33, 30, 175, 95)
+var bounds := BOUNDS_OVERWORLD
 
 func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entry_position: Vector2i = Vector2i.ZERO, entry_direction: Vector2i = Vector2i.UP) -> void:
 	beam = null
@@ -35,6 +39,7 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	shove_remaining = 0
 	ambush_timer = 50
 	encounter_room = room
+	bounds = BOUNDS_UNDERWORLD if room.dungeon_level > 0 else BOUNDS_OVERWORLD
 	encounter_kills = 0
 	base_kills = 0
 	var count: int = room.enemies.size()
@@ -58,7 +63,7 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 		assign_source_spawns(room, state, entry_position, entry_direction)
 
 func can_enemy_occupy(world: Node, at: Vector2i) -> bool:
-	if at.x < 16 or at.x > 224 or at.y < 13 or at.y > 141: return false
+	if at.x < bounds.position.x - 1 or at.x > bounds.end.x or at.y < bounds.position.y - 1 or at.y > bounds.end.y: return false
 	for point in [at + Vector2i(2, 8), at + Vector2i(13, 8), at + Vector2i(2, 15), at + Vector2i(13, 15)]:
 		if world.is_blocked(point): return false
 	return true
@@ -99,7 +104,7 @@ func tick(world: Node) -> void:
 	update_chase_target(world.player.pixel_position())
 	update_edge_spawns(world)
 	ambush_timer = maxi(0,ambush_timer-1)
-	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing,
+	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11))}
 	var updates: Array = enemies.duplicate()
@@ -123,6 +128,10 @@ func tick(world: Node) -> void:
 				rock.kind = actor.definition.projectile_kind
 				rock.damage = actor.definition.projectile_damage
 				rock.blockable = actor.definition.projectile_blockable
+				if rock.kind == "boomerang":
+					rock.owner = actor
+					rock.source_rules = false
+					actor.shot_out = true
 				rock.subposition = actor.subposition if original else (actor.position() + actor.facing * 12) * 256
 				rock.direction = actor.facing
 				rock.speed_subpixels = actor.definition.projectile_speed_subpixels
@@ -142,7 +151,11 @@ func tick(world: Node) -> void:
 		if actor.can_touch_player() and actor.invulnerability == 0 and (source_contact(actor.position(), world.player.pixel_position()) if original else actor.hurtbox().intersects(player_box(world))):
 			hurt_player(world, actor.definition.contact_damage, actor.position())
 	ambush_timer = int(context.ambush_timer)
+	split_zols(world)
 	for rock in rocks:
+		if rock.kind == "boomerang":
+			tick_boomerang(world, rock)
+			continue
 		if rock.source_rules:
 			tick_source_rock(world, rock)
 			continue
@@ -179,6 +192,60 @@ func tick(world: Node) -> void:
 ## The magical shield also turns Lynel sword shots (Z_07 HandleShotBlocked).
 func shield_blocks(world: Node, rock: RefCounted) -> bool:
 	return rock.blockable or (rock.kind == "sword" and world.state.item_value(&"magic_shield") > 0)
+
+## Z_04 Zol_CheckCollisions and UpdateZolState2_Split: a Zol that survives a
+## hit becomes two Gels darting perpendicular to it, without a drop.
+func split_zols(world: Node) -> void:
+	for actor in enemies.duplicate():
+		if not actor.split_pending: continue
+		actor.split_pending = false
+		actor.health = 0
+		actor.death_remaining = 0
+		actor.drop_resolved = true
+		var first := Vector2i.LEFT if actor.facing.y != 0 else Vector2i.UP
+		for direction in [first, -first]:
+			var spawn = preload("res://scripts/enemy_spawn.gd").new()
+			spawn.id = StringName(String(actor.id) + "_gel")
+			spawn.enemy = actor.definition.splits_into
+			spawn.position = actor.position()
+			spawn.facing = direction
+			spawn.spawn_ticks = 0
+			var gel = Actor.new()
+			gel.setup(spawn)
+			gel.spawn_remaining = 0
+			gel.slot = actor.slot
+			gel.family.split_ticks = 5
+			gel.family.initialized = true
+			gel.source.grid_offset = actor.source.grid_offset
+			enemies.append(gel)
+		encounter_total += 1
+
+## Z_07 UpdateArrowOrBoomerang for monster boomerangs: 2.5 pixels a frame out to
+## $51 pixels or the room bounds, then back to the thrower.
+func tick_boomerang(world: Node, rock: RefCounted) -> void:
+	var owner: RefCounted = rock.owner
+	if owner == null or owner.health <= 0:
+		rock.alive = false
+		if owner != null: owner.shot_out = false
+		return
+	if not rock.returning:
+		rock.subposition += rock.direction * 640
+		rock.travelled += 2
+		var at: Vector2i = rock.position()
+		if rock.travelled >= 0x51 or not bounds.grow(16).has_point(at): rock.returning = true
+	else:
+		var delta: Vector2i = owner.position() - rock.position()
+		if absi(delta.x) < 8 and absi(delta.y) < 8:
+			rock.alive = false
+			owner.shot_out = false
+			return
+		rock.subposition += Vector2i(signi(delta.x), signi(delta.y)) * 640
+	if player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
+		if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
+			world.audio.play(&"parry")
+			rock.returning = true
+		else:
+			hurt_player(world, rock.damage, rock.position())
 
 func player_box(world: Node) -> Rect2i:
 	return Rect2i(world.player.pixel_position() + Vector2i(2, 2), Vector2i(12, 12))
@@ -260,10 +327,10 @@ func source_contact(a: Vector2i, b: Vector2i) -> bool:
 	return delta.x < 9 and delta.y < 9
 
 func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
-	if direction == Vector2i.LEFT and at.x < 17: return false
-	if direction == Vector2i.RIGHT and at.x >= 224: return false
-	if direction == Vector2i.UP and at.y < 14: return false
-	if direction == Vector2i.DOWN and at.y >= 141: return false
+	if direction == Vector2i.LEFT and at.x < bounds.position.x: return false
+	if direction == Vector2i.RIGHT and at.x >= bounds.end.x: return false
+	if direction == Vector2i.UP and at.y < bounds.position.y: return false
+	if direction == Vector2i.DOWN and at.y >= bounds.end.y: return false
 	var probe := at + Vector2i(0, 11)
 	if direction.x != 0:
 		probe.x += 16 if direction.x > 0 else -16
@@ -366,8 +433,8 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 			rock.alive = false
 
 func source_within_bounds(at: Vector2i, direction: Vector2i) -> bool:
-	if direction.x < 0 and at.x < 17: return false
-	if direction.x > 0 and at.x >= 224: return false
-	if direction.y < 0 and at.y < 14: return false
-	if direction.y > 0 and at.y >= 141: return false
+	if direction.x < 0 and at.x < bounds.position.x: return false
+	if direction.x > 0 and at.x >= bounds.end.x: return false
+	if direction.y < 0 and at.y < bounds.position.y: return false
+	if direction.y > 0 and at.y >= bounds.end.y: return false
 	return true
