@@ -27,6 +27,8 @@ var rng := RandomNumberGenerator.new()
 var shot_out := false
 ## Set when a Zol survives a hit; the combat simulation splits it.
 var split_pending := false
+## Like Like and Wallmaster: ticks spent holding Link; 0 when free.
+var capture_ticks := 0
 
 func setup(spawn: Resource) -> void:
 	id = spawn.id
@@ -52,8 +54,17 @@ func alive() -> bool:
 func hurtbox() -> Rect2i:
 	return Rect2i(position() + Vector2i(2, 2), Vector2i(12, 12))
 
-func receive_hit(damage: int, direction: Vector2i) -> bool:
+## Z_01 HandleMonsterWeaponCollision. Returns false for misses and parries;
+## parried() reports a parry so the caller can play the sound.
+var parried_hit := false
+
+func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bool:
+	parried_hit = false
 	if not targetable() or invulnerability > 0:
+		return false
+	# Darknuts parry weapons arriving head-on; masks parry whole damage types.
+	if kind in definition.invincible_to or (definition.front_shield and direction == -facing):
+		parried_hit = true
 		return false
 	health = maxi(0, health - damage)
 	invulnerability = 32
@@ -82,7 +93,12 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 		var probe := segment_probe
 		if not probe.is_valid(): probe = func(at: Vector2i, direction: Vector2i) -> bool: return can_occupy.call(at + direction * 16)
 		if definition.behavior in ["nes_octorok", "walker"]:
-			return source.tick(self, target, probe, can_shoot, source_random, source_next_random)
+			# A capturing Like Like stays on Link instead of walking.
+			if capture_ticks > 0: return false
+			var shot: bool = source.tick(self, target, probe, can_shoot, source_random, source_next_random)
+			if definition.hops and facing.x != 0 and shove_remaining == 0:
+				subposition.y += family.VIRE_HOPS[absi(source.grid_offset) % 16] * 256
+			return shot
 		family.tick(self, target, probe, context)
 		return false
 	if shove_remaining > 0:

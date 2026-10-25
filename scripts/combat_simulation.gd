@@ -30,6 +30,7 @@ var shove_direction := Vector2i.ZERO
 const BOUNDS_OVERWORLD := Rect2i(17, 14, 207, 127)
 const BOUNDS_UNDERWORLD := Rect2i(33, 30, 175, 95)
 var bounds := BOUNDS_OVERWORLD
+var wallmaster_cooldown := 0
 
 func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entry_position: Vector2i = Vector2i.ZERO, entry_direction: Vector2i = Vector2i.UP) -> void:
 	beam = null
@@ -104,7 +105,9 @@ func tick(world: Node) -> void:
 	update_chase_target(world.player.pixel_position())
 	update_edge_spawns(world)
 	ambush_timer = maxi(0,ambush_timer-1)
+	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
 	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds,
+		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11))}
 	var updates: Array = enemies.duplicate()
@@ -113,11 +116,13 @@ func tick(world: Node) -> void:
 		actor.source_random = source_random.at(actor.slot)
 		actor.source_next_random = source_random.at(actor.slot + 1)
 		if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.position()):
-			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction):
+			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction, "sword"):
 				world.audio.play(&"enemy_hit")
 				if actor.health == 0:
 					world.audio.play(&"enemy_die")
 					record_permanent_kill(world, actor)
+			elif actor.parried_hit:
+				world.audio.play(&"parry")
 		var original: bool = actor.definition.behavior != "native"
 		var target: Vector2i = chase_target if original else world.player.pixel_position()
 		if actor.tick(target, func(at: Vector2i) -> bool: return can_enemy_occupy(world, at),
@@ -149,8 +154,9 @@ func tick(world: Node) -> void:
 					reward.position = actor.position()
 					rewards.append(reward)
 		if actor.can_touch_player() and actor.invulnerability == 0 and (source_contact(actor.position(), world.player.pixel_position()) if original else actor.hurtbox().intersects(player_box(world))):
-			hurt_player(world, actor.definition.contact_damage, actor.position())
+			touch_player(world, actor)
 	ambush_timer = int(context.ambush_timer)
+	wallmaster_cooldown = int(context.wallmaster_cooldown)
 	split_zols(world)
 	for rock in rocks:
 		if rock.kind == "boomerang":
@@ -193,6 +199,27 @@ func tick(world: Node) -> void:
 func shield_blocks(world: Node, rock: RefCounted) -> bool:
 	return rock.blockable or (rock.kind == "sword" and world.state.item_value(&"magic_shield") > 0)
 
+## Contact effects: damage, capture (Like Like, Wallmaster), or a Bubble's
+## effect on the sword (Z_04 UpdateBubble).
+func touch_player(world: Node, actor: RefCounted) -> void:
+	match actor.definition.contact_effect:
+		"block_sword":
+			world.state.sword_block_ticks = 0xA0
+		"curse_sword":
+			world.state.sword_cursed = true
+		"restore_sword":
+			world.state.sword_cursed = false
+		"capture":
+			if world.captor == null and player_invulnerability == 0:
+				world.captor = actor
+				actor.capture_ticks = 1
+				if actor.definition.behavior == "wallmaster": world.player.place(actor.position())
+			if actor.definition.contact_damage > 0: hurt_player(world, actor.definition.contact_damage, actor.position())
+			# UpdateLikeLike clears Link's shove; a held Link is never knocked away.
+			if world.captor == actor: shove_remaining = 0
+		_:
+			hurt_player(world, actor.definition.contact_damage, actor.position())
+
 ## Z_04 Zol_CheckCollisions and UpdateZolState2_Split: a Zol that survives a
 ## hit becomes two Gels darting perpendicular to it, without a drop.
 func split_zols(world: Node) -> void:
@@ -203,7 +230,8 @@ func split_zols(world: Node) -> void:
 		actor.death_remaining = 0
 		actor.drop_resolved = true
 		var first := Vector2i.LEFT if actor.facing.y != 0 else Vector2i.UP
-		for direction in [first, -first]:
+		# UpdateVire: two red Keese fly off in their own random directions.
+		for direction in ([first, -first] if actor.definition.behavior == "gel" else [Vector2i.ZERO, Vector2i.ZERO]):
 			var spawn = preload("res://scripts/enemy_spawn.gd").new()
 			spawn.id = StringName(String(actor.id) + "_gel")
 			spawn.enemy = actor.definition.splits_into
@@ -214,8 +242,9 @@ func split_zols(world: Node) -> void:
 			gel.setup(spawn)
 			gel.spawn_remaining = 0
 			gel.slot = actor.slot
-			gel.family.split_ticks = 5
-			gel.family.initialized = true
+			if actor.definition.behavior == "gel":
+				gel.family.split_ticks = 5
+				gel.family.initialized = true
 			gel.source.grid_offset = actor.source.grid_offset
 			enemies.append(gel)
 		encounter_total += 1
@@ -282,11 +311,15 @@ func tick_beam(world: Node) -> void:
 		beam.position = next
 		for actor in enemies:
 			if actor.targetable() and beam.hits(actor.position()):
-				if actor.receive_hit(beam.damage, beam.direction):
+				if actor.receive_hit(beam.damage, beam.direction, "beam"):
 					world.audio.play(&"enemy_hit")
 					if actor.health == 0:
 						world.audio.play(&"enemy_die")
 						record_permanent_kill(world, actor)
+					beam.impact()
+					return
+				if actor.parried_hit:
+					world.audio.play(&"parry")
 					beam.impact()
 					return
 
@@ -339,7 +372,8 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 	return not world.is_blocked(probe) and not world.is_blocked(probe + Vector2i(8, 0))
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior != "native")
+	# Traps keep their fixed spots; Wallmasters wait in the walls.
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

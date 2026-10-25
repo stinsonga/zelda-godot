@@ -25,6 +25,9 @@ var inventory: Dictionary[StringName, Resource] = {}
 var slots: Dictionary[StringName, int] = {}
 var max_bombs := 8
 var selected_item: StringName
+## Bubbles: a flashing one blocks the sword for $A0 ticks; red curses it until a blue one.
+var sword_block_ticks := 0
+var sword_cursed := false
 ## Dungeon level of the current room; 0 outdoors.
 var current_level := 0
 var collected: Dictionary[String, bool] = {}

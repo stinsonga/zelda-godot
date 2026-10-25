@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -61,12 +61,24 @@ extends Resource
 @export var hop_delays: PackedInt32Array = PackedInt32Array([8, 24, 40, 56])
 ## Peahats skip the spawn cloud; Keese and walkers use it.
 @export var spawn_cloud: bool = true
-## A Zol hit without dying becomes two of these.
+## A Zol hit without dying becomes two of these (Vires: two red Keese).
 @export var splits_into: Resource
+## Damage types that only parry: sword, beam, boomerang, arrow, bomb, fire, magic
+## (Z_01 ObjInvincibilityMask). Darknuts also parry anything they face.
+@export var invincible_to: PackedStringArray = PackedStringArray()
+@export var front_shield: bool = false
+## Bubbles and traps do not keep a room's shutters closed (Z_05 CheckHasLivingMonsters).
+@export var counts_for_clear: bool = true
+## Touching Link: "hurt", "capture" (Like Like, Wallmaster), or a Bubble sword effect.
+@export_enum("hurt", "capture", "block_sword", "curse_sword", "restore_sword") var contact_effect: String = "hurt"
+## Vires hop while walking sideways (Z_04 VireJumpOffsets).
+@export var hops: bool = false
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster"]: errors.append("Unknown enemy behavior")
+	for kind in invincible_to:
+		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")
 	if speed_subpixels < 0 or contact_damage < 0 or projectile_damage < 0: errors.append("Enemy speeds and damage cannot be negative")
 	if projectile_kind not in ["rock", "arrow", "sword", "boomerang"]: errors.append("Unknown projectile kind")

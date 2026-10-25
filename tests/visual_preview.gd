@@ -104,11 +104,17 @@ func preview() -> void:
 				world.combat.beam.burst_remaining = 12
 		world.queue_redraw()
 		return
-	if args.has("monsters1") or args.has("monsters2"):
+	if args.has("monsters1") or args.has("monsters2") or args.has("regulars"):
 		var level := 1 if args.has("monsters1") else 2
-		world.enter_room(world.rooms[&"l1_73" if level == 1 else &"l2_7d"], Vector2i(120, 141), Vector2i.UP)
+		for arg in args:
+			if arg.begins_with("lv"): level = int(arg.substr(2))
+		var start: Resource = null
+		for definition in world.rooms.values():
+			if definition.dungeon_level == level and definition.portals.any(func(p: Resource) -> bool: return world.rooms[p.target_room].dungeon_level == 0): start = definition
+		world.enter_room(start, Vector2i(120, 141), Vector2i.UP)
 		world.combat.enemies.clear()
 		var names := ["stalfos", "red_goriya", "blue_goriya", "gel", "zol", "blue_keese", "red_keese", "rope"]
+		if args.has("regulars"): names = ["red_darknut", "blue_darknut", "gibdo", "like_like", "vire", "pols_voice", "bubble", "trap"]
 		for i in range(names.size()):
 			var spawn = preload("res://scripts/enemy_spawn.gd").new()
 			spawn.id = StringName(names[i])

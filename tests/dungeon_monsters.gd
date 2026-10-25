@@ -2,6 +2,7 @@ extends SceneTree
 ## Dungeon monsters: Stalfos, Gels, Zols, Keese, Goriyas, and Ropes, plus kill
 ## triggers. Needs a local ROM import; reports a skip without one.
 var failures := 0
+var completed := false
 const Main = preload("res://scenes/main.tscn")
 const Actor = preload("res://scripts/enemy_actor.gd")
 const Spawn = preload("res://scripts/enemy_spawn.gd")
@@ -51,6 +52,8 @@ func run() -> void:
 	root.add_child(world)
 	world.set_physics_process(false)
 	check_rooms(world)
+	check_regulars(world)
+	check(completed, "Regular monster checks must run to completion")
 	world.free()
 	print("Dungeon monster checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
@@ -160,3 +163,104 @@ func check_rooms(world: Node) -> void:
 	check(world.state.item_value(&"keys") == 1, "Clearing the room releases its key")
 	world.enter_room(world.rooms[&"l1_c7f"], Vector2i(48, 29), Vector2i.UP)
 	check(world.combat.enemies.size() == 4 and world.combat.enemies.all(func(monster: RefCounted) -> bool: return monster.definition.id == &"blue_keese"), "Cellars hold four blue Keese")
+
+func fresh_room(world: Node, monsters: Array) -> void:
+	world.enter_room(world.rooms[&"l1_73"], Vector2i(120, 141), Vector2i.UP)
+	world.combat.enemies.clear()
+	world.combat.rocks.clear()
+	for monster in monsters: world.combat.enemies.append(monster)
+	world.state.sword_cursed = false
+	world.state.sword_block_ticks = 0
+	world.state.max_health = 32
+	world.state.health = 32
+
+func check_regulars(world: Node) -> void:
+	var darknut = actor("red_darknut", Vector2i(64, 77), Vector2i.LEFT)
+	check(not darknut.receive_hit(1, Vector2i.RIGHT, "sword") and darknut.parried_hit, "Darknuts parry swords from the front")
+	check(darknut.receive_hit(1, Vector2i.LEFT, "sword"), "Darknuts are hurt from behind")
+	darknut.invulnerability = 0
+	check(not darknut.receive_hit(1, Vector2i.UP, "fire") and darknut.receive_hit(4, Vector2i.UP, "bomb"), "Darknuts ignore fire but not bombs")
+	for name in ["red_darknut", "blue_darknut", "gibdo", "like_like", "vire", "pols_voice", "wallmaster", "bubble", "blue_bubble", "red_bubble", "trap"]:
+		check(definition(name).validation_errors().is_empty(), "Imported " + name + " must validate")
+	check(definition("blue_darknut").speed_subpixels == 160, "Blue Darknuts walk at q-speed $28")
+	# Bubbles: harmless, unkillable, and not needed to clear a room.
+	var bubble = actor("bubble", Vector2i(120, 125))
+	fresh_room(world, [bubble])
+	check(world.monsters_gone(), "Bubbles do not keep a room uncleared")
+	world.player.place(Vector2i(120, 125))
+	var health: int = world.state.health
+	world.combat.tick(world)
+	check(world.state.sword_block_ticks == 0xA0 and world.state.health == health, "A flashing Bubble blocks the sword without hurting")
+	world.simulate_tick(Vector2i.ZERO, true)
+	check(not world.sword.active(), "A blocked sword cannot swing")
+	var red = actor("red_bubble", Vector2i(120, 125))
+	var blue = actor("blue_bubble", Vector2i(120, 125))
+	fresh_room(world, [red])
+	world.player.place(Vector2i(120, 125))
+	world.combat.tick(world)
+	check(world.state.sword_cursed, "Red Bubbles curse the sword")
+	world.combat.enemies.clear()
+	world.combat.enemies.append(blue)
+	world.state.sword_block_ticks = 0
+	world.combat.tick(world)
+	check(not world.state.sword_cursed, "Blue Bubbles lift the curse")
+	# Like Like: holds Link, then eats the magical shield.
+	world.state.slots[&"magic_shield"] = 1
+	var like_like = actor("like_like", Vector2i(120, 125))
+	fresh_room(world, [like_like])
+	world.player.place(Vector2i(120, 125))
+	world.combat.player_invulnerability = 0
+	world.simulate_tick(Vector2i.ZERO)
+	check(world.captor == like_like, "Like Likes capture Link on contact")
+	var held: Vector2i = world.player.pixel_position()
+	for i in range(0x60): world.simulate_tick(Vector2i.LEFT)
+	check(world.player.pixel_position() == held and world.state.item_value(&"magic_shield") == 0, "A captured Link cannot walk and loses the magical shield")
+	like_like.health = 0
+	world.simulate_tick(Vector2i.LEFT)
+	check(world.captor == null, "Killing the Like Like frees Link")
+	# Vire: wounded, it becomes two red Keese.
+	var vire = actor("vire", Vector2i(64, 77))
+	fresh_room(world, [vire])
+	world.combat.encounter_total = 1
+	vire.receive_hit(1, Vector2i.RIGHT)
+	world.combat.tick(world)
+	var keese: Array = world.combat.enemies.filter(func(monster: RefCounted) -> bool: return monster.definition.id == &"red_keese")
+	check(keese.size() == 2 and world.combat.encounter_total == 2, "A wounded Vire splits into two red Keese")
+	# Traps slide toward the middle when Link lines up, then return.
+	var trap = actor("trap", Vector2i(32, 29))
+	fresh_room(world, [trap])
+	world.player.place(Vector2i(120, 29))
+	world.combat.player_invulnerability = 100000
+	var reached := false
+	for i in range(120):
+		world.combat.tick(world)
+		if trap.position().x > 100: reached = true
+	check(reached and trap.family.phase == 2, "Traps slide fast toward the room's middle, then return")
+	world.player.place(Vector2i(120, 141))
+	for i in range(400): world.combat.tick(world)
+	check(trap.position() == Vector2i(32, 29) and trap.family.phase == 0, "Traps creep home and wait again")
+	check(not trap.receive_hit(4, Vector2i.RIGHT, "bomb") and world.monsters_gone(), "Traps are invulnerable and do not keep a room uncleared")
+	# Wallmaster: emerges when Link stands at a wall, carries him back to the start.
+	var wallmaster = actor("wallmaster", Vector2i(0, 0))
+	fresh_room(world, [wallmaster])
+	world.enter_room(world.rooms[&"l1_74"], Vector2i(32, 77), Vector2i.LEFT)
+	world.combat.enemies.clear()
+	world.combat.enemies.append(wallmaster)
+	world.combat.player_invulnerability = 0
+	world.player.facing = Vector2i.LEFT
+	var emerged := false
+	for i in range(400):
+		world.simulate_tick(Vector2i.ZERO)
+		if wallmaster.family.phase == 1: emerged = true
+		if world.room.id == &"l1_73": break
+	check(emerged, "Wallmasters emerge from the wall beside Link")
+	check(world.room.id == &"l1_73", "A Wallmaster carries Link back to the level's first room")
+	# Pols Voice hops but stays inside the room.
+	var pols = actor("pols_voice", Vector2i(120, 77), Vector2i.RIGHT)
+	var context := {"bounds": Rect2i(33, 30, 175, 95)}
+	for i in range(600):
+		pols.source_random = (i * 53) & 255
+		pols.tick(Vector2i(0, 0), Callable(), open, true, context)
+	check(Rect2i(16, 0, 224, 160).has_point(pols.position()), "Pols Voice stays inside the room")
+	check(not pols.receive_hit(4, Vector2i.UP, "bomb") and pols.receive_hit(1, Vector2i.UP, "sword"), "Only the sword hurts Pols Voice")
+	completed = true

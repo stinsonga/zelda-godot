@@ -18,6 +18,15 @@ var pose := 0
 var area := Rect2i(17, 14, 207, 127)
 var rope_speed := 128
 var split_ticks := 0
+## Z_04 VireJumpOffsets, indexed by distance into the square.
+const VIRE_HOPS := [0, -3, -2, -1, -1, 0, -1, 0, 0, 1, 0, 1, 1, 2, 3, 0]
+var origin := Vector2i.ZERO
+var path_step := 0
+var tiles_crossed := 0
+var carried_out := false
+var jump_speed := 0
+var jump_target := 0
+var walk_left := 0
 
 func initialize(actor: RefCounted) -> void:
 	initialized = true
@@ -32,16 +41,21 @@ func initialize(actor: RefCounted) -> void:
 		if actor.definition.flight_random_start: actor.facing = DIRS[actor.source_random & 7]
 	elif actor.definition.behavior == "rope":
 		rope_speed = 128
+	elif actor.definition.behavior == "trap":
+		origin = actor.position()
 
 func visible(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "wallmaster": return phase == 1
 	return actor.definition.behavior != "burrower" or phase != 0
 
 func vulnerable(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior == "burrower": return phase == 3
 	if actor.definition.behavior == "flyer": return phase == 5 or not actor.definition.flight_vulnerable_resting_only
 	return true
 
 func contact_enabled(actor: RefCounted) -> bool:
+	if actor.definition.behavior == "wallmaster": return phase == 1
 	return actor.definition.behavior != "burrower" or phase == 3
 
 func frame(actor: RefCounted) -> int:
@@ -86,6 +100,9 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 		"flyer": tick_flight(actor, target)
 		"gel": tick_gel(actor, target, probe)
 		"rope": tick_rope(actor, target, probe)
+		"trap": tick_trap(actor, context)
+		"wallmaster": tick_wallmaster(actor, context)
+		"pols_voice": tick_pols_voice(actor, probe)
 
 func begin_jump(actor: RefCounted) -> void:
 	var definition: Resource = actor.definition
@@ -256,3 +273,135 @@ func face_unblocked(actor: RefCounted, probe: Callable) -> void:
 		if probe.call(actor.position(), direction):
 			actor.facing = direction
 			return
+
+## Z_01 UpdateTrap_Full: sense Link within $0E on one axis, slide toward the room
+## middle at 1.75 pixels a frame, stop within 5 of it, and creep back at 0.5.
+## Traps only slide toward the middle (TrapAllowedDirs, derived from position).
+func tick_trap(actor: RefCounted, context: Dictionary) -> void:
+	var at: Vector2i = actor.position()
+	var player: Vector2i = context.get("player", Vector2i.ZERO)
+	match phase:
+		0:
+			var direction := Vector2i.ZERO
+			if absi(player.y - at.y) < 0x0E and player.x != at.x: direction = Vector2i(signi(player.x - at.x), 0)
+			elif absi(player.x - at.x) < 0x0E and player.y != at.y: direction = Vector2i(0, signi(player.y - at.y))
+			var middle := Vector2i(120, 77)
+			if direction != Vector2i.ZERO and (direction.x == signi(middle.x - origin.x) and direction.x != 0 or direction.y == signi(middle.y - origin.y) and direction.y != 0):
+				actor.facing = direction
+				phase = 1
+		1:
+			actor.subposition += actor.facing * 448
+			var middle_coordinate: int = 120 if actor.facing.x != 0 else 80
+			var coordinate: int = actor.position().x if actor.facing.x != 0 else actor.position().y
+			if absi(coordinate - middle_coordinate) < 5:
+				actor.facing = -actor.facing
+				phase = 2
+		2:
+			actor.subposition += actor.facing * 128
+			var home: int = origin.x if actor.facing.x != 0 else origin.y
+			var now: int = actor.position().x if actor.facing.x != 0 else actor.position().y
+			if (now - home) * (actor.facing.x + actor.facing.y) >= 0:
+				actor.subposition = origin * 256
+				phase = 0
+
+## Z_04 UpdateWallmaster. Waits until Link stands against a wall (and no other
+## Wallmaster has emerged for $60 ticks), appears ahead of him from the wall,
+## then follows its seven-square path (WallmasterDirsAndAttrs) at q-speed $18.
+const WALLMASTER_PATHS := [
+	0x01, 0x01, 0x08, 0x08, 0x08, 0x02, 0x02, 0x02, 0xC1, 0xC1, 0xC4, 0xC4, 0xC4, 0xC2, 0xC2, 0xC2,
+	0x42, 0x42, 0x48, 0x48, 0x48, 0x41, 0x41, 0x41, 0x82, 0x82, 0x84, 0x84, 0x84, 0x81, 0x81, 0x81,
+	0xC4, 0xC4, 0xC2, 0xC2, 0xC2, 0xC8, 0xC8, 0xC8, 0x84, 0x84, 0x81, 0x81, 0x81, 0x88, 0x88, 0x88,
+	0x48, 0x48, 0x42, 0x42, 0x42, 0x44, 0x44, 0x44, 0x08, 0x08, 0x01, 0x01, 0x01, 0x04, 0x04, 0x04]
+
+static func nes_direction(bits: int) -> Vector2i:
+	match bits & 0x0F:
+		1: return Vector2i.RIGHT
+		2: return Vector2i.LEFT
+		4: return Vector2i.DOWN
+	return Vector2i.UP
+
+func tick_wallmaster(actor: RefCounted, context: Dictionary) -> void:
+	if phase == 0:
+		if int(context.get("wallmaster_cooldown", 0)) > 0: return
+		var player: Vector2i = context.get("player", Vector2i.ZERO)
+		var facing: Vector2i = context.get("player_facing", Vector2i.UP)
+		var moving: bool = context.get("player_moving", false)
+		var distance := 0x32 if moving else 0x24
+		var start := Vector2i.ZERO
+		if (player.x < 0x29 or player.x >= 0xC8) and (player.y < 0x6D - 64 or player.y >= 0xB5 - 64): return
+		if player.x == 0x20 or player.x == 0xD0:
+			path_step = 0
+			if facing == Vector2i.UP:
+				path_step += 8
+				distance = -distance
+			var far := player.x != 0x20
+			if far: path_step += 16
+			start = Vector2i(0xF0 if far else 0x00, player.y + distance)
+		elif player.y == 0x5D - 64 or player.y == 0xBD - 64:
+			path_step = 32
+			if facing == Vector2i.LEFT:
+				path_step += 8
+				distance = -distance
+			var far := player.y != 0x5D - 64
+			if far: path_step += 16
+			start = Vector2i(player.x + distance, (0xDD if far else 0x3D) - 64)
+		else:
+			return
+		context.wallmaster_cooldown = 0x60
+		actor.subposition = start * 256
+		actor.facing = nes_direction(WALLMASTER_PATHS[path_step])
+		distance_moved_reset(actor)
+		phase = 1
+		return
+	if actor.shove_remaining > 0:
+		actor.source.shove(actor, func(_at: Vector2i, _d: Vector2i) -> bool: return true)
+		return
+	actor.source.advance_position(actor, actor.facing, 96)
+	if absi(actor.source.grid_offset) == 0 and distance != 0:
+		tiles_crossed += 1
+		path_step += 1
+		distance = 0
+		if tiles_crossed >= 7:
+			carried_out = actor.capture_ticks > 0
+			actor.capture_ticks = 0
+			phase = 0
+			return
+		actor.facing = nes_direction(WALLMASTER_PATHS[path_step])
+	elif actor.source.grid_offset != 0:
+		distance = 1
+
+func distance_moved_reset(actor: RefCounted) -> void:
+	actor.source.grid_offset = 0
+	tiles_crossed = 0
+	distance = 0
+
+## Z_04 UpdatePolsVoice, simplified: every other frame walk a random cardinal
+## distance, bounce off walls, and hop with gravity $38/256 toward a target Y.
+## Provisional: the original's eight-way jump table is not yet translated.
+func tick_pols_voice(actor: RefCounted, probe: Callable) -> void:
+	actor.facing = actor.facing if actor.facing != Vector2i.ZERO else Vector2i.RIGHT
+	if actor.animation_ticks % 2: return
+	if phase == 0:
+		if walk_left <= 0:
+			phase = 1
+			jump_speed = -3 * 256 if actor.facing.y <= 0 else -256
+			jump_target = actor.position().y + (32 if actor.facing.y > 0 else -32 if actor.facing.y < 0 else 0)
+			jump_target = clampi(jump_target, area.position.y, area.end.y)
+			return
+		walk_left -= 1
+		if probe.call(actor.position(), actor.facing) or actor.source.grid_offset != 0:
+			actor.source.advance_position(actor, actor.facing, 256)
+		else:
+			actor.facing = -actor.facing
+	else:
+		jump_speed += 0x38
+		actor.subposition.y += jump_speed
+		if actor.facing.x != 0: actor.subposition.x += actor.facing.x * 256
+		if jump_speed >= 0 and actor.position().y >= jump_target:
+			phase = 0
+			actor.facing = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP][actor.source_random & 3]
+			walk_left = 0x30 + (actor.source_random & 0x40)
+			var at: Vector2i = actor.position()
+			actor.subposition = Vector2i((at.x + 8) & 0xF0, (((at.y + 64 + 8) & 0xF0) - 3) - 64) * 256
+			actor.source.grid_offset = 0
+		bound(actor)

@@ -1,10 +1,11 @@
 # Dungeon monsters
 
-The first dungeon families are in: Stalfos, Goriyas (blue and red), Gels, Zols,
-Keese (blue, red, and black), and Ropes. 59 of the 216 first-quest dungeon rooms
-that hold monsters contain only these families. They now spawn, fight, and drop loot. All 59 cellars hold
-their four blue Keese. Rooms with other monsters stay empty until those families
-exist, rather than substituting a different monster. The manifest records the counts.
+Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
+Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, and blade traps.
+127 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+families, and every cellar holds its four blue Keese. Rooms with other monsters
+(mainly Wizzrobes, plus bosses and the old men) stay empty until those exist,
+rather than substituting a different monster. The manifest records the counts.
 
 ## Behaviors
 
@@ -16,6 +17,14 @@ exist, rather than substituting a different monster. The manifest records the co
 | Zol split | `Zol_CheckCollisions` | A hit that does not kill turns the Zol into two Gels. They dart perpendicular to it for up to five frames, then snap to the grid. The room needs one more kill and the Zol drops nothing. |
 | Keese | `UpdateKeese`, `InitBlueKeese` | Flyer with max speed $C0. Starts at speed $1F (blue) or $7F (red and black) in one of eight random directions. Chases at random >= $A0 and can be hit while flying. |
 | Rope | `UpdateRope` | Wanders at half a pixel a frame, turning to a random open direction every 0-63 frames. At a square within 8 pixels of Link's row or column, it rushes at 1.5 pixels a frame. |
+| Darknut | `InitDarknut`, `UpdateDarknut` | Wanderer, turn rate $80, q-speed $20 red or $28 blue. Mask $F6: only the sword and bombs hurt it, and it parries any weapon arriving head-on (`ParryOrShove`). |
+| Gibdo | `UpdateGibdo` | Wanderer, turn rate $80 at the default q-speed $20. |
+| Bubble | `UpdateBubble` | Wanderer, turn rate $40, one pixel a frame; unkillable and harmless. A flashing one blocks the sword for $A0 frames, a red one curses it, a blue one lifts the curse. Bubbles do not keep a room uncleared. |
+| Like Like | `UpdateLikeLike` | Wanderer, turn rate $80. On contact it holds Link in place without knocking him back. After $60 frames it eats the magical shield. Killing it frees him. |
+| Vire | `UpdateVire` | Wanderer, turn rate $80, hopping by `VireJumpOffsets` while moving sideways. Wounded, it becomes two red Keese. |
+| Pols Voice | `UpdatePolsVoice` | Only the sword hurts it (mask $FE). Walks a random cardinal distance every other frame and hops with gravity $38/256. Provisional: the original's eight-way jump table is simplified. |
+| Wallmaster | `UpdateWallmaster` | Waits until Link stands against a wall, then emerges ahead of him ($24 pixels, or $32 when he is walking). It follows a seven-square `WallmasterDirsAndAttrs` path at q-speed $18, with $60 frames between emergences. If it catches Link, it carries him back to the level's first room. |
+| Blade trap | `InitTrap_Full`, `UpdateTrap_Full` | Six or four at `TrapXs`/`TrapYs`. When Link lines up within $0E, a trap slides toward the room's middle at 1.75 pixels a frame, stops within 5 pixels, and creeps home at 0.5. Invulnerable; does not count toward clearing. |
 
 Health and contact damage come from the original tables; HP 0 means any hit
 kills. Loot uses the original groups. Spawning reuses the overworld spawn lists
@@ -39,7 +48,6 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Wallmasters, Darknuts, Gibdos, Like Likes, Pols Voices, Vires, Bubbles,
 Wizzrobes, Lanmolas, Moldorms, Digdoggers, Patras, traps, and all bosses. Second-quest
 Stalfos shooting, monster stun from the boomerang and clock, and keys carried by
 monsters are also not implemented.

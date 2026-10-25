@@ -46,6 +46,8 @@ var rise_square := Rect2i()
 var legacy_ids: Dictionary[String, String] = {}
 var overrides: Dictionary = {}
 var level_exit_remaining := 0
+## A Like Like or Wallmaster holding Link.
+var captor: RefCounted
 const DIRECTION_NAMES := {Vector2i.UP: "up", Vector2i.DOWN: "down", Vector2i.LEFT: "left", Vector2i.RIGHT: "right"}
 var simulation_tick := 0
 var entry_walk_remaining := 0
@@ -175,6 +177,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	walk_pose = 0
 	sword.phase = -1
 	item_objects.clear()
+	captor = null
 	candle_used = false
 	item_use_remaining = 0
 	rise_remaining = rise * 4
@@ -201,6 +204,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	combat.advance_frame()
 	if state.tick_rupees(simulation_tick):
 		audio.play(&"heart")
+	state.sword_block_ticks = maxi(0, state.sword_block_ticks - 1)
 	if state.health <= 0:
 		return
 	if transition != null:
@@ -212,6 +216,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		if level_exit_remaining == 0: leave_level()
 		return
 	tick_item_objects()
+	tick_captor()
 	overrides = compute_overrides(room)
 	# Link updates before objects: a lift started by the resident counts from
 	# the next tick, and the resident keeps updating during a lift.
@@ -254,7 +259,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		item_use_remaining -= 1
 		combat.tick(self)
 		return
-	elif attack_pressed and sword.start(state.equipped_weapon, player.facing):
+	elif attack_pressed and state.sword_block_ticks == 0 and not state.sword_cursed and sword.start(state.equipped_weapon, player.facing):
 		audio.play(&"attack")
 		combat.tick(self)
 		return
@@ -262,7 +267,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		combat.tick(self)
 		return
 	else:
-		if not secrets.blocks_player(player.pixel_position()):
+		if captor == null and not secrets.blocks_player(player.pixel_position()):
 			player.step(direction, can_occupy, can_enter_segment)
 		if secrets.try_push(self, direction):
 			overrides = compute_overrides(room)
@@ -373,10 +378,10 @@ func door_passable(definition: Resource, door: Resource) -> bool:
 		"shutter": return definition != room or room_clear()
 	return false
 
-## Z_05 CheckHasLivingMonsters.
+## Z_05 CheckHasLivingMonsters: Bubbles and traps do not count.
 func monsters_gone() -> bool:
 	for actor in combat.enemies:
-		if actor.health > 0: return false
+		if actor.health > 0 and actor.definition.counts_for_clear: return false
 	return true
 
 ## Z_05 CheckSecretTrigger: no living monsters, and a pushed block where required.
@@ -402,6 +407,33 @@ func try_doors(direction: Vector2i) -> void:
 			state.slots[&"keys"] -= 1
 		open_door(door)
 
+## Z_04 UpdateLikeLike and UpdateWallmaster: a Like Like holds Link where he
+## stands; a Wallmaster carries him, and finishing its path restarts the level.
+func tick_captor() -> void:
+	if captor == null: return
+	if captor.health <= 0 or captor not in combat.enemies:
+		captor = null
+		return
+	if captor.definition.behavior == "wallmaster":
+		player.place(captor.position())
+		if captor.family.carried_out:
+			captor = null
+			restart_level()
+		return
+	captor.subposition = player.subposition
+	captor.capture_ticks += 1
+	if captor.capture_ticks == 0x60:
+		state.slots.erase(&"magic_shield")
+
+## Z_07 mode 3: back to the level's first room, walking in from its entrance.
+func restart_level() -> void:
+	for definition in rooms.values():
+		if definition.dungeon_level != room.dungeon_level: continue
+		for portal in definition.portals:
+			if rooms.has(portal.target_room) and rooms[portal.target_room].dungeon_level == 0:
+				enter_room(definition, Vector2i(120, 157), Vector2i.UP, 16)
+				return
+
 ## After a triforce, return to the level's overworld entrance.
 func leave_level() -> void:
 	for definition in rooms.values():
@@ -425,9 +457,7 @@ func tick_item_objects() -> void:
 		if not object.active: continue
 		for actor in combat.enemies:
 			if actor.targetable() and object.hits(actor.position()):
-				var away: Vector2i = actor.position() - object.position
-				var shove := Vector2i(signi(away.x), 0) if absi(away.x) >= absi(away.y) else Vector2i(0, signi(away.y))
-				if actor.receive_hit(object.damage(), shove):
+				if actor.receive_hit(object.damage(), object.direction, object.kind):
 					audio.play(&"enemy_hit")
 					if actor.health == 0:
 						audio.play(&"enemy_die")

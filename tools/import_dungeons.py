@@ -395,7 +395,13 @@ def export_levels(prg, output, png, blit_tile, entrances):
 MONSTERS = {0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
             0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
             0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
-            0x2A: ('stalfos', 'walker')}
+            0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
+            0x12: ('vire', 'walker'), 0x16: ('pols_voice', 'pols_voice'), 0x17: ('like_like', 'walker'),
+            0x27: ('wallmaster', 'wallmaster'), 0x2B: ('bubble', 'walker'), 0x2C: ('blue_bubble', 'walker'),
+            0x2D: ('red_bubble', 'walker'), 0x30: ('gibdo', 'walker'), 0x49: ('trap', 'trap')}
+# Z_01 TrapXs/TrapYs: $49 makes six traps, $4A the first four.
+TRAPS = [(0x20, 0x5D), (0x20, 0xBD), (0xD0, 0x5D), (0xD0, 0xBD), (0x40, 0x8D), (0xB0, 0x8D)]
+EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
 OBJECT_LISTS = 83775            # ObjListAddrs pointer table, bank 5.
 CELLAR_KEESE = [(0x20, 0x9D), (0x60, 0x5D), (0x90, 0x7D), (0xD0, 0x9D)]   # Z_05 CellarKeeseXs/Ys
 # Z_03 LevelPatternBlockSrcAddrs: level-group sprite blocks, loaded at $09E0.
@@ -409,10 +415,16 @@ def monster_types(prg, block, info, room):
     template = (attr_c & 63) | ((attr_d >> 7) << 6)
     count = info[36 + (attr_c >> 6)]
     if template == 0: return []
+    if template in (0x49, 0x4A): return [0x49] * (6 if template == 0x49 else 4)
     if template < 0x62: return [template] * (1 if template >= 0x32 else count)
     address = prg[OBJECT_LISTS + (template - 0x62) * 2] | prg[OBJECT_LISTS + (template - 0x62) * 2 + 1] << 8
     offset = 0x14000 + address - 0x8000
-    return list(prg[offset:offset + count])
+    types = []
+    for kind in prg[offset:offset + count]:
+        # Type 0 is an empty slot; trap generators in lists still make their traps.
+        if kind in (0x49, 0x4A): types += [0x49] * (6 if kind == 0x49 else 4)
+        elif kind: types.append(kind)
+    return types
 
 
 def monster_definition(prg, kind):
@@ -441,6 +453,29 @@ def monster_definition(prg, kind):
                       flight_vulnerable_resting_only='false', flight_chase_threshold=0xA0, flight_rest_min=0x40, flight_rest_random_mask=0x3F)
     elif behavior == 'rope':
         fields.update(speed_subpixels=128, shooting_enabled='false')
+    elif name in ('red_darknut', 'blue_darknut'):
+        # Z_04 InitDarknut: mask $F6 leaves only sword and bomb; q-speed $20 red, $28 blue.
+        fields.update(speed_subpixels=128 if name == 'red_darknut' else 160, turn_chance=0x80, shooting_enabled='false', front_shield='true',
+                      invincible_to='PackedStringArray("boomerang", "arrow", "fire", "magic")')
+    elif name in ('gibdo', 'like_like', 'vire'):
+        # UpdateGibdo, UpdateLikeLike, UpdateVireState0: turn rate $80 at the default q-speed $20.
+        fields.update(speed_subpixels=128, turn_chance=0x80, shooting_enabled='false', sprite_style='"frames"', animation_frame_ticks=8)
+        if name == 'like_like': fields['contact_effect'] = '"capture"'
+        if name == 'vire':
+            fields.update(hops='true', sprite_style='"directional"')
+    elif 'bubble' in name:
+        # UpdateBubble: turn rate $40, InitBubble q-speed $40; harmless, unkillable, uncounted.
+        effect = {'bubble': 'block_sword', 'blue_bubble': 'restore_sword', 'red_bubble': 'curse_sword'}[name]
+        fields.update(speed_subpixels=256, turn_chance=0x40, shooting_enabled='false', sprite_style='"frames"', animation_frame_ticks=1,
+                      contact_effect=f'"{effect}"', contact_damage=0, counts_for_clear='false', invincible_to=f'PackedStringArray({EVERYTHING})')
+    elif name == 'pols_voice':
+        # UpdatePolsVoice sets mask $FE: only the sword hurts it here.
+        fields.update(invincible_to='PackedStringArray("boomerang", "bomb", "fire", "magic")', sprite_style='"frames"', animation_frame_ticks=8)
+    elif name == 'wallmaster':
+        fields.update(contact_effect='"capture"', spawn_cloud='false', sprite_style='"frames"', animation_frame_ticks=8)
+    elif name == 'trap':
+        fields.update(invincible_to=f'PackedStringArray({EVERYTHING})', counts_for_clear='false', spawn_cloud='false', sprite_style='"frames"',
+                      contact_damage=max(1, fields['contact_damage']))
     return name, fields
 
 
@@ -452,6 +487,9 @@ def write_monsters(prg, output):
         if name == 'zol':
             ext.append('[ext_resource type="Resource" path="res://imported/enemies/child_gel.tres" id="gel"]')
             fields['splits_into'] = 'ExtResource("gel")'
+        if name == 'vire':
+            ext.append('[ext_resource type="Resource" path="res://imported/enemies/red_keese.tres" id="keese"]')
+            fields['splits_into'] = 'ExtResource("keese")'
         text = [f'[gd_resource type="Resource" script_class="EnemyDefinition" load_steps={len(ext) + 1} format=3]'] + ext
         text += ['[resource]', 'script = ExtResource("1")'] + [f'{key} = {value}' for key, value in fields.items()]
         (output / 'enemies' / f'{name}.tres').write_text('\n'.join(text) + '\n')
@@ -489,7 +527,7 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
         name, behavior = MONSTERS[kind]
         base = prg[0x6E04 + kind + 1]
         prefix = f'l{level}_{name}'
-        if behavior == 'walker' and name != 'stalfos':
+        if name in ('blue_goriya', 'red_goriya'):
             for direction in ('up', 'down', 'left', 'right'):
                 for pose in range(2):
                     frame = base + (3 if direction == 'up' else 2 if direction == 'down' else pose)
@@ -500,6 +538,21 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
             render(f'{prefix}_1', base, mirrored=True, flip_x=True)
         elif behavior == 'gel' and name != 'zol':
             for pose in range(2): render(f'{prefix}_{pose}', base + pose, narrow=True, palette=3)
+        elif name in ('red_darknut', 'blue_darknut'):
+            # UpdateDarknut: base + 0 sideways, 1 down, 2 up; +3 for the second pose; up flips it.
+            for pose in range(2):
+                for direction, step in (('right', 0), ('left', 0), ('down', 1), ('up', 2)):
+                    render(f'{prefix}_{direction}_{pose}', base + step + 3 * pose, flip_x=direction == 'left' or (direction == 'up' and pose == 1))
+        elif name == 'vire':
+            # DrawVire: up uses frames 2 and 3, otherwise 0 and 1.
+            for pose in range(2):
+                for direction in ('up', 'down', 'left', 'right'):
+                    render(f'{prefix}_{direction}_{pose}', base + (2 if direction == 'up' else 0) + pose, mirrored=True)
+        elif name in ('gibdo', 'trap') or 'bubble' in name:
+            # One image, flipped by the animation counter; bubbles also alternate palettes.
+            palettes_for = {'bubble': (1, 2), 'blue_bubble': (1, 1), 'red_bubble': (2, 2)}.get(name, (None, None))
+            render(f'{prefix}_0', base, palette=palettes_for[0])
+            render(f'{prefix}_1', base, flip_x=name != 'trap', palette=palettes_for[1])
         elif behavior == 'rope':
             for pose in range(2):
                 for direction in ('up', 'down', 'right', 'left'):
@@ -515,8 +568,12 @@ def enemy_lines(level, types, positions=None, room=0):
     for kind in sorted(set(types)):
         ext.append(f'[ext_resource type="Resource" path="res://imported/enemies/{MONSTERS[kind][0]}.tres" id="enemy_{kind}"]')
     subs = []
+    trap = 0
     for i, kind in enumerate(types):
         x, y = positions[i] if positions else (120, 77)
+        if kind == 0x49:
+            x, y = TRAPS[trap][0], TRAPS[trap][1] - 64
+            trap += 1
         subs += [f'[sub_resource type="Resource" id="enemy_{i}"]', 'script = ExtResource("enemy_spawn")', f'id = &"slot_{i}"',
                  f'enemy = ExtResource("enemy_{kind}")', f'position = Vector2i({x}, {y})', 'facing = Vector2i(0, 0)',
                  f'seed_value = {level * 977 + room * 31 + i + 1}', f'spawn_ticks = {i + 1}']
