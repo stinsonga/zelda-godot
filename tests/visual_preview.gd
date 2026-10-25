@@ -104,6 +104,22 @@ func preview() -> void:
 				world.combat.beam.burst_remaining = 12
 		world.queue_redraw()
 		return
+	if args.has("dungeon") or args.has("cellar") or args.has("level9"):
+		world.state.max_health = 16
+		world.state.health = 16
+		world.state.slots[&"keys"] = 2
+		world.state.flags["map/1"] = true
+		world.state.flags["compass/1"] = true
+		world.state.flags["door/l1_73/up"] = args.has("opened")
+		if args.has("cellar"):
+			world.enter_room(world.rooms[&"l1_c7f"], Vector2i(48, 1), Vector2i.DOWN, 28)
+		elif args.has("level9"):
+			world.enter_room(world.rooms[&"l9_76"], Vector2i(120, 157), Vector2i.UP, 16)
+		else:
+			world.enter_room(world.rooms[&"l1_73"], Vector2i(120, 157), Vector2i.UP, 16)
+		for tick in range(60): world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
+		return
 	if args.has("shop"):
 		world.state.rupees = 87
 		for item in ["bombs", "blue_candle", "white_sword"]: world.state.take_item(load("res://content/items/" + item + ".tres"))

@@ -25,6 +25,8 @@ var inventory: Dictionary[StringName, Resource] = {}
 var slots: Dictionary[StringName, int] = {}
 var max_bombs := 8
 var selected_item: StringName
+## Dungeon level of the current room; 0 outdoors.
+var current_level := 0
 var collected: Dictionary[String, bool] = {}
 
 func pickup_key(room_id: StringName, pickup_id: StringName) -> String:
@@ -67,12 +69,23 @@ func take_item(item: Resource) -> bool:
 		"health":
 			health = mini(max_health, health + (item.amount if "amount" in item else item.value))
 			return true
+		"level":
+			var key := level_key(item.slot, current_level)
+			if flags.get(key, false): return false
+			flags[key] = true
+			return true
 	inventory[item.id] = item
 	if item.slot == &"sword" and (equipped_weapon == null or item.value >= equipped_weapon.value):
 		equipped_weapon = item
 	if selected_item.is_empty() and item.usable:
 		selected_item = item.slot
 	return true
+
+func level_key(slot: StringName, level: int) -> String:
+	return String(slot) + "/" + str(level)
+
+func has_level_item(slot: StringName, level: int) -> bool:
+	return flags.get(level_key(slot, level), false)
 
 ## Damage in half hearts. Rings halve or quarter it (Z_07 Link_BeHarmed).
 func take_damage(half_hearts: int) -> void:

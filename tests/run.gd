@@ -107,7 +107,7 @@ func run() -> void:
 		imported.scroll_transitions = false
 		root.add_child(imported)
 		imported.set_physics_process(false)
-		check(imported.rooms.size() == 187, "Imported world must contain 128 overworld rooms and 59 reachable caves")
+		check(imported.rooms.size() == 442, "Imported world must contain 128 overworld rooms, 59 reachable caves, and 255 level rooms")
 		check(imported.room.id == &"ow_77", "Import must start at the original first-quest room")
 		check(imported.player.pixel_position() == Vector2i(120, 77), "Original starting position must come from level info")
 		check(imported.can_occupy(imported.player.pixel_position()), "Imported start must be walkable")

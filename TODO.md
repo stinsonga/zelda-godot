@@ -22,7 +22,10 @@
 - Overworld caves, shop items, equipment, and bomb/fire/push secrets are implemented;
   see docs/CAVES_AND_SECRETS.md. Follow up with the item submenu, Armos and
   recorder secrets, raft and ladder, bait, bow and arrows, and traced item-use timing.
-- Dungeon foundations and bosses, starting with connecting the level entrances.
+- Dungeon foundations implemented: all nine first-quest levels, doors, keys,
+  cellars, push blocks, items, and the level map; see docs/DUNGEONS.md.
+  Next: dungeon monsters (Keese, Gels, Stalfos, Goriyas, ...), then bosses,
+  dark rooms, old men, and the recorder entrance to level 7.
 - Improve visual content editing and asset-pack workflows alongside implementation.
 
 See docs/ for completed save/load, room persistence, combat, beam, and scrolling work.

@@ -16,6 +16,11 @@ extends Resource
 @export var cave: Resource
 ## At most one overworld tile object per room, as in the original.
 @export var secret: Resource
+## Underworld doorways (DoorDefinition) and the room's original secret trigger
+## (Z_05 CheckSecretTrigger: 1 and 7 all dead, 3 boss, 4 push block, 5 block stairs).
+@export var doors: Array[Resource] = []
+@export var dungeon_level: int = 0
+@export var shutter_trigger: int = 0
 @export_multiline var dialogue: String = ""
 @export var dialogue_until_pickup: StringName
 @export var dialogue_character_ticks: int = 6
@@ -92,6 +97,8 @@ func validation_errors() -> PackedStringArray:
 			errors.append("Secret portal requires a room secret")
 	if cave != null:
 		errors.append_array(cave.validation_errors())
+	for door in doors:
+		errors.append_array(door.validation_errors())
 	if secret != null:
 		errors.append_array(secret.validation_errors())
 	var lines := rows()

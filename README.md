@@ -53,6 +53,9 @@ All 59 reachable first-quest caves work: gifts, shops, hints, the money-making
 game, the letter, and secret money. Bombs, candles, and gravestones reveal hidden
 entrances. See [caves, items, and secrets](docs/CAVES_AND_SECRETS.md); the
 no-ROM `scenes/item_lab.tscn` demonstrates editable custom caves and items.
+All nine first-quest dungeons are connected, with doors, keys, cellars, push
+blocks, items, and the level map; their monsters and bosses come next. See
+[dungeon foundations](docs/DUNGEONS.md).
 
 At full health (or half a heart missing), swinging also fires a sword beam.
 See [sword beam rules](docs/SWORD_BEAM.md) for timing and fidelity notes.

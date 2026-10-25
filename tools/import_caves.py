@@ -29,10 +29,12 @@ SQUARE_STAIRS = 18
 SQUARE_FLOOR = 0x0E
 # ROM item IDs supported by native content definitions under content/items.
 ITEMS = {0x00: 'bombs', 0x01: 'wooden_sword', 0x02: 'white_sword', 0x03: 'magical_sword',
-         0x04: 'bait', 0x06: 'blue_candle', 0x08: 'arrows', 0x0F: 'five_rupees',
-         0x12: 'blue_ring', 0x15: 'letter', 0x18: 'rupee', 0x19: 'key',
-         0x1A: 'heart_container', 0x1C: 'magic_shield', 0x1F: 'blue_potion',
-         0x20: 'red_potion', 0x22: 'heart'}
+         0x04: 'bait', 0x05: 'recorder', 0x06: 'blue_candle', 0x07: 'red_candle', 0x08: 'arrows',
+         0x09: 'silver_arrows', 0x0A: 'bow', 0x0B: 'magic_key', 0x0C: 'raft', 0x0D: 'ladder', 0x0E: 'triforce_of_power',
+         0x0F: 'five_rupees', 0x10: 'magic_rod', 0x11: 'book', 0x12: 'blue_ring', 0x13: 'red_ring',
+         0x14: 'power_bracelet', 0x15: 'letter', 0x16: 'compass', 0x17: 'map', 0x18: 'rupee', 0x19: 'key',
+         0x1A: 'heart_container', 0x1B: 'triforce', 0x1C: 'magic_shield', 0x1D: 'boomerang',
+         0x1E: 'magical_boomerang', 0x1F: 'blue_potion', 0x20: 'red_potion', 0x22: 'heart'}
 # Sprites that already exist as two-frame drop animations.
 ANIMATED_ITEMS = {'rupee', 'five_rupees', 'heart'}
 TEXT_CHARS = {0x24: ' ', 0x25: ' ', 0x28: ',', 0x29: '.', 0x2A: "'", 0x2C: '!',

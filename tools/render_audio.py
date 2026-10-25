@@ -198,6 +198,8 @@ CUES = {
     # Z_01 textbox characters, money and secrets, WieldBomb, UpdateBomb, WieldCandle.
     'text': (0x604,0x10,0.25), 'key': (0x604,8,0.6), 'bomb_drop': (0x604,0x20,0.3),
     'bomb_blow': (0x603,0x10,0.8), 'flame': (0x603,4,0.6),
+    # Z_07 LevelSongIds: levels 1-8 share $40; level 9 plays $20.
+    'dungeon': (0x600,0x40,50), 'level_9': (0x600,0x20,50),
 }
 
 def export_audio(prg, destination):

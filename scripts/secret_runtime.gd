@@ -9,6 +9,7 @@ var revealed := false
 var pushed := false
 var push_direction := Vector2i.ZERO
 var push_travel := 0
+var push_timer := 0
 
 static func flag_key(definition: Resource) -> String:
 	return "secret/" + String(definition.id)
@@ -18,6 +19,7 @@ func enter(definition: Resource, state: RefCounted) -> void:
 	pushed = false
 	push_direction = Vector2i.ZERO
 	push_travel = 0
+	push_timer = 0
 	revealed = definition.secret != null and state.flags.get(flag_key(definition), false)
 
 func moving() -> bool:
@@ -43,7 +45,7 @@ func overrides(definition: Resource, state: RefCounted) -> Dictionary:
 		result[secret.cell] = [secret.floor_tile, PackedByteArray([0, 0, 0, 0]), "floor"]
 		if not moving():
 			result[secret.cell + push_direction] = [secret.object_tile, secret.object_collision, "object"]
-	if (revealed if current else state.flags.get(flag_key(definition), false)):
+	if secret.reveal_kind != "shutters" and (revealed if current else state.flags.get(flag_key(definition), false)):
 		result[secret.reveal_cell] = [secret.reveal_tile, secret.reveal_collision, "entrance"]
 	return result
 
@@ -58,7 +60,7 @@ func update(world: Node) -> bool:
 		var was_revealed := revealed
 		reveal(world)
 		return not was_revealed
-	if revealed or secret.trigger in ["push", "bracelet_push"]: return false
+	if revealed or secret.trigger in ["push", "bracelet_push", "block"]: return false
 	var center: Vector2i = secret.cell * 16 + Vector2i(8, 8)
 	for object in world.item_objects:
 		var ready: bool = object.detonating() if secret.trigger == "bomb" else object.burning_out()
@@ -70,7 +72,9 @@ func update(world: Node) -> bool:
 
 ## While Link walks: gravestones and rocks move only vertically, away from him.
 func try_push(world: Node, input: Vector2i) -> bool:
-	if room == null or room.secret == null or room.secret.trigger not in ["push", "bracelet_push"]: return false
+	if room == null or room.secret == null: return false
+	if room.secret.trigger == "block": return try_block(world, input)
+	if room.secret.trigger not in ["push", "bracelet_push"]: return false
 	var secret: Resource = room.secret
 	if pushed or input.x != 0 or input.y == 0: return false
 	if secret.trigger == "bracelet_push" and world.state.item_value(&"bracelet") == 0: return false
@@ -80,6 +84,29 @@ func try_push(world: Node, input: Vector2i) -> bool:
 	var distance: int = at.y + 3 - secret.cell.y * 16
 	var wanted := Vector2i.UP if distance >= 0 else Vector2i.DOWN
 	if absi(distance) >= 0x11 or input != wanted: return false
+	pushed = true
+	push_direction = wanted
+	push_travel = 0
+	return true
+
+## Z_04 UpdateBlock0Idle: aligned with the block, pushing away from Link for
+## 16 ticks, with every monster gone.
+func try_block(world: Node, input: Vector2i) -> bool:
+	if pushed or not world.monsters_gone():
+		push_timer = 0
+		return false
+	var at: Vector2i = world.player.pixel_position()
+	var block: Vector2i = room.secret.cell * 16
+	var wanted := Vector2i.ZERO
+	if at.x == block.x and absi(at.y + 3 - block.y) < 0x11:
+		wanted = Vector2i.UP if at.y + 3 >= block.y else Vector2i.DOWN
+	elif at.y + 3 == block.y and absi(at.x - block.x) < 0x11:
+		wanted = Vector2i.LEFT if at.x >= block.x else Vector2i.RIGHT
+	if wanted == Vector2i.ZERO or input != wanted:
+		push_timer = 0
+		return false
+	push_timer += 1
+	if push_timer < 0x10: return false
 	pushed = true
 	push_direction = wanted
 	push_travel = 0

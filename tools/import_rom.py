@@ -11,6 +11,7 @@ from pathlib import Path
 import struct
 import zlib
 
+from import_dungeons import export_levels, level_rooms
 from import_caves import (CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
                           cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
                           secret_resource)
@@ -521,6 +522,18 @@ def import_rom(prg, output):
     entrances = overworld_entrances(prg, layouts, square_tiles)
     cellar = list(prg[103168 + 52:103168 + 56])
     cave_rooms, cave_ids, unreachable = [], [], []
+    # Each level's entrance: the first-quest room with an entrance square or secret,
+    # else (level 7's recorder pond) the room whose secret is not second-quest only.
+    level_entrances = {}
+    for room_id in range(128):
+        entrance = entrances[room_id]
+        level = entrance['destination']
+        if not 1 <= level <= 9: continue
+        places = [e['mouth'] for e in entrance['visible']] + ([entrance['secret']['kind'] == 'wall'] if entrance['secret'] else [])
+        second_quest = prg[99328 + 640 + room_id] >> 6 == 2
+        if places or (level not in level_entrances and not second_quest):
+            level_entrances[level] = (f'ow_{room_id:02x}', entrance['exit'], 16 if places and places[0] else 0)
+    level_room_ids, level_starts = export_levels(prg, output, png, blit_tile, level_entrances)
     combat_names += export_beam_sprites(prg, patterns, palettes, output)
     combat_names += export_source_enemies(prg, patterns, palettes, output)
     combat_names += export_overworld_enemies(prg, patterns, palettes, output)
@@ -568,6 +581,14 @@ def import_rom(prg, output):
         places = [(e['cell'], e['mouth'], False) for e in entrance['visible']]
         if entrance['secret']:
             places.append((entrance['secret']['reveal'], entrance['secret']['kind'] == 'wall', True))
+        if 1 <= entrance['destination'] <= 9 and places:
+            # Level 6's entrance is two squares wide; CheckWarps then accepts X multiples of 8.
+            cells = sorted(place[0] for place in places)
+            cell, hidden = cells[0], places[0][2]
+            width = 1 + (cells[-1][0] - cells[0][0]) * 16
+            portal_lines_out = ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
+                (cell[0] * 16, cell[1] * 16 - 3, width, 1), level_starts[entrance['destination']], (120, 157), (0, -1), walk=16, requires_secret=hidden)
+            portal_ids.append('SubResource("entrance")')
         if len(places) > 1 and entrance['destination'] >= FIRST_CAVE:
             raise ValueError(f'Overworld room {room_id:02X} has {len(places)} cave entrances')
         if entrance['destination'] >= FIRST_CAVE and not places:
@@ -631,12 +652,12 @@ collision_tiles = PackedByteArray({array(collision)})
     theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")', 'hud_hearts = ExtResource("hearts")',
               'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
     (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
-    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={138 + len(cave_ids)} format=3]',
+    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={138 + len(cave_ids) + len(level_room_ids)} format=3]',
                '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
                '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]']
     for i in range(128):
         catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/ow_{i:02x}.tres" id="r{i}"]')
-    for name in cave_ids:
+    for name in cave_ids + level_room_ids:
         catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/{name}.tres" id="{name}"]')
     catalog += [
         '[ext_resource type="Script" path="res://scripts/loot_table.gd" id="loot_script"]',
@@ -655,7 +676,7 @@ collision_tiles = PackedByteArray({array(collision)})
                 'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
                 'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in ENEMY_TYPES.items()) + '})',
                 'legacy_ids = Dictionary[String, String]({"sword_cave": "cave_77", "sword_cave/sword_gift": "cave_77/taken"})',
-                'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in cave_ids]) + '])']
+                'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in cave_ids + level_room_ids]) + '])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
     (output / 'manifest.json').write_text(json.dumps({
         'format_version': 1, 'revision': 'US PRG0', 'prg_sha1': PRG_SHA1,
@@ -663,9 +684,9 @@ collision_tiles = PackedByteArray({array(collision)})
             'supported_types': [name for name,_ in ENEMY_TYPES.values()],
             'encounters': sum(bool(types := room_enemy_types(prg,i)) and all(t in ENEMY_TYPES for t in types) for i in range(128)),
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
-        'rooms': 128 + len(cave_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
+        'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
         'limitations': ['First-quest terrain; Armos, recorder, and ladder secrets and room effects are not imported.',
-                        'Dungeon entrances are not yet connected; Zora, Armos, Ghini, and boulders are unimplemented.',
+                        'Dungeon monsters and bosses are not imported; Zora, Armos, Ghini, and boulders are unimplemented.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio
     export_audio(prg, output / 'audio')

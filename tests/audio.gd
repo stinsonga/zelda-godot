@@ -13,7 +13,7 @@ func run() -> void:
 	world.set_physics_process(false)
 	world.combat.enemies.clear()
 	var audio = world.audio
-	check(audio.bank.streams.size() == 17, "Source-only audio must include all cues")
+	check(audio.bank.streams.size() == 19, "Source-only audio must include all cues")
 	var track: AudioStream = audio.music.stream
 	audio.set_music(&"overworld")
 	check(audio.music.stream == track, "Same music selection must retain the current stream")

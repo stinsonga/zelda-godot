@@ -45,8 +45,11 @@ var rise_remaining := 0
 var rise_square := Rect2i()
 var legacy_ids: Dictionary[String, String] = {}
 var overrides: Dictionary = {}
+var level_exit_remaining := 0
+const DIRECTION_NAMES := {Vector2i.UP: "up", Vector2i.DOWN: "down", Vector2i.LEFT: "left", Vector2i.RIGHT: "right"}
 var simulation_tick := 0
 var entry_walk_remaining := 0
+var entry_walk_subpixels := 0
 var entry_direction := Vector2i.UP
 var dialogue_elapsed := 0
 var lift_remaining := 0
@@ -165,6 +168,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	player.place(at + Vector2i(0, rise))
 	player.facing = facing
 	entry_walk_remaining = entry_walk
+	entry_walk_subpixels = entry_walk * 256
 	entry_direction = facing
 	dialogue_elapsed = 0
 	walk_ticks = 0
@@ -176,8 +180,9 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	rise_remaining = rise * 4
 	rise_square = Rect2i(at.x, at.y + 3, 16, 16)
 	portal_armed = true
+	state.current_level = room.dungeon_level
 	secrets.enter(room, state)
-	overrides = secrets.overrides(room, state)
+	overrides = compute_overrides(room)
 	cave_session = null
 	if room.cave != null:
 		cave_session = preload("res://scripts/cave_session.gd").new()
@@ -202,8 +207,12 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		if transition.tick():
 			enter_room(transition.target, transition.destination, transition.direction)
 		return
+	if level_exit_remaining > 0:
+		level_exit_remaining -= 1
+		if level_exit_remaining == 0: leave_level()
+		return
 	tick_item_objects()
-	overrides = secrets.overrides(room, state)
+	overrides = compute_overrides(room)
 	# Link updates before objects: a lift started by the resident counts from
 	# the next tick, and the resident keeps updating during a lift.
 	var lifting := lift_remaining > 0
@@ -222,9 +231,11 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	var before: Vector2i = player.pixel_position()
 	if entry_walk_remaining > 0:
-		player.step(entry_direction, can_occupy, can_enter_segment)
-		var moved: Vector2i = player.pixel_position() - before
-		entry_walk_remaining = maxi(0, entry_walk_remaining - absi(moved.x) - absi(moved.y))
+		# Mode 4 walks stop exactly on the target, unlike carried free movement.
+		var budget := mini(Player.SPEED_SUBPIXELS, entry_walk_subpixels)
+		player.step(entry_direction, can_occupy, can_enter_segment, budget)
+		entry_walk_subpixels -= budget
+		entry_walk_remaining = ceili(entry_walk_subpixels / 256.0)
 		assert(player.pixel_position() != before, "Portal entry walk is blocked")
 	elif cave_halts:
 		return
@@ -254,7 +265,8 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		if not secrets.blocks_player(player.pixel_position()):
 			player.step(direction, can_occupy, can_enter_segment)
 		if secrets.try_push(self, direction):
-			overrides = secrets.overrides(room, state)
+			overrides = compute_overrides(room)
+		try_doors(direction)
 	if player.pixel_position() != before:
 		walk_ticks += 1
 		if walk_ticks >= 6:
@@ -307,7 +319,7 @@ func occupiable_in(target: Resource, at: Vector2i) -> bool:
 	var previous: Resource = room
 	var previous_overrides := overrides
 	room = target
-	overrides = secrets.overrides(target, state)
+	overrides = compute_overrides(target)
 	var valid := can_occupy(at)
 	room = previous
 	overrides = previous_overrides
@@ -320,6 +332,8 @@ func target_has_portal_at(target: Resource, at: Vector2i) -> bool:
 
 func try_pickups() -> void:
 	for pickup in room.pickups:
+		if pickup.requires_clear and not room_clear():
+			continue
 		var distance: Vector2i = (player.pixel_position() - pickup.position).abs()
 		if distance.x > pickup.tolerance.x or distance.y > pickup.tolerance.y:
 			continue
@@ -328,7 +342,74 @@ func try_pickups() -> void:
 			lifted_item = pickup.item
 			lift_remaining = pickup.lift_ticks
 			pickup_ticks[state.pickup_key(room.id, pickup.id)] = simulation_tick
+			if "slot" in pickup.item and pickup.item.slot == &"triforce":
+				# Z_05 mode $12: the fanfare plays, hearts refill, then Link leaves the level.
+				state.health = state.max_health
+				audio.play(&"item_fanfare")
+				level_exit_remaining = 192
 			return
+
+## Doors and secrets replace 16-pixel squares and their collision.
+func compute_overrides(definition: Resource) -> Dictionary:
+	var result: Dictionary = secrets.overrides(definition, state)
+	for door in definition.doors:
+		if not door_passable(definition, door): continue
+		for i in range(door.cells.size()):
+			var cell := Vector2i(door.cells[i] % 16, door.cells[i] / 16)
+			if result.has(cell): continue
+			var bits: int = door.open_collision[i]
+			result[cell] = [door.open_tiles[i], PackedByteArray([bits & 1, bits >> 1 & 1, bits >> 2 & 1, bits >> 3 & 1]), "door"]
+	return result
+
+func door_key(definition: Resource, direction: Vector2i) -> String:
+	return "door/" + String(definition.id) + "/" + DIRECTION_NAMES[direction]
+
+## Z_05 TouchDoor: false walls let Link through, key and bombable doors stay
+## open once opened, and shutters open while the room is clear.
+func door_passable(definition: Resource, door: Resource) -> bool:
+	match door.kind:
+		"open", "false": return true
+		"key", "bombable": return state.flags.get(door_key(definition, door.direction), false)
+		"shutter": return definition != room or room_clear()
+	return false
+
+## Z_05 CheckHasLivingMonsters.
+func monsters_gone() -> bool:
+	for actor in combat.enemies:
+		if actor.health > 0: return false
+	return true
+
+## Z_05 CheckSecretTrigger: no living monsters, and a pushed block where required.
+func room_clear() -> bool:
+	return monsters_gone() and (room.shutter_trigger != 4 or secrets.revealed)
+
+## Opening a door also opens the facing door in the next room.
+func open_door(door: Resource) -> void:
+	state.flags[door_key(room, door.direction)] = true
+	var name: String = DIRECTION_NAMES[door.direction]
+	if room.exits.has(name) and rooms.has(StringName(room.exits[name])):
+		state.flags[door_key(rooms[StringName(room.exits[name])], -door.direction)] = true
+	audio.play(&"door")
+	overrides = compute_overrides(room)
+
+## Z_05 TouchDoorKey: pressing into a locked doorway spends a key; the magical key is never spent.
+func try_doors(direction: Vector2i) -> void:
+	var at: Vector2i = player.pixel_position()
+	for door in room.doors:
+		if door.kind != "key" or direction != door.direction or door_passable(room, door) or not door.in_doorway(at): continue
+		if state.item_value(&"magic_key") == 0:
+			if state.item_value(&"keys") == 0: continue
+			state.slots[&"keys"] -= 1
+		open_door(door)
+
+## After a triforce, return to the level's overworld entrance.
+func leave_level() -> void:
+	for definition in rooms.values():
+		if definition.dungeon_level != room.dungeon_level: continue
+		for portal in definition.portals:
+			if rooms.has(portal.target_room) and rooms[portal.target_room].dungeon_level == 0:
+				enter_room(rooms[portal.target_room], portal.target_position, portal.target_facing, 0, false, portal.exit_rise_pixels)
+				return
 
 func take_cave_item(item: Resource) -> void:
 	# Z_01 TakeItem: caves always lift the item for 128 frames with the fanfare.
@@ -356,6 +437,12 @@ func tick_item_objects() -> void:
 			var delta: Vector2i = (object.position - player.pixel_position()).abs()
 			if delta.x < 0x0E and delta.y < 0x0E:
 				combat.hurt_player(self, 1, object.position)
+	for object in item_objects:
+		if not object.detonating(): continue
+		for door in room.doors:
+			if door.kind != "bombable" or door_passable(room, door): continue
+			var delta: Vector2i = (door.bomb_hotspot() - object.position).abs()
+			if delta.x < 0x18 and delta.y < 0x18: open_door(door)
 	item_objects = item_objects.filter(func(object: RefCounted) -> bool: return object.active)
 	secrets.update(self)
 
@@ -600,8 +687,10 @@ func draw_room_objects() -> void:
 			sprite_name = StringName(String(sprite_name) + "_" + str(pose))
 		draw_named_sprite(sprite_name, Vector2(decoration.position))
 	for pickup in room.pickups:
-		if not state.has_collected(room.id, pickup.id):
-			draw_named_sprite(pickup.item.id, Vector2(pickup.position))
+		if not state.has_collected(room.id, pickup.id) and (not pickup.requires_clear or room_clear()):
+			var sprite := item_sprite(pickup.item)
+			if not visual_theme.sprites.has(sprite): sprite = StringName(String(sprite) + "_" + str((simulation_tick / 8) % 2))
+			draw_named_sprite(sprite, Vector2(pickup.position) + Vector2(0, 3) if room.dungeon_level > 0 else Vector2(pickup.position))
 	if cave_session != null:
 		draw_cave()
 	elif dialogue_visible() and entry_walk_remaining == 0:
@@ -609,6 +698,30 @@ func draw_room_objects() -> void:
 		var lines: PackedStringArray = shown.split("\n")
 		for i in range(lines.size()):
 			draw_hud_text(lines[i], Vector2(32, 104 + i * 8))
+
+## Dungeon HUD: the map shows rooms once held; the compass flashes the triforce room.
+func draw_level_map() -> void:
+	var level: int = room.dungeon_level
+	draw_hud_text("LEVEL-%d" % level, Vector2(16, 8))
+	var cells: Array[int] = []
+	var left := 15
+	var triforce_room := -1
+	for definition in rooms.values():
+		if definition.dungeon_level != level or definition.map_room_id < 0: continue
+		cells.append(definition.map_room_id)
+		left = mini(left, definition.map_room_id % 16)
+		for pickup in definition.pickups:
+			if "slot" in pickup.item and pickup.item.slot == &"triforce": triforce_room = definition.map_room_id
+	var origin := Vector2(16, 16)
+	if state.has_level_item(&"map", level):
+		for id in cells:
+			draw_rect(Rect2(origin + Vector2((id % 16 - left) * 8, (id / 16) * 4), Vector2(7, 3)), Color("2038ec"))
+	if triforce_room >= 0 and state.has_level_item(&"compass", level) and not state.has_level_item(&"triforce", level) and simulation_tick % 32 < 16:
+		draw_rect(Rect2(origin + Vector2((triforce_room % 16 - left) * 8 + 2, (triforce_room / 16) * 4), Vector2(3, 3)), Color("d82800"))
+	var here: int = room.map_room_id
+	if here < 0 and rooms.has(room.history_id): here = rooms[room.history_id].map_room_id
+	if here >= 0:
+		draw_rect(Rect2(origin + Vector2((here % 16 - left) * 8 + 2, (here / 16) * 4), Vector2(3, 3)), Color("80d010"))
 
 func draw_cave() -> void:
 	var session: RefCounted = cave_session
@@ -675,9 +788,12 @@ func draw_hud_text(text: String, at: Vector2, color: Color = Color.WHITE) -> voi
 func draw_original_hud() -> void:
 	# Sword ownership, health, and currency are live; the map is a scaffold.
 	draw_rect(Rect2(0, 0, 256, 64), Color.BLACK)
-	draw_rect(Rect2(16, 16, 64, 32), Color("666666"))
-	var room_number: int = room.map_room_id if room.map_room_id >= 0 else 0
-	draw_rect(Rect2(16 + room_number % 16 * 4, 16 + (room_number / 16) * 4, 4, 4), Color("80d010"))
+	if room.dungeon_level > 0:
+		draw_level_map()
+	else:
+		draw_rect(Rect2(16, 16, 64, 32), Color("666666"))
+		var room_number: int = room.map_room_id if room.map_room_id >= 0 else 0
+		draw_rect(Rect2(16 + room_number % 16 * 4, 16 + (room_number / 16) * 4, 4, 4), Color("80d010"))
 	draw_hud_text("X%d" % state.rupees, Vector2(96, 16))
 	draw_hud_text("X%d" % state.item_value(&"keys"), Vector2(96, 32))
 	draw_hud_text("X%d" % state.item_value(&"bombs"), Vector2(96, 40))
@@ -797,7 +913,7 @@ func draw_terrain(definition: Resource, offset: Vector2) -> void:
 				draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), visual_theme.wall_color if wall else visual_theme.floor_color)
 				if wall:
 					draw_rect(rect.grow(-3).intersection(Rect2(0, 64, 256, 176)), Color("394f36"), false, 1)
-	var replaced: Dictionary = overrides if definition == room else secrets.overrides(definition, state)
+	var replaced: Dictionary = overrides if definition == room else compute_overrides(definition)
 	for cell in replaced:
 		draw_square(definition, replaced[cell][0], Vector2(cell * 16) + offset, replaced[cell][2])
 
@@ -809,7 +925,7 @@ func draw_square(definition: Resource, index: int, at: Vector2, kind: String) ->
 		var columns: int = definition.tile_atlas.get_width() / cell_size.x
 		draw_clipped_texture(definition.tile_atlas, rect, Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size)))
 	else:
-		var colors := {"floor": visual_theme.floor_color, "object": visual_theme.wall_color, "entrance": Color.BLACK}
+		var colors := {"floor": visual_theme.floor_color, "object": visual_theme.wall_color, "entrance": Color.BLACK, "door": visual_theme.floor_color}
 		draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), colors[kind])
 
 func draw_pushed_object() -> void:

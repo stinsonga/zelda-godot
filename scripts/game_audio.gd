@@ -44,14 +44,14 @@ func configure(custom: Resource = null, imported: bool = false) -> void:
 							stream.loop_end = int(data.loop_end)
 						bank.streams[StringName(cue)] = stream
 	# Original, generated placeholder tones keep source-only projects audible.
-	for cue in ["attack", "player_hurt", "enemy_hit", "enemy_die", "heart", "rupee", "item", "parry", "secret", "item_fanfare", "overworld", "cave", "text", "key", "bomb_drop", "bomb_blow", "flame"]:
+	for cue in ["attack", "player_hurt", "enemy_hit", "enemy_die", "heart", "rupee", "item", "parry", "secret", "item_fanfare", "overworld", "cave", "text", "key", "bomb_drop", "bomb_blow", "flame", "dungeon", "level_9"]:
 		if not bank.streams.has(StringName(cue)):
 			bank.streams[StringName(cue)] = placeholder(cue)
 	if custom != null:
 		for cue in custom.streams: bank.streams[cue] = custom.streams[cue]
 
 func placeholder(cue: String) -> AudioStreamWAV:
-	var track := cue in ["overworld", "cave"]
+	var track := cue in ["overworld", "cave", "dungeon", "level_9"]
 	var seconds := 4.0 if track else (0.6 if cue in ["secret", "item_fanfare"] else 0.12)
 	var count := int(22050 * seconds)
 	var bytes := PackedByteArray()

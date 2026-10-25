@@ -26,7 +26,7 @@ class CaveImportTests(unittest.TestCase):
         self.assertFalse(shop['remember'] or shop['hint'] or shop['money_game'] or shop['negative_prices'])
         self.assertEqual([w['item'] for w in shop['wares']], ['magic_shield', 'bombs', 'arrows'])
         self.assertEqual([w['price'] for w in shop['wares']], [130, 20, 80])
-        data[base] = 0x0E  # Item $0E is not supported content: refuse rather than guess.
+        data[base] = 0x21  # The clock has no native definition: refuse rather than guess.
         with self.assertRaises(ValueError):
             caves.cave_types(data)
 
