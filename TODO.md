@@ -2,16 +2,15 @@
 
 ## Finish the dungeons
 
-1. Remaining boss: Ganon, with the silver-arrow finish, and rescuing Zelda.
-   Manhandla, Gleeok, Moldorm, Lanmola, and Patra are implemented and tested.
-2. Immediately after bosses: expansion groundwork below.
-3. Dungeon old men's hint rooms, money-or-life rooms, candle-lit dark rooms,
+1. Next: expansion groundwork below. Every boss, the silver-arrow finish, and
+   Zelda's rescue are implemented and tested.
+2. Dungeon old men's hint rooms, money-or-life rooms, candle-lit dark rooms,
    monster-carried keys and drops (including Dodongo bombs), Triforce of Power,
-   and the gate to Ganon.
-4. Remaining items: magical rod/book, bait, raft, ladder, magical-key edge cases,
+   and the gate to Ganon. Real dark rooms replace the overlay in Ganon's room.
+3. Remaining items: magical rod/book, bait, raft, ladder, magical-key edge cases,
    clock, and fairies.
 
-## Expansion groundwork (after bosses)
+## Expansion groundwork
 
 - A ROM-free dungeon lab with doors, push block, cellar, editable monster presets,
   and meaningful tests that do not require imported content.
@@ -33,7 +32,8 @@
 
 - Second-quest layouts, secrets, and enemies.
 - Title/waterfall, story scroll, three files, name entry, Continue/Save/Retry,
-  ending, and attract demo. Decide how menus expose native checkpoints versus
+  ending (after `combat.ending`), and attract demo. Boss roars and the Triforce,
+  Ganon, and Zelda tunes. Decide how menus expose native checkpoints versus
   original restart rules.
 
 ## Completed milestones
@@ -41,6 +41,6 @@
 Movement, source-based Octoroks, room scrolling/history, native checkpoints,
 sound/music, common overworld families and editable variants, 59 overworld caves,
 equipment and secrets, all nine dungeon foundations and 255 rooms, regular dungeon
-families and Wizzrobes, Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, and Patra.
+families and Wizzrobes, Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, Patra, Ganon, and Zelda's rescue.
 Bow/arrows, boomerang, recorder/whirlwind, and gradual paused potion refill work.
 See docs/ for behavior, validation, and remaining fidelity limits.

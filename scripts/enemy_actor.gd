@@ -82,6 +82,8 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 		family.gleeok.writhing = 6
 		family.gleeok.animation_timer = 6
 	if definition.behavior == "gleeok_head" and family.gleeok != null and family.gleeok.hit_timer > 0: return false
+	# Only the sword reaches Ganon here; arrows go through Ganon_CheckCollisions.
+	if definition.behavior == "ganon": return kind == "sword" and family.ganon.sword_hit(self, damage)
 	# Darknuts parry weapons arriving head-on; masks parry whole damage types.
 	if kind in definition.invincible_to or (definition.front_shield and direction == -facing):
 		parried_hit = true
@@ -204,6 +206,12 @@ func sprite_name() -> StringName:
 	if definition.behavior == "gleeok_head": return StringName("gleeok_flying_"+str(animation_ticks&1)) if family.gleeok_detached else &"gleeok_head"
 	if definition.behavior in ["jumper", "burrower", "flyer"]:
 		return StringName(String(definition.sprite) + "_" + str(family.frame(self)))
+	if definition.behavior == "ganon":
+		return StringName("%s_%s_%d" % [definition.sprite, family.ganon.palette, family.ganon.animation])
+	# UpdateGuardFire: one image, flipped every six frames.
+	if definition.behavior == "guard_fire":
+		return StringName(String(definition.sprite) + "_" + str((animation_ticks / 6) % 2))
+	if definition.behavior == "zelda": return definition.sprite
 	# Patra flips horizontally every two frames; children alternate two tiles.
 	if definition.behavior in ["patra", "patra_child"]:
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / 2) % 2))

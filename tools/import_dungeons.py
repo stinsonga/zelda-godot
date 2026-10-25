@@ -394,7 +394,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
 
 
 # Dungeon monster types (Z_07 UpdateObject_JumpTable) with their native behavior.
-MONSTERS = {0x47: ('patra_1', 'patra'), 0x48: ('patra_2', 'patra'), 0x41: ('moldorm', 'moldorm'), 0x3A: ('red_lanmola', 'moldorm'), 0x3B: ('blue_lanmola', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
+MONSTERS = {0x3E: ('ganon', 'ganon'), 0x37: ('zelda', 'zelda'), 0x3F: ('guard_fire', 'guard_fire'), 0x47: ('patra_1', 'patra'), 0x48: ('patra_2', 'patra'), 0x41: ('moldorm', 'moldorm'), 0x3A: ('red_lanmola', 'moldorm'), 0x3B: ('blue_lanmola', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
             0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
             0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
             0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
@@ -411,7 +411,7 @@ DODONGO_BLOATED = [0x04, 0x05, 0x07, None, 0x09]
 # Bosses that start at fixed spots rather than spawn lists (Z_04 InitAquamentus).
 # Gohma's position is its middle part; ours is the left leg, 16 pixels earlier.
 # InitLamnola starts every segment at ($40, $8D); InitPatra at ($80, $70).
-FIXED_POSITIONS = {0x47:(0x80,0x70), 0x48:(0x80,0x70), 0x3A:(0x40,0x8D), 0x3B:(0x40,0x8D), 0x41:(0x80,0x70),0x42:(0x74,0x57), 0x43:(0x74,0x57), 0x44:(0x74,0x57), 0x45:(0x74,0x57),0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
+FIXED_POSITIONS = {0x37:(0x78,0x88), 0x47:(0x80,0x70), 0x48:(0x80,0x70), 0x3A:(0x40,0x8D), 0x3B:(0x40,0x8D), 0x41:(0x80,0x70),0x42:(0x74,0x57), 0x43:(0x74,0x57), 0x44:(0x74,0x57), 0x45:(0x74,0x57),0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
 AQUAMENTUS_TILES = 0x11834          # Two frames of six 8x16 sprites.
 AQUAMENTUS_PALETTE = 0x1A28E        # AquamentusPaletteRow7TransferBuf.
 ORANGE_BOSS_PALETTE = 0x1A296       # OrangeBossPaletteRow7TransferBuf (Dodongo, Gohma).
@@ -422,6 +422,14 @@ PATRA_MANEUVER_TIMES = 0x12B64     # Z_04 PatraManeuverTimes; only the first is 
 # Z_04 rotation bit tables, overlapping: child 1 cosine (Y) bits at +0, child 2
 # bits at +1, child 1 sine (X) bits at +2; each indexed by the maneuver.
 PATRA_BITS = 0x12BD6
+# Z_04 Ganon tables and palettes.
+GANON_FRAME_IMAGES = 0x12E91       # GanonFrameImages: 6 poses x 4 parts.
+GANON_BURST = 0x12D95              # GanonBurstDirs (8), SpriteAttrs (10), Tiles (10).
+GANON_START_XS = 0x12D2D           # GanonStartXs: $30, $B0.
+GANON_PALETTE = 0x1A202            # GanonPaletteRow7TransferBuf (blue).
+GANON_COLOR_SETS = 0x61C5          # GanonColorSets: brown, blue, triforce.
+GUARD_FIRES = 0x128C0              # GuardFireXs (5), GuardFireYs (5); slot 1 becomes Zelda.
+GUARD_FIRE_SPOTS = [(0x78, 0x88), (0x60, 0xB5), (0x70, 0x9D), (0x80, 0x9D), (0x90, 0xB5)]
 EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
 OBJECT_LISTS = 83775            # ObjListAddrs pointer table, bank 5.
 CELLAR_KEESE = [(0x20, 0x9D), (0x60, 0x5D), (0x90, 0x7D), (0xD0, 0x9D)]   # Z_05 CellarKeeseXs/Ys
@@ -439,6 +447,8 @@ def monster_types(prg, block, info, room):
     count = info[36 + (attr_c >> 6)]
     if template == 0: return []
     if template in (0x49, 0x4A): return [0x49] * (6 if template == 0x49 else 4)
+    # InitZelda: Zelda in slot 1 and four guard fires.
+    if template == 0x37: return [0x37] + [0x3F] * 4
     if template < 0x62: return [template] * (1 if template >= 0x32 else count)
     address = prg[OBJECT_LISTS + (template - 0x62) * 2] | prg[OBJECT_LISTS + (template - 0x62) * 2 + 1] << 8
     offset = 0x14000 + address - 0x8000
@@ -516,6 +526,20 @@ def monster_definition(prg, kind):
         fields.update(sprite='&"patra"', stunnable='false', invincible_to=SWORD_ONLY, flight_initial_speed=0x1F,
                       flight_max_speed=0x40, flight_chase_threshold=0x40, flight_turn_count=8, flight_turn_ticks=16,
                       flight_vulnerable_resting_only='false', patra_maneuver_ticks=prg[PATRA_MANEUVER_TIMES])
+    elif name == 'ganon':
+        # InitGanon: mask $FA (sword and arrow); fireballs $56 cannot be blocked.
+        raw = prg[0x72BA + 0x56]
+        xs = prg[GANON_START_XS:GANON_START_XS + 2]
+        fields.update(size='Vector2i(32, 32)', collision_size='Vector2i(16, 16)', collision_offset='Vector2i(8, 8)',
+                      spawn_cloud='false', stunnable='false', drops_rewards='false', advances_kill_cycle='false',
+                      invincible_to='PackedStringArray("beam", "boomerang", "bomb", "fire", "magic")', projectile_kind='"fireball"',
+                      projectile_blockable='false', projectile_magic_blockable='false', projectile_damage=(raw & 15) * 2 + bool(raw & 240),
+                      ganon_spots=f'PackedVector2Array({xs[0]}, {0xA0 - 64}, {xs[1]}, {0xA0 - 64})')
+    elif name == 'zelda':
+        fields.update(spawn_cloud='false', stunnable='false', contact_damage=0, counts_for_clear='false', counts_for_persistence='false',
+                      drops_rewards='false', advances_kill_cycle='false', invincible_to=f'PackedStringArray({EVERYTHING})')
+    elif name == 'guard_fire':
+        fields.update(spawn_cloud='false', stunnable='false', counts_for_clear='false', counts_for_persistence='false', shooting_enabled='false')
     elif behavior == 'gleeok':
         raw = prg[0x72BA+0x56]
         fields.update(size='Vector2i(24,32)', collision_size='Vector2i(16,16)', collision_offset='Vector2i(8,24)',
@@ -619,6 +643,56 @@ def write_monsters(prg, output):
         (output / 'enemies' / f'{name}.tres').write_text('\n'.join(text) + '\n')
 
 
+def sprite_piece(patterns, tile, row, blit_tile, mirrored=False, flip_x=False, flip_y=False, narrow=False):
+    """One 16x16 RGBA sprite pair (or a single 8x16 sprite when narrow), as the PPU draws it."""
+    bank = patterns[0x1000:] if tile & 1 else patterns
+    canvas = bytearray(16 * 16 * 4)
+    for column in range(1 if narrow else 2):
+        for part in range(2):
+            piece = bytearray(8 * 8 * 4)
+            blit_tile(piece, 8, 0, 0, bank, (tile & 0xFE) + part + (0 if mirrored or narrow else column * 2), row, True)
+            for y in range(8):
+                for x in range(8):
+                    sx = 7 - x if mirrored and column == 1 else x
+                    dx, dy = column * 8 + x, part * 8 + y
+                    if flip_x: dx = (7 if narrow else 15) - dx
+                    if flip_y: dy = 15 - dy
+                    canvas[(dy * 16 + dx) * 4:(dy * 16 + dx) * 4 + 4] = piece[(y * 8 + sx) * 4:(y * 8 + sx) * 4 + 4]
+    return canvas
+
+
+def ganon_sprites(prg, level, patterns, palettes, output, png, blit_tile, names):
+    """Ganon_DrawBody, Ganon_DrawAshes, Ganon_DrawCloud, Ganon_DrawBurst."""
+    base = prg[0x6E04 + 0x3F]
+    sets = prg[GANON_COLOR_SETS:GANON_COLOR_SETS + 9]
+    rows = {'brown': [0x0F] + list(sets[0:3]), 'blue': list(prg[GANON_PALETTE + 3:GANON_PALETTE + 7]), 'triforce': [0x0F] + list(sets[6:9])}
+
+    def save(key, width, canvas):
+        png(output / f'{key}.png', width, width, canvas)
+        names.append(key)
+
+    for colors, row in rows.items():
+        if colors == 'triforce': continue
+        for pose in range(6):
+            canvas = bytearray(32 * 32 * 4)
+            for part in range(4):
+                image = prg[GANON_FRAME_IMAGES + pose * 4 + part]
+                piece = sprite_piece(patterns, prg[0x6E83 + base + image], row, blit_tile, flip_x=part & 1 == 1)
+                ox, oy = (part & 1) * 16, (part >> 1) * 16
+                for y in range(16):
+                    canvas[((oy + y) * 32 + ox) * 4:((oy + y) * 32 + ox + 16) * 4] = piece[y * 64:(y + 1) * 64]
+            save(f'l{level}_ganon_{colors}_{pose}', 32, canvas)
+    save(f'l{level}_ganon_ashes', 16, sprite_piece(patterns, prg[0x6E83 + base + 0x0B], rows['triforce'], blit_tile))
+    for index, image in enumerate((0x0C, 0x0D)):
+        save(f'l{level}_ganon_cloud_{index}', 16, sprite_piece(patterns, prg[0x6E83 + base + image], rows['triforce'], blit_tile, mirrored=True))
+    # Rays use the slot-indexed tiles and flips; the frame counter picks the palette row.
+    for ray in range(8):
+        attr, tile = prg[GANON_BURST + 8 + 2 + ray], prg[GANON_BURST + 18 + 2 + ray]
+        for palette in range(4):
+            row = rows['triforce'] if palette == 3 else palettes[4 + palette]
+            save(f'l{level}_ganon_ray_{ray}_{palette}', 16, sprite_piece(patterns, tile, row, blit_tile, flip_x=bool(attr & 0x40), flip_y=bool(attr & 0x80), narrow=True))
+
+
 def monster_sprites(prg, level, kinds, output, png, blit_tile):
     """Per-level sprites: level-group pattern blocks and the level's sprite palettes."""
     patterns = bytearray(8192)
@@ -658,6 +732,15 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
             png(output / f'l{level}_{name}_{part}.png', 16, 16, canvas)
             names.append(f'l{level}_{name}_{part}')
         kinds = kinds - {kind}
+    if 0x3E in kinds:
+        ganon_sprites(prg, level, patterns, palettes, output, png, blit_tile, names)
+        kinds = kinds - {0x3E}
+    if 0x37 in kinds:
+        # Person_Draw: frame 0, mirrored, table attribute.
+        render(f'l{level}_zelda', prg[0x6E04 + 0x38], mirrored=True)
+        # UpdateGuardFire: frame 0, flipped on alternate poses.
+        for pose in range(2): render(f'l{level}_guard_fire_{pose}', prg[0x6E04 + 0x40], flip_x=pose == 1)
+        kinds = kinds - {0x37, 0x3F}
     if kinds & {0x47, 0x48}:
         # UpdatePatra: frame 0, not mirrored, flipped horizontally every other pose.
         base = prg[0x6E04 + 0x48]
@@ -904,11 +987,15 @@ def enemy_lines(level, types, positions=None, room=0):
         ext.append(f'[ext_resource type="Resource" path="res://imported/enemies/{MONSTERS[kind][0]}.tres" id="enemy_{kind}"]')
     subs = []
     trap = 0
+    fire = 0
     for i, kind in enumerate(types):
         x, y = positions[i] if positions else (120, 77)
         if kind == 0x49:
             x, y = TRAPS[trap][0], TRAPS[trap][1] - 64
             trap += 1
+        elif kind == 0x3F:
+            fire += 1
+            x, y = GUARD_FIRE_SPOTS[fire][0], GUARD_FIRE_SPOTS[fire][1] - 64
         elif kind in FIXED_POSITIONS:
             x, y = FIXED_POSITIONS[kind][0], FIXED_POSITIONS[kind][1] - 64
         subs += [f'[sub_resource type="Resource" id="enemy_{i}"]', 'script = ExtResource("enemy_spawn")', f'id = &"slot_{i}"',

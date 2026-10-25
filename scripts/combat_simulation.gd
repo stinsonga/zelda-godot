@@ -31,6 +31,10 @@ const BOUNDS_OVERWORLD := Rect2i(17, 14, 207, 127)
 const BOUNDS_UNDERWORLD := Rect2i(33, 30, 175, 95)
 var bounds := BOUNDS_OVERWORLD
 var wallmaster_cooldown := 0
+## Set when Ganon's ashes release the room item there (Z_04 Ganon_ActivateRoomItem).
+var room_item_position = null
+## Zelda's rescue finished; the ending (mode $13) is the front end's job.
+var ending := false
 
 func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entry_position: Vector2i = Vector2i.ZERO, entry_direction: Vector2i = Vector2i.UP) -> void:
 	beam = null
@@ -66,6 +70,10 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	setup_gleeoks()
 	setup_multipart_bosses()
 	setup_patras()
+	room_item_position = null
+	ending = false
+	for actor in enemies:
+		if actor.definition.behavior == "ganon": actor.family.ganon = preload("res://scripts/ganon.gd").new()
 	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
 
 func setup_moldorms() -> void:
@@ -222,7 +230,8 @@ func tick(world: Node) -> void:
 		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
-		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11))}
+		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11)),
+		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at)}
 	var updates: Array = enemies.duplicate()
 	updates.reverse()
 	for actor in updates:
@@ -261,6 +270,8 @@ func tick(world: Node) -> void:
 		if actor.definition.behavior=="moldorm" and actor.family.moldorm!=null and actor.family.moldorm.death_cues>0:
 			world.audio.play(&"enemy_die")
 			actor.family.moldorm.death_cues=0
+		if actor.definition.behavior == "ganon" and actor.family.ganon != null: apply_ganon_cues(world, actor)
+		if actor.definition.behavior == "zelda" and actor.family.zelda_state > 0: rescue_zelda(world, actor)
 		for shot in actor.pending_shots:
 			if rocks.size() >= projectile_limit: break
 			var fireball: RefCounted = make_fireball(world, shot.position, shot.spread)
@@ -326,6 +337,41 @@ func tick(world: Node) -> void:
 				reward.take(world.state)
 				world.audio.play(&"heart" if reward.definition.effect == "health" else &"rupee")
 	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < Reward.LIFETIME)
+
+func apply_ganon_cues(world: Node, actor: RefCounted) -> void:
+	var fight: RefCounted = actor.family.ganon
+	for cue in fight.cues:
+		if cue == &"level_music": world.audio.set_music(world.room.music)
+		elif cue in [&"enemy_hit", &"enemy_die", &"item"]: world.audio.play(cue)
+	fight.cues.clear()
+	if fight.item_released and room_item_position == null: room_item_position = actor.position()
+
+## Z_04 UpdateZelda: the first rescue frame puts Link at ($88, $88) facing left.
+func rescue_zelda(world: Node, actor: RefCounted) -> void:
+	if actor.family.zelda_state == 1 and actor.family.timer == 0x80:
+		world.player.place(Vector2i(0x88, 0x88 - 64))
+		world.player.facing = Vector2i.LEFT
+		world.audio.play(&"item_fanfare")
+	if actor.family.zelda_state == 2 and not ending:
+		ending = true
+		world.state.flags["zelda_rescued"] = true
+
+## Ganon's intro and Zelda's rescue halt Link while monsters keep updating.
+func holds_player() -> bool:
+	for actor in enemies:
+		if actor.definition.behavior == "ganon" and actor.health > 0 and actor.family.ganon != null and actor.family.ganon.holds_player(): return true
+		if actor.definition.behavior == "zelda" and actor.family.zelda_state > 0: return true
+	return false
+
+## Ganon's room starts dark and brightens in four steps during his intro.
+func darkness() -> int:
+	for actor in enemies:
+		if actor.definition.behavior == "ganon" and actor.health > 0 and actor.family.ganon != null: return actor.family.ganon.darkness
+	return 0
+
+## Ganon holds back only the sword; his brown body takes silver arrows.
+func ganon_arrow_hit(actor: RefCounted, silver: bool) -> bool:
+	return actor.family.ganon != null and actor.family.ganon.arrow_hit(actor, silver)
 
 ## The magical shield also turns Lynel sword shots (Z_07 HandleShotBlocked).
 func shield_blocks(world: Node, rock: RefCounted) -> bool:
@@ -570,7 +616,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm", "patra"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm", "patra", "zelda", "guard_fire"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

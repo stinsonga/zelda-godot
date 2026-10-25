@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -120,6 +120,13 @@ extends Resource
 @export var orbit_angle_step: int = 0x70
 @export var orbit_x_bits: PackedInt32Array = PackedInt32Array([6, 6])
 @export var orbit_y_bits: PackedInt32Array = PackedInt32Array([6, 5])
+## Ganon (Z_04 Ganon_CheckCollisions, Ganon_RandomizeLocation, Ganon_Dying):
+## frames shown after a sword hit, HP restored on turning brown, the two spots
+## he reappears at, and where the ashes land relative to him.
+@export var ganon_hit_ticks: int = 0x40
+@export var ganon_brown_health: int = 15
+@export var ganon_spots: PackedVector2Array = PackedVector2Array([Vector2(0x30, 0xA0 - 64), Vector2(0xB0, 0xA0 - 64)])
+@export var ganon_ashes_offset: Vector2i = Vector2i(8, 8)
 @export var collision_size: Vector2i = Vector2i.ZERO
 @export var collision_offset: Vector2i = Vector2i.ZERO
 ## Fireball2 ($56) cannot be blocked, even with the magical shield.
@@ -127,7 +134,7 @@ extends Resource
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")
@@ -148,6 +155,7 @@ func validation_errors() -> PackedStringArray:
 		if boss_hand_offsets.size() != 4 or boss_turn_ticks < 1 or boss_initial_speed < 0 or boss_lost_hand_speed < 0: errors.append("Invalid multipart boss configuration")
 	if behavior == "gleeok" and (gleeok_head == null or gleeok_neck_count < 1 or gleeok_neck_count > 4 or gleeok_head_delay < 0): errors.append("Gleeok needs a head resource and one to four necks")
 	if behavior == "moldorm" and (moldorm_segment == null or moldorm_chain_count < 1 or moldorm_chain_count > 4 or moldorm_segments_per_chain < 1 or moldorm_segments_per_chain > 8 or boss_turn_ticks < 1 or moldorm_segment_reset_health < 1): errors.append("Invalid Moldorm chains")
+	if behavior == "ganon" and (ganon_spots.size() != 2 or ganon_hit_ticks < 2 or ganon_brown_health < 1): errors.append("Ganon needs two spots, a hit time, and brown HP")
 	if behavior == "patra" and (patra_child == null or patra_maneuver_ticks < 1): errors.append("Patra needs a child resource")
 	if behavior == "patra_child" and (orbit_x_bits.size() != 2 or orbit_y_bits.size() != 2 or orbit_angle_step < 1 or orbit_radius < 0): errors.append("Patra children need two maneuvers of rotation bits")
 	for value in orbit_x_bits + orbit_y_bits:

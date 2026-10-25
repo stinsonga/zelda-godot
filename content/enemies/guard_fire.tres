@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_guard_flame"
+behavior = "guard_fire"
+health = 1
+contact_damage = 1
+spawn_cloud = false
+stunnable = false
+shooting_enabled = false
+counts_for_clear = false
+counts_for_persistence = false
+sprite = &"lab_guard_flame"
+fallback_color = Color(0.95, 0.45, 0.1, 1)

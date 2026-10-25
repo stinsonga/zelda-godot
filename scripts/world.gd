@@ -62,6 +62,7 @@ var entry_walk_subpixels := 0
 var entry_direction := Vector2i.UP
 var dialogue_elapsed := 0
 var lift_remaining := 0
+const TRIFORCE = preload("res://content/items/triforce.tres")
 var lifted_item: Resource
 var pickup_ticks: Dictionary[String, int] = {}
 var walk_ticks := 0
@@ -241,6 +242,11 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	tick_item_objects()
 	tick_captor()
 	overrides = compute_overrides(room)
+	# Zelda's rescue ends play; the ending scenes belong to the front end.
+	if combat.ending: return
+	if combat.holds_player():
+		combat.tick(self)
+		return
 	# Link updates before objects: a lift started by the resident counts from
 	# the next tick, and the resident keeps updating during a lift.
 	var lifting := lift_remaining > 0
@@ -362,7 +368,7 @@ func try_pickups() -> void:
 	for pickup in room.pickups:
 		if pickup.requires_clear and not room_clear():
 			continue
-		var distance: Vector2i = (player.pixel_position() - pickup.position).abs()
+		var distance: Vector2i = (player.pixel_position() - pickup_position(pickup)).abs()
 		if distance.x > pickup.tolerance.x or distance.y > pickup.tolerance.y:
 			continue
 		if state.collect(room.id, pickup):
@@ -376,6 +382,11 @@ func try_pickups() -> void:
 				audio.play(&"item_fanfare")
 				level_exit_remaining = 192
 			return
+
+## Ganon's ashes move the room item to where he fell.
+func pickup_position(pickup: Resource) -> Vector2i:
+	if pickup.id == &"item" and combat.room_item_position != null: return combat.room_item_position
+	return pickup.position
 
 ## Doors and secrets replace 16-pixel squares and their collision.
 func compute_overrides(definition: Resource) -> Dictionary:
@@ -535,6 +546,13 @@ func tick_thrown(object: RefCounted) -> void:
 			reward.take(state)
 			audio.play(&"heart" if reward.definition.effect == "health" else &"rupee")
 	for actor in combat.enemies:
+		# Z_04 Ganon_CheckCollisions tests only an arrow in flight against brown Ganon.
+		if object.kind == "arrow" and actor.definition.behavior == "ganon":
+			if actor.health > 0 and object.hits(actor.hit_position()) and combat.ganon_arrow_hit(actor, state.item_value(&"arrows") >= 2):
+				audio.play(&"enemy_hit")
+				object.spark()
+				return
+			continue
 		if not actor.targetable() or not object.hits(actor.hit_position()): continue
 		if object.kind == "arrow":
 			var damage: int = actor.health if actor.definition.arrow_kills else object.damage()
@@ -762,6 +780,7 @@ func _draw() -> void:
 		draw_scrolling_rooms()
 		return
 	draw_terrain(room, Vector2.ZERO)
+	draw_darkness()
 	draw_pushed_object()
 	draw_room_objects()
 	draw_item_objects()
@@ -773,6 +792,10 @@ func _draw() -> void:
 		if lift_remaining > 0 and visual_theme.sprites.has(&"lift"):
 			draw_named_sprite(&"lift", Vector2(player.pixel_position()))
 			draw_named_sprite(item_sprite(lifted_item), Vector2(player.pixel_position()) - Vector2(4, 16))
+		elif ganon_intro() and visual_theme.sprites.has(&"lift"):
+			# Ganon_ScenePhase0/1: Link holds up the Triforce of Courage.
+			draw_named_sprite(&"lift", Vector2(player.pixel_position()))
+			draw_named_sprite(item_sprite(TRIFORCE), Vector2(player.pixel_position()) - Vector2(4, 16))
 		elif (sword.active() or item_use_remaining > 0) and visual_theme.sprites.has(StringName("attack_" + direction_name(player.facing))):
 			var facing: Vector2i = sword.direction if sword.active() else player.facing
 			draw_named_sprite(StringName("attack_" + direction_name(facing)), Vector2(player.pixel_position()) + Vector2(0, 2))
@@ -848,7 +871,7 @@ func draw_room_objects() -> void:
 		if not state.has_collected(room.id, pickup.id) and (not pickup.requires_clear or room_clear()):
 			var sprite := item_sprite(pickup.item)
 			if not visual_theme.sprites.has(sprite): sprite = StringName(String(sprite) + "_" + str((simulation_tick / 8) % 2))
-			draw_named_sprite(sprite, Vector2(pickup.position) + Vector2(0, 3) if room.dungeon_level > 0 else Vector2(pickup.position))
+			draw_named_sprite(sprite, Vector2(pickup_position(pickup)) + Vector2(0, 3) if room.dungeon_level > 0 else Vector2(pickup_position(pickup)))
 	if cave_session != null:
 		draw_cave()
 	elif dialogue_visible() and entry_walk_remaining == 0:
@@ -995,7 +1018,38 @@ func draw_original_hud() -> void:
 	if selected != null and visual_theme.sprites.has(item_sprite(selected)):
 		draw_texture_rect(visual_theme.sprites[item_sprite(selected)], Rect2(126, 28, 16, 16), false)
 
+func ganon_intro() -> bool:
+	return combat.enemies.any(func(a: RefCounted) -> bool: return a.definition.behavior == "ganon" and a.health > 0 and a.family.ganon != null and a.family.ganon.holds_player())
+
+## Dark rooms are not drawn yet; Ganon's room fades from dark in four steps.
+## Provisional: an overlay stands in for LevelInfo_PaletteCycles.
+func draw_darkness() -> void:
+	var steps: int = combat.darkness()
+	if steps > 0: draw_rect(Rect2(Vector2(0, HUD_HEIGHT), Vector2(256, 176)), Color(0, 0, 0, steps * 0.2))
+
+## Z_04 Ganon_DrawAshes and Ganon_DrawBurst: ashes, eight clouds closing in,
+## and eight rays flying out with flashing palettes.
+func draw_ganon_remains(actor: RefCounted) -> void:
+	var fight: RefCounted = actor.family.ganon
+	if fight == null or fight.dying < 0x50: return
+	var prefix := "l%d_" % room.dungeon_level if room.dungeon_level > 0 else ""
+	var at: Vector2i = actor.position()
+	var ashes := StringName(prefix + String(actor.definition.sprite) + "_ashes")
+	if visual_theme.sprites.has(ashes): draw_named_sprite(ashes, Vector2(at))
+	else: draw_rect(Rect2(Vector2(at) + Vector2(2, HUD_HEIGHT + 8), Vector2(12, 8)), Color("c88830"))
+	if fight.dying >= 0xA0: return
+	var cloud := StringName(prefix + String(actor.definition.sprite) + "_cloud_" + ("0" if fight.cloud_distance >= 6 else "1"))
+	for spot in fight.clouds(at):
+		if visual_theme.sprites.has(cloud): draw_named_sprite(cloud, Vector2(spot))
+		else: draw_circle(Vector2(spot) + Vector2(8, HUD_HEIGHT + 8), 5, Color(1, 1, 1, 0.5))
+	for i in range(fight.rays.size()):
+		var ray := StringName("%s%s_ray_%d_%d" % [prefix, actor.definition.sprite, i, simulation_tick & 3])
+		if visual_theme.sprites.has(ray): draw_named_sprite(ray, Vector2(fight.rays[i]))
+		else: draw_rect(Rect2(Vector2(fight.rays[i]) + Vector2(2, HUD_HEIGHT + 4), Vector2(4, 8)), Color("f8d878"))
+
 func draw_combat() -> void:
+	for actor in combat.enemies:
+		if actor.definition.behavior == "ganon": draw_ganon_remains(actor)
 	# Gleeok's fixed body and necks sit behind the attached/detached head sprites.
 	for actor in combat.enemies:
 		if actor.health <= 0 or actor.definition.behavior != "gleeok" or actor.family.gleeok == null: continue

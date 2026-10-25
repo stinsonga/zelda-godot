@@ -12,6 +12,27 @@ func preview() -> void:
 		quit(1)
 		return
 	var args := OS.get_cmdline_user_args()
+	if args.has("ganon") or args.has("ganon_brown") or args.has("ganon_burst") or args.has("zelda"):
+		if args.has("zelda"):
+			world.enter_room(world.rooms[&"l9_32"], Vector2i(120, 125), Vector2i.UP)
+			world.queue_redraw()
+			return
+		world.enter_room(world.rooms[&"l9_42"], Vector2i(120, 125), Vector2i.UP)
+		var ganon: RefCounted = world.combat.enemies[0]
+		var fight: RefCounted = ganon.family.ganon
+		# The intro preview stops while the room is still brightening.
+		for tick in range(0x40 + (12 if args.has("ganon") else 400)):
+			world.combat.player_invulnerability = 10000
+			world.simulate_tick(Vector2i.ZERO)
+		if not args.has("ganon"):
+			ganon.receive_hit(ganon.health, Vector2i.UP, "sword")
+			if args.has("ganon_burst"):
+				world.combat.ganon_arrow_hit(ganon, true)
+				for tick in range(0x60):
+					world.combat.player_invulnerability = 10000
+					world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
+		return
 	if args.has("moldorm"):
 		for candidate in world.room_resources:
 			if not candidate.enemies.any(func(s:Resource)->bool:return s.enemy.behavior=="moldorm"):continue

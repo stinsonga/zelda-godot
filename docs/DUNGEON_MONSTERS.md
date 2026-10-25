@@ -2,9 +2,9 @@
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
 Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
-blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, and Patra. 193 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, Patra, and Ganon, plus Zelda and her guard fires. 195 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
 families, and every cellar holds its four blue Keese. Rooms with other monsters
-(Ganon and the old men) stay empty until those exist,
+(the old men) stay empty until those exist,
 rather than substituting a different monster. The manifest records the counts.
 
 ## Behaviors
@@ -55,7 +55,7 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Ganon. Dodongo does not yet drop its bombs. Second-quest Stalfos
+Dodongo does not yet drop its bombs. Second-quest Stalfos
 shooting, the clock's freeze, and keys carried by monsters are also not
 implemented. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
 
@@ -235,3 +235,62 @@ clear; see ROOM_PERSISTENCE.md.) Child count, orbit radius, angle step, rotation
 bits, and maneuver time are editable. The authored content/enemies/patra*.tres
 fixture and `tests/patra.gd` need no ROM. `tests/test_patra.py` checks tables,
 stats, rooms, and pixels.
+
+## Ganon
+
+`InitGanon` halts Link. `UpdateGanon` then runs three scene phases:
+
+1. Link holds up the Triforce in the dark room. Ganon stays unseen for $40 frames,
+   then shows pose 0 while the room brightens in four steps ten frames apart
+   (`UpdateCandle`, `AnimateWorldFading`).
+2. Ganon stays shown for $C0 more frames.
+3. The fight: monsters keep updating while Link is held (`combat.holds_player()`),
+   and Link is released when this phase begins.
+
+Dark rooms are not drawn yet, so a dimming overlay stands in for the palette
+cycles in Ganon's room.
+
+In the fight Ganon is blue and invisible, moving like a teleporting blue Wizzrobe
+(`BlueWizzrobe_TurnSometimesAndMoveAndCheckTile` with `ObjRemDistance` 1):
+
+- He changes pose every frame, so a hit shows him in a random one.
+- He idles until the turn counter reaches $40. Then every $40 frames he turns
+  toward Link, alternating axes, and snaps to the nearest square.
+- He moves a pixel a frame and reverses at walls (the Wizzrobe probe points).
+  Blocks and water are treated as walls; his room has none.
+- He fires an unblockable fireball ($56) every $40 frames.
+
+Only the sword reaches him (slot $0D; beams, bombs, and the rest pass through),
+and only while he is unseen. A hit shows him for $40 frames with no flash or
+recoil. On the frame that timer reads 1 he moves to ($30, $A0) or ($B0, $A0) by
+the frame counter. Damage that would kill him instead restores HP $F0 (15) and
+turns him brown (`GanonColorSets`).
+
+Brown Ganon stands still for $FF steps, one every other frame. Below $30 he
+flickers. Then he turns blue again at one of the two spots, keeping the restored
+HP. While brown, only an arrow in flight with silver arrows owned (`InvArrow` 2)
+hurts him: wooden arrows pass through.
+
+A silver-arrow hit starts `Ganon_Dying`. He flashes $28 frames. At phase $50
+the palette turns to the Triforce colors and he becomes ashes. `ADC #$07` runs
+with the carry still set from the compare, so the ashes land 8 right and 8 down.
+Eight rays leave from the ashes' centre (`GanonBurstDirs`): the cardinal ones every
+frame, the diagonals three frames in four. Eight clouds close in from distance 8,
+one step every 8 frames. At $A0 the burst ends, the room item (the Triforce of
+Power) appears on the ashes, and the room counts as clear, opening the shutters.
+
+`InitZelda` puts Zelda at ($78, $88) and four guard fires at
+`GuardFireXs`/`GuardFireYs`. The fires burn on contact and can be struck. When
+Link stands at Y $95 with X in [$70, $81), `UpdateZelda` places him at ($88, $88)
+facing left and halts him. After $80 frames play stops,
+`state.flags.zelda_rescued` is set, and `combat.ending` asks the front end for the
+ending (mode $13, not yet built).
+
+The roar, the Triforce/Ganon song, and Zelda's fanfare are not synthesized.
+Existing cues stand in for them.
+
+Ganon's hit time, brown HP, reappearance spots, and ash offset are editable. The
+authored content/enemies/ganon.tres, zelda.tres, and guard_fire.tres fixtures and
+`tests/ganon.gd` need no ROM. `tests/test_ganon.py` checks the tables, rooms,
+stats, and body pixels. `tests/visual_preview.gd -- ganon`, `ganon_brown`,
+`ganon_burst`, or `zelda` renders review screenshots.

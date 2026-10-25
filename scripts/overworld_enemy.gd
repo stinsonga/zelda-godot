@@ -16,6 +16,9 @@ var gleeok_vertical := 3
 var gleeok_direction_timer := 0
 var manhandla: RefCounted
 var patra: RefCounted
+var ganon: RefCounted
+## Zelda: 0 waiting, 1 rescued (Link halted for the fanfare), 2 ending.
+var zelda_state := 0
 var patra_index := 0
 var patra_state := 0
 ## ObjAngleWhole and ObjAngleFrac as one 13-bit value: 32 whole steps a circle.
@@ -73,6 +76,7 @@ func visible(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm": return false
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok": return false
+	if actor.definition.behavior == "ganon": return ganon == null or ganon.visible(actor.animation_ticks)
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_active(actor)
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
@@ -82,6 +86,8 @@ func vulnerable(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm": return false
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
+	if actor.definition.behavior == "ganon": return ganon != null and ganon.sword_vulnerable()
+	if actor.definition.behavior == "zelda": return false
 	# UpdatePatra checks monster collisions only once every child is gone.
 	if actor.definition.behavior == "patra": return patra == null or patra.living_children() == 0
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
@@ -98,6 +104,8 @@ func contact_enabled(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm": return false
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
+	if actor.definition.behavior == "ganon": return ganon != null and ganon.touches_link()
+	if actor.definition.behavior == "zelda": return false
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase == 3
@@ -152,6 +160,15 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	if actor.definition.behavior == "patra_child":
 		if patra != null: patra.tick_child(actor)
 		return false
+	if actor.definition.behavior == "ganon":
+		if ganon == null: ganon = preload("res://scripts/ganon.gd").new()
+		ganon.tick(actor, context)
+		return false
+	if actor.definition.behavior == "zelda":
+		tick_zelda(actor, context)
+		return false
+	# UpdateGuardFire only animates and collides.
+	if actor.definition.behavior == "guard_fire": return false
 	if actor.shove_remaining > 0:
 		actor.source.shove(actor, probe)
 		return false
@@ -745,3 +762,15 @@ func tick_digdogger(actor: RefCounted, target: Vector2i, context: Dictionary) ->
 	var far: Vector2i = at + actor.definition.size - Vector2i(16, 16)
 	if (at.x < area.position.x and actor.facing.x < 0) or (far.x >= area.end.x and actor.facing.x > 0) or (at.y < area.position.y and actor.facing.y < 0) or (far.y >= area.end.y and actor.facing.y > 0):
 		actor.facing = -actor.facing
+
+## Z_04 UpdateZelda: when Link stands at Y $95 with X in [$70, $81), halt him
+## at ($88, $88) facing left and play the fanfare; after $80 frames the ending
+## (mode $13) begins.
+func tick_zelda(actor: RefCounted, context: Dictionary) -> void:
+	var player: Vector2i = context.get("player", Vector2i.ZERO)
+	if zelda_state == 0:
+		if player.x < 0x70 or player.x >= 0x81 or player.y != 0x95 - 64: return
+		zelda_state = 1
+		timer = 0x80
+	elif zelda_state == 1 and timer == 0:
+		zelda_state = 2
