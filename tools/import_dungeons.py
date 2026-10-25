@@ -400,12 +400,15 @@ MONSTERS = {0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x1
             0x27: ('wallmaster', 'wallmaster'), 0x2B: ('bubble', 'walker'), 0x2C: ('blue_bubble', 'walker'),
             0x2D: ('red_bubble', 'walker'), 0x30: ('gibdo', 'walker'), 0x49: ('trap', 'trap'),
             0x23: ('blue_wizzrobe', 'blue_wizzrobe'), 0x24: ('red_wizzrobe', 'red_wizzrobe'),
-            0x3D: ('aquamentus', 'aquamentus'), 0x31: ('dodongo', 'dodongo'), 0x32: ('dodongo', 'dodongo')}
+            0x3D: ('aquamentus', 'aquamentus'), 0x31: ('dodongo', 'dodongo'), 0x32: ('dodongo', 'dodongo'),
+            0x33: ('blue_gohma', 'gohma'), 0x34: ('red_gohma', 'gohma'), 0x38: ('digdogger', 'digdogger'),
+            0x39: ('lone_digdogger', 'digdogger'), 0x18: ('little_digdogger', 'digdogger')}
 # Z_04 DodongoFrameImages / DodongoFrameImagesBloated: right, left, down, -, up for pose A, then B.
 DODONGO_IMAGES = [0x00, 0x01, 0x06, None, 0x08, 0x02, 0x03, 0x06, None, 0x08]
 DODONGO_BLOATED = [0x04, 0x05, 0x07, None, 0x09]
 # Bosses that start at fixed spots rather than spawn lists (Z_04 InitAquamentus).
-FIXED_POSITIONS = {0x3D: (0xB0, 0x80)}
+# Gohma's position is its middle part; ours is the left leg, 16 pixels earlier.
+FIXED_POSITIONS = {0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
 AQUAMENTUS_TILES = 0x11834          # Two frames of six 8x16 sprites.
 AQUAMENTUS_PALETTE = 0x1A28E        # AquamentusPaletteRow7TransferBuf.
 ORANGE_BOSS_PALETTE = 0x1A296       # OrangeBossPaletteRow7TransferBuf (Dodongo, Gohma).
@@ -502,6 +505,19 @@ def monster_definition(prg, kind):
         # Dodongo_CheckCollisionsStandardSize: mask $FF until stunned; then any sword hit kills.
         fields.update(health=1, speed_subpixels=128, turn_chance=0x20, shooting_enabled='false', wide_when_horizontal='true',
                       invincible_to='PackedStringArray("beam", "boomerang", "arrow", "bomb", "fire", "magic")', stunnable='false')
+    elif 'gohma' in name:
+        # InitGohma: mask $FB, arrows only, and only into the open eye; fireballs $56.
+        raw = prg[0x72BA + 0x56]
+        fields.update(size='Vector2i(48, 16)', invincible_to='PackedStringArray("sword", "beam", "boomerang", "bomb", "fire", "magic")',
+                      projectile_kind='"fireball"', projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0), stunnable='false',
+                      spawn_cloud='false')
+    elif 'digdogger' in name:
+        # Big Digdoggers cannot be hurt; the recorder splits them (InitDigdogger1/2: 3 or 1 child).
+        if name == 'little_digdogger':
+            fields.update(spawn_cloud='false')
+        else:
+            fields.update(size='Vector2i(32, 32)', split_count=3 if name == 'digdogger' else 1, stunnable='false',
+                          invincible_to=f'PackedStringArray({EVERYTHING})')
     elif name == 'trap':
         fields.update(invincible_to=f'PackedStringArray({EVERYTHING})', counts_for_clear='false', spawn_cloud='false', sprite_style='"frames"',
                       contact_damage=max(1, fields['contact_damage']))
@@ -519,6 +535,9 @@ def write_monsters(prg, output):
         if name == 'vire':
             ext.append('[ext_resource type="Resource" path="res://imported/enemies/red_keese.tres" id="keese"]')
             fields['splits_into'] = 'ExtResource("keese")'
+        if name in ('digdogger', 'lone_digdogger'):
+            ext.append('[ext_resource type="Resource" path="res://imported/enemies/little_digdogger.tres" id="little"]')
+            fields['splits_into'] = 'ExtResource("little")'
         text = [f'[gd_resource type="Resource" script_class="EnemyDefinition" load_steps={len(ext) + 1} format=3]'] + ext
         text += ['[resource]', 'script = ExtResource("1")'] + [f'{key} = {value}' for key, value in fields.items()]
         (output / 'enemies' / f'{name}.tres').write_text('\n'.join(text) + '\n')
@@ -625,6 +644,66 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
         save('dodongo_bloated_down', image(DODONGO_BLOATED[2], True), 16)
         save('dodongo_bloated_up', image(DODONGO_BLOATED[4], True), 16)
         kinds = kinds - {0x31, 0x32}
+    if kinds & {0x33, 0x34}:
+        # Gohma_AnimateAndDraw: eye image 0-3 in the middle, leg images 4-5 at -16 and +16.
+        base = prg[0x6E04 + 0x33 + 1]
+        for kind, prefix in ((0x33, 'blue_gohma'), (0x34, 'red_gohma')):
+            if kind not in kinds: continue
+            row = palettes[4 + kind - 0x32]   # Gohma_SetSpriteAttributes: type - $32.
+            for eye in range(4):
+                for pose in range(2):
+                    canvas = bytearray(48 * 16 * 4)
+                    parts = [(4 + ((pose + 1) & 1), 0, False, True), (eye, 16, True, False), (4 + (pose & 1), 32, False, False)]
+                    for index, x0, mirrored, flipped in parts:
+                        tile = prg[0x6E83 + base + index]
+                        bank = patterns[0x1000:] if tile & 1 else patterns
+                        for column in range(2):
+                            for half in range(2):
+                                piece = bytearray(8 * 8 * 4)
+                                blit_tile(piece, 8, 0, 0, bank, (tile & 0xFE) + half + (0 if mirrored else column * 2), row, True)
+                                for y in range(8):
+                                    for x in range(8):
+                                        sx = 7 - x if mirrored and column == 1 else x
+                                        dx = column * 8 + x
+                                        if flipped: dx = 15 - dx
+                                        offset = ((half * 8 + y) * 48 + x0 + dx) * 4
+                                        if piece[(y * 8 + sx) * 4 + 3]: canvas[offset:offset + 4] = piece[(y * 8 + sx) * 4:(y * 8 + sx) * 4 + 4]
+                    png(output / f'l{level}_{prefix}_{eye}_{pose}.png', 48, 16, canvas)
+                    names.append(f'l{level}_{prefix}_{eye}_{pose}')
+        kinds = kinds - {0x33, 0x34}
+    if kinds & {0x38, 0x39, 0x18}:
+        # Digdogger_Draw: one image in four flipped quarters, the little face drawn over its middle.
+        row = list(prg[ORANGE_BOSS_PALETTE + 3:ORANGE_BOSS_PALETTE + 7])
+        def blit16(canvas, width, x0, y0, tile, flip_x, flip_y):
+            bank = patterns[0x1000:] if tile & 1 else patterns
+            for column in range(2):
+                for half in range(2):
+                    piece = bytearray(8 * 8 * 4)
+                    blit_tile(piece, 8, 0, 0, bank, (tile & 0xFE) + half + column * 2, row, True)
+                    for y in range(8):
+                        for x in range(8):
+                            dx, dy = column * 8 + x, half * 8 + y
+                            if flip_x: dx = 15 - dx
+                            if flip_y: dy = 15 - dy
+                            if piece[(y * 8 + x) * 4 + 3]:
+                                offset = ((y0 + dy) * width + x0 + dx) * 4
+                                canvas[offset:offset + 4] = piece[(y * 8 + x) * 4:(y * 8 + x) * 4 + 4]
+        big = prg[0x6E83 + prg[0x6E04 + 0x38 + 1]]
+        little = prg[0x6E04 + 0x18 + 1]
+        for pose in range(2):
+            face = prg[0x6E83 + little + pose]
+            canvas = bytearray(32 * 32 * 4)
+            for part, (x0, y0) in enumerate(((0, 0), (16, 0), (0, 16), (16, 16))):
+                blit16(canvas, 32, x0, y0, big, part & 1 == 1, part >= 2)
+            blit16(canvas, 32, 8, 8, face, False, False)
+            for name in ('digdogger', 'lone_digdogger'):
+                png(output / f'l{level}_{name}_{pose}.png', 32, 32, canvas)
+                names.append(f'l{level}_{name}_{pose}')
+            small = bytearray(16 * 16 * 4)
+            blit16(small, 16, 0, 0, face, False, False)
+            png(output / f'l{level}_little_digdogger_{pose}.png', 16, 16, small)
+            names.append(f'l{level}_little_digdogger_{pose}')
+        kinds = kinds - {0x38, 0x39, 0x18}
     for kind in sorted(kinds):
         name, behavior = MONSTERS[kind]
         base = prg[0x6E04 + kind + 1]

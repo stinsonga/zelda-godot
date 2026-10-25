@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -62,8 +62,10 @@ extends Resource
 @export var hop_delays: PackedInt32Array = PackedInt32Array([8, 24, 40, 56])
 ## Peahats skip the spawn cloud; Keese and walkers use it.
 @export var spawn_cloud: bool = true
-## A Zol hit without dying becomes two of these (Vires: two red Keese).
+## A Zol hit without dying becomes two of these (Vires: two red Keese);
+## Digdogger becomes split_count little ones when the recorder plays.
 @export var splits_into: Resource
+@export var split_count: int = 2
 ## Damage types that only parry: sword, beam, boomerang, arrow, bomb, fire, magic
 ## (Z_01 ObjInvincibilityMask). Darknuts also parry anything they face.
 @export var invincible_to: PackedStringArray = PackedStringArray()
@@ -87,7 +89,7 @@ extends Resource
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")

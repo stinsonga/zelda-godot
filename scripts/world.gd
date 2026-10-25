@@ -538,6 +538,10 @@ func tick_thrown(object: RefCounted) -> void:
 		if not actor.targetable() or not object.hits(actor.hit_position()): continue
 		if object.kind == "arrow":
 			var damage: int = actor.health if actor.definition.arrow_kills else object.damage()
+			if actor.definition.behavior == "gohma" and not actor.family.gohma_eye_hit(actor, object.center(), object.direction):
+				audio.play(&"parry")
+				object.spark()
+				return
 			if actor.receive_hit(damage, object.direction, "arrow"):
 				audio.play(&"enemy_hit")
 				if actor.health == 0:

@@ -348,4 +348,44 @@ func check_regulars(world: Node) -> void:
 	world.simulate_tick(Vector2i.ZERO)
 	check(stunned_dodongo.family.phase == 2 and stunned_dodongo.targetable(), "A bomb blast beside Dodongo stuns it")
 	check(stunned_dodongo.receive_hit(1, Vector2i.LEFT, "sword") and stunned_dodongo.health == 0, "A stunned Dodongo falls to the sword")
+	# Gohma: arrows only, flying up into the fully open eye.
+	world.enter_room(world.rooms[&"l6_1c"], Vector2i(128, 125), Vector2i.UP)
+	var gohma: RefCounted = world.combat.enemies[0]
+	check(gohma.definition.behavior == "gohma" and gohma.position() == Vector2i(0x70, 0x70 - 64) and gohma.size() == Vector2i(48, 16), "Gohma starts with its middle at ($80, $70)")
+	check(not gohma.receive_hit(1, Vector2i.UP, "sword"), "Swords bounce off Gohma")
+	var ItemObjects = preload("res://scripts/item_object.gd")
+	world.state.take_item(load("res://content/items/bow.tres"))
+	world.state.take_item(load("res://content/items/arrows.tres"))
+	world.state.rupees = 20
+	world.state.selected_item = &"arrows"
+	gohma.family.eye_state = 0
+	gohma.family.eye_timer = 0
+	gohma.family.eye_wait = 200
+	var closed = ItemObjects.arrow(gohma.position() + Vector2i(24, 20), Vector2i.UP, 2)
+	world.item_objects.append(closed)
+	var gohma_health: int = gohma.health
+	for i in range(4): world.simulate_tick(Vector2i.ZERO)
+	check(gohma.health == gohma_health, "Arrows bounce off Gohma's closed eye")
+	gohma.family.eye_timer = 0x40
+	gohma.family.eye_state = 3
+	gohma.subposition = Vector2i(0x70, 0x70 - 64) * 256
+	gohma.family.going_straight = false
+	gohma.invulnerability = 0
+	world.item_objects.clear()
+	world.item_objects.append(ItemObjects.arrow(gohma.position() + Vector2i(13, 12), Vector2i.UP, 2))
+	world.simulate_tick(Vector2i.ZERO)
+	check(gohma.health < gohma_health, "An arrow flying up into the open eye hurts Gohma")
+	# Digdogger: untouchable until the recorder splits it.
+	world.enter_room(world.rooms[&"l5_24"], Vector2i(32, 77), Vector2i.RIGHT)
+	var digdogger: RefCounted = world.combat.enemies[0]
+	for i in range(30): world.simulate_tick(Vector2i.ZERO)
+	check(digdogger.definition.size == Vector2i(32, 32) and not digdogger.targetable(), "The big Digdogger cannot be hurt")
+	world.state.take_item(load("res://content/items/recorder.tres"))
+	world.state.selected_item = &"recorder"
+	world.combat.player_invulnerability = 100000
+	world.use_item()
+	for i in range(0x98 + 0x40 + 4): world.simulate_tick(Vector2i.ZERO)
+	var children: Array = world.combat.enemies.filter(func(m: RefCounted) -> bool: return m.definition.id == &"little_digdogger" and m.health > 0)
+	check(digdogger.health == 0 and children.size() == digdogger.definition.split_count, "The recorder splits Digdogger into its children")
+	check(children.size() > 0 and children[0].targetable(), "Little Digdoggers can be hurt")
 	completed = true

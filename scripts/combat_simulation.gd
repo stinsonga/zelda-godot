@@ -108,6 +108,7 @@ func tick(world: Node) -> void:
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
 	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds,
 		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
+		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11))}
 	var updates: Array = enemies.duplicate()
@@ -241,8 +242,12 @@ func split_zols(world: Node) -> void:
 		actor.death_remaining = 0
 		actor.drop_resolved = true
 		var first := Vector2i.LEFT if actor.facing.y != 0 else Vector2i.UP
-		# UpdateVire: two red Keese fly off in their own random directions.
-		for direction in ([first, -first] if actor.definition.behavior == "gel" else [Vector2i.ZERO, Vector2i.ZERO]):
+		# UpdateVire: two red Keese fly off in their own random directions; Digdogger's
+		# children take random eight-way directions from InitDigdogger1.
+		var directions: Array = [first, -first] if actor.definition.behavior == "gel" else []
+		if directions.is_empty():
+			for i in range(actor.definition.split_count): directions.append(Vector2i.ZERO)
+		for direction in directions:
 			var spawn = preload("res://scripts/enemy_spawn.gd").new()
 			spawn.id = StringName(String(actor.id) + "_gel")
 			spawn.enemy = actor.definition.splits_into
@@ -253,12 +258,15 @@ func split_zols(world: Node) -> void:
 			gel.setup(spawn)
 			gel.spawn_remaining = 0
 			gel.slot = actor.slot
+			if actor.definition.behavior == "digdogger":
+				gel.subposition = (actor.position() + Vector2i(8, 8)) * 256
+				gel.facing = OverworldEnemy.DIRS[(source_random.at(actor.slot) + directions.size()) & 7]
 			if actor.definition.behavior == "gel":
 				gel.family.split_ticks = 5
 				gel.family.initialized = true
 			gel.source.grid_offset = actor.source.grid_offset
 			enemies.append(gel)
-		encounter_total += 1
+		encounter_total += directions.size() - 1
 
 ## Z_04 UpdateFireball: aimed at Link when made (FireballQSpeeds by the
 ## _CalcDiagonalSpeedIndex angle), still for 16 frames, then flying through walls
@@ -435,7 +443,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

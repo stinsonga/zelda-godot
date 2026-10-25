@@ -188,6 +188,12 @@ func sprite_name() -> StringName:
 		return StringName(String(definition.sprite) + "_" + str(family.frame(self)))
 	if definition.behavior == "dodongo":
 		return family.dodongo_sprite(self)
+	if definition.behavior == "gohma":
+		return StringName("%s_%d_%d" % [definition.sprite, family.eye_state, (animation_ticks / 16) % 2])
+	if definition.behavior == "digdogger":
+		# Shrinking after the recorder flickers big and little every eight frames.
+		var little: bool = definition.size.x == 16 or (family.shrink > 0 and (family.shrink / 8) % 2 == 1)
+		return StringName("%s_%d" % [&"little_digdogger" if little else definition.sprite, (animation_ticks / 6) % 2])
 	if definition.sprite_style == "frames":
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / definition.animation_frame_ticks) % 2))
 	var direction := "right" if facing.x > 0 else "left" if facing.x < 0 else "down" if facing.y > 0 else "up"

@@ -43,6 +43,8 @@ func initialize(actor: RefCounted) -> void:
 		rope_speed = 128
 	elif actor.definition.behavior == "trap":
 		origin = actor.position()
+	elif actor.definition.behavior == "digdogger" and actor.definition.size.x > 16:
+		actor.facing = DIRS[actor.source_random & 7]
 
 func visible(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "wallmaster": return phase == 1
@@ -52,6 +54,7 @@ func visible(actor: RefCounted) -> bool:
 func vulnerable(actor: RefCounted) -> bool:
 	# Dodongo_CheckCollisionsStandardSize: mask $FF except while stunned.
 	if actor.definition.behavior == "dodongo": return phase == 2
+	if actor.definition.behavior == "digdogger": return actor.definition.size.x == 16
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	if actor.definition.behavior == "burrower": return phase == 3
@@ -113,6 +116,8 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 		"pols_voice": tick_pols_voice(actor, probe)
 		"aquamentus": tick_aquamentus(actor, context)
 		"dodongo": tick_dodongo(actor, target, probe)
+		"gohma": return tick_gohma(actor)
+		"digdogger": tick_digdogger(actor, target, context)
 	return false
 
 func begin_jump(actor: RefCounted) -> void:
@@ -598,3 +603,89 @@ func dodongo_sprite(actor: RefCounted) -> StringName:
 	if phase == 1 and bloat_stage < 2: return StringName("dodongo_bloated_" + direction)
 	var pose := 1 if (actor.animation_ticks / (0x20 if phase == 2 else 8)) % 2 else 0
 	return StringName("dodongo_%s_%d" % [direction, pose])
+
+## Z_04 UpdateGohma: half a pixel a frame, 32 pixels out and back, then a new
+## direction (Random >= $B0 right, >= $60 left, else down). The eye opens on a
+## $C0|random countdown (stepped every other frame) for $80 frames: half open at
+## the ends, fully open between $70 and $10. A fireball ($56) every $41 frames.
+var eye_state := 0
+var eye_timer := 0
+var eye_wait := 0
+var eye_blink := 0
+var sprints := 0
+var going_straight := false
+var accumulator := 0
+var shot_timer := 1
+
+func tick_gohma(actor: RefCounted) -> bool:
+	if not going_straight:
+		var roll: int = actor.source_random
+		actor.facing = Vector2i.RIGHT if roll >= 0xB0 else Vector2i.LEFT if roll >= 0x60 else Vector2i.DOWN
+		going_straight = true
+	else:
+		accumulator += 0x80
+		if accumulator >= 0x100:
+			accumulator -= 0x100
+			actor.subposition += actor.facing * 256
+			distance += 1
+			if distance == 0x20:
+				distance = 0
+				actor.facing = -actor.facing
+				if sprints & 1: going_straight = false
+				sprints += 1
+	if eye_wait == 0:
+		eye_timer = 0x80
+		eye_wait = 0xC0 | actor.source_random
+	if int(actor.animation_ticks) & 1: eye_wait -= 1
+	if eye_timer > 0:
+		eye_timer -= 1
+		eye_state = 3 if eye_timer < 0x70 and eye_timer >= 0x10 else 2
+	else:
+		eye_blink += 1
+		if eye_blink == 8:
+			eye_blink = 0
+			eye_state = (eye_state & 1) ^ 1
+	shot_timer -= 1
+	if shot_timer == 0:
+		shot_timer = 0x41
+		actor.pending_shots.append({"position": actor.position() + Vector2i(20, 0), "spread": 0})
+	return false
+
+## Z_04 Gohma_HandleWeaponCollision: only an arrow flying up into the open eye
+## (the middle of the body) hurts Gohma.
+func gohma_eye_hit(actor: RefCounted, arrow_center: Vector2i, direction: Vector2i) -> bool:
+	return eye_state == 3 and direction == Vector2i.UP and absi(arrow_center.x - (actor.position().x + 24)) < 8
+
+## Z_04 UpdateDigdogger: drift in eight directions with speed swinging between
+## $40 and $80 (little ones one pixel faster), turning every 16 frames at random
+## or toward Link. After the recorder, the big one flickers small for $40
+## frames and splits into its children.
+var speed := 0x3F
+var target_speed := 0x80
+var slowing := false
+var shrink := -1
+
+func tick_digdogger(actor: RefCounted, target: Vector2i, context: Dictionary) -> void:
+	var child: bool = actor.definition.size.x == 16
+	if not child and shrink < 0 and context.get("recorder_used", false):
+		shrink = 0x40
+	if shrink > 0:
+		shrink -= 1
+		if shrink == 0: actor.split_pending = true
+		return
+	speed += -1 if slowing else 1
+	if speed == target_speed:
+		slowing = not slowing
+		target_speed = 0x40 if slowing else 0x80
+	if timer == 0:
+		timer = 0x10
+		if actor.source_random >= 0x80: actor.facing = turn_toward(actor.facing, actor.position() + actor.definition.size / 2 - Vector2i(8, 8), target)
+		else: actor.facing = DIRS[posmod(maxi(0, DIRS.find(actor.facing)) + (1 if actor.source_next_random & 1 else -1), 8)]
+	flight_fraction += speed & 0xE0
+	var step := (1 if child else 0) + (1 if flight_fraction >= 0x100 else 0)
+	if flight_fraction >= 0x100: flight_fraction -= 0x100
+	actor.subposition += actor.facing * step * 256
+	var at: Vector2i = actor.position()
+	var far: Vector2i = at + actor.definition.size - Vector2i(16, 16)
+	if (at.x < area.position.x and actor.facing.x < 0) or (far.x >= area.end.x and actor.facing.x > 0) or (at.y < area.position.y and actor.facing.y < 0) or (far.y >= area.end.y and actor.facing.y > 0):
+		actor.facing = -actor.facing
