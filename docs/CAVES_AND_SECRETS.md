@@ -88,7 +88,20 @@ Items sharing a `slot` replace or add to each other. `WeaponDefinition` is a gra
 - Candle fire: walks 16 pixels at half a pixel per frame, then stands 63 frames.
   It deals one damage and also hurts Link. The blue candle works once per room.
 - Rings halve (blue) or quarter (red) damage. Health keeps 128 units per half heart.
-- Potions refill health. The magical shield also blocks Lynel sword shots.
+- Potions pause the game and refill six units a frame (`World_FillHearts`). The
+  magical shield also blocks Lynel sword shots, Wizzrobe magic, and fireballs.
+- Arrows (`WieldArrow`) need the bow and cost a rupee each. One flies at a time, 3
+  pixels a frame, starting 16 pixels ahead (3 right when vertical). Wooden arrows deal 2,
+  silver arrows 4, and any arrow kills Pols Voice. Arrows spark out at the room edge or on a hit.
+- The boomerang (`WieldBoomerang`) flies along the held direction, diagonals
+  included. The wooden one turns back after $31 pixels; the magical one only at walls or the
+  room edge. It stuns monsters for $A0 frames (never Darknuts), kills monsters with
+  no spare health (Keese, Gels), carries drops back, and returns to Link.
+- The recorder (`WieldFlute`) halts Link for $98 frames. In room $42 of the first quest
+  it then drains the pond over twelve eight-frame color steps. That reveals the
+  remembered stairs to level 7 and makes water below tile $99 walkable. Elsewhere outdoors it
+  calls the whirlwind, which sets Link down at the next level whose triforce he holds
+  (`WhirlwindPrevRoomIdList`, `TeleportYs`). In dungeons it marks the room for Digdogger.
 
 Native definitions live in `content/items`. The ROM tables only choose which
 item a cave offers.
@@ -121,11 +134,12 @@ named `sword_cave` load through `WorldDefinition.legacy_ids`.
 
 ## Known approximations
 
-- Item-use pose is 16 ticks; push speed is half a pixel per tick; potions refill
-  at once. None of these timings has been traced.
+- Item-use pose is 16 ticks and push speed is half a pixel per tick; neither has
+  been traced. The pond keeps its water color when drained, and the whirlwind's
+  flight is not animated: Link is set down at the destination after the tune.
 - Held white and magical swords use grade palettes on the wooden sword's tiles.
   Link's sprite does not change with the magical shield.
-- Armos, recorder, raft, ladder, and dungeon entrances are not connected. Bait,
-  arrows, and the bow have no use yet. There is no submenu.
+- Armos, raft, and ladder are not connected. Bait and the magical rod have no use
+  yet. There is no submenu.
 - Shortcut-room rocks follow the ROM's shortcut positions. Rooms $1D and $49 point
   at index 0, which has not been checked against an emulator.

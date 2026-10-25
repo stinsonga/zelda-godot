@@ -40,6 +40,10 @@ ANIMATED_ITEMS = {'rupee', 'five_rupees', 'heart'}
 TEXT_CHARS = {0x24: ' ', 0x25: ' ', 0x28: ',', 0x29: '.', 0x2A: "'", 0x2C: '!',
               0x2D: '"', 0x2E: '?', 0x2F: '-'}
 SECRET_KINDS = {0xE5: 'rock', 0xE6: 'wall', 0xE7: 'tree', 0xE8: 'grave'}
+FLUTE_ROOMS = 0x1EF66       # Z_07 FluteRoomSecretsOW; entry 0 is the first quest's pond.
+POND_STAIRS = (0x60, 0x90)  # Z_07 RevealPondStairs.
+WHIRLWIND_ROOMS = 0x6010    # Z_01 WhirlwindPrevRoomIdList: the room before each level entrance.
+TELEPORT_YS = 0x6119        # Z_01 TeleportYs.
 
 
 def person_text(prg, selector):
@@ -237,6 +241,10 @@ def overworld_entrances(prg, layouts, square_tiles):
         elif secret:
             secret['reveal'] = secret['cell']
             secret['persistent'] = True
+        if room_id == prg[FLUTE_ROOMS] and secret is None:
+            # Z_07 WieldFlute: the first quest's pond drains to stairs at ($60, $90).
+            cell = (POND_STAIRS[0] // 16, (POND_STAIRS[1] - 64) // 16)
+            secret = {'kind': 'pond', 'cell': cell, 'reveal': cell, 'persistent': True, 'square': layout[cell[1]][cell[0]]}
         rooms[room_id] = {'destination': destination, 'visible': visible, 'secret': secret,
                           'exit': (prg[OW_ATTRS + room_id] & 0xF0, (attr_f & 7) * 16 + 13)}
     return rooms
@@ -245,7 +253,7 @@ def overworld_entrances(prg, layouts, square_tiles):
 def secret_resource(prg, entrance, layout, palette_for, square_tiles, walkable):
     """A SecretDefinition sub-resource body for an overworld room."""
     secret = entrance['secret']
-    trigger = {'wall': 'bomb', 'tree': 'fire', 'grave': 'push', 'rock': 'bracelet_push'}[secret['kind']]
+    trigger = {'wall': 'bomb', 'tree': 'fire', 'grave': 'push', 'rock': 'bracelet_push', 'pond': 'recorder'}[secret['kind']]
     reveal_square = SQUARE_CAVE if secret['kind'] == 'wall' else SQUARE_STAIRS
     def collision(square):
         return [int(tile >= 0x89 and tile not in walkable) for tile in square_tiles(prg, square)]
@@ -255,6 +263,14 @@ def secret_resource(prg, entrance, layout, palette_for, square_tiles, walkable):
              f'reveal_tile = {palette_for(*reveal) * 64 + reveal_square}',
              f'reveal_collision = PackedByteArray({", ".join(map(str, collision(reveal_square)))})',
              f'persistent = {str(secret["persistent"]).lower()}']
+    if trigger == 'recorder':
+        # UpdateFluteSecret raises ObjectFirstUnwalkableTile to $99: most water becomes walkable.
+        drained = [0] * 704
+        for y, row in enumerate(layout):
+            for x, square in enumerate(row):
+                for part, tile in enumerate(square_tiles(prg, square)):
+                    drained[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(tile >= 0x99 and tile not in walkable)
+        lines.append(f'drained_collision = PackedByteArray({", ".join(map(str, drained))})')
     if trigger in ('push', 'bracelet_push'):
         lines += [f'floor_tile = {palette_for(*cell) * 64 + SQUARE_FLOOR}',
                   f'object_tile = {palette_for(*cell) * 64 + secret["square"]}',

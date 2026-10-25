@@ -20,8 +20,9 @@
   Peahats, and editable variants; see docs/MORE_ENEMIES.md. Follow up with
   replay fidelity, Zora, Armos, Ghini, boulders, and special overworld actors.
 - Overworld caves, shop items, equipment, and bomb/fire/push secrets are implemented;
-  see docs/CAVES_AND_SECRETS.md. Follow up with the item submenu, Armos and
-  recorder secrets, raft and ladder, bait, bow and arrows, and traced item-use timing.
+  see docs/CAVES_AND_SECRETS.md. The bow, boomerang, recorder (pond and whirlwind),
+  and paused potion refill now work. Follow up with the item submenu, Armos
+  secrets, raft and ladder, bait, the magical rod, and traced item-use timing.
 - Dungeon foundations implemented: all nine first-quest levels, doors, keys,
   cellars, push blocks, items, and the level map; see docs/DUNGEONS.md.
   First dungeon monsters implemented: Stalfos, Goriyas, Gels, Zols, Keese, and

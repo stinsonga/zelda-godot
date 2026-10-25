@@ -44,8 +44,15 @@ var portal_armed := true
 var rise_remaining := 0
 var rise_square := Rect2i()
 var legacy_ids: Dictionary[String, String] = {}
+var world_definition_whirlwinds: Array = []
 var overrides: Dictionary = {}
 var level_exit_remaining := 0
+var filling_hearts := false
+var recorder_ticks := 0
+var recorder_used_here := false
+var whirlwind_pending := false
+var teleport_index := 0
+var held_direction := Vector2i.ZERO
 ## A Like Like or Wallmaster holding Link.
 var captor: RefCounted
 const DIRECTION_NAMES := {Vector2i.UP: "up", Vector2i.DOWN: "down", Vector2i.LEFT: "left", Vector2i.RIGHT: "right"}
@@ -78,6 +85,7 @@ func _ready() -> void:
 		combat.spawn_lists = selected_world.spawn_lists
 		combat.projectile_limit = selected_world.projectile_limit
 		legacy_ids = selected_world.legacy_ids
+		world_definition_whirlwinds = selected_world.whirlwinds
 		world_id = String(selected_world.id)
 		item_resources = item_resources + selected_world.items
 	audio.configure(selected_world.audio_bank if selected_world != null else null, selected_world != null and String(selected_world.id) == "original_quest_1")
@@ -177,6 +185,8 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	walk_pose = 0
 	sword.phase = -1
 	item_objects.clear()
+	recorder_used_here = false
+	whirlwind_pending = false
 	captor = null
 	candle_used = false
 	item_use_remaining = 0
@@ -211,9 +221,22 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		if transition.tick():
 			enter_room(transition.target, transition.destination, transition.direction)
 		return
+	held_direction = direction
+	if filling_hearts:
+		# Z_05 World_FillHearts: six units a frame, game paused, heart sound.
+		state.health_units = mini(state.max_health * state.HEALTH_UNITS, state.health_units + 6)
+		if simulation_tick % 8 == 0: audio.play(&"heart")
+		filling_hearts = state.health_units < state.max_health * state.HEALTH_UNITS
+		return
 	if level_exit_remaining > 0:
 		level_exit_remaining -= 1
 		if level_exit_remaining == 0: leave_level()
+		return
+	if recorder_ticks > 0:
+		recorder_ticks -= 1
+		if recorder_ticks == 0 and whirlwind_pending:
+			whirlwind_pending = false
+			take_whirlwind()
 		return
 	tick_item_objects()
 	tick_captor()
@@ -434,6 +457,16 @@ func restart_level() -> void:
 				enter_room(definition, Vector2i(120, 157), Vector2i.UP, 16)
 				return
 
+## The whirlwind sets Link down in the chosen level's entrance room (Z_01
+## WhirlwindPrevRoomIdList is the room before it; TeleportYs gives the height).
+## Provisional: the flight itself is not animated.
+func take_whirlwind() -> void:
+	var index := whirlwind_destination()
+	if index < 0 or world_definition_whirlwinds.is_empty(): return
+	var target: Dictionary = world_definition_whirlwinds[index]
+	if rooms.has(StringName(target.room)):
+		enter_room(rooms[StringName(target.room)], Vector2i(0x80, int(target.y) - 64), Vector2i.RIGHT)
+
 ## After a triforce, return to the level's overworld entrance.
 func leave_level() -> void:
 	for definition in rooms.values():
@@ -455,6 +488,9 @@ func tick_item_objects() -> void:
 		var cue: StringName = object.tick()
 		if not cue.is_empty(): audio.play(cue)
 		if not object.active: continue
+		if object.kind in ["arrow", "boomerang"]:
+			tick_thrown(object)
+			continue
 		for actor in combat.enemies:
 			if actor.targetable() and object.hits(actor.hit_position()):
 				if actor.receive_hit(object.damage(), object.direction, object.kind):
@@ -476,6 +512,51 @@ func tick_item_objects() -> void:
 	item_objects = item_objects.filter(func(object: RefCounted) -> bool: return object.active)
 	secrets.update(self)
 
+## Arrows end at the room bounds or the first monster; boomerangs stun (or kill
+## fragile monsters), carry drops back, and return to Link.
+func tick_thrown(object: RefCounted) -> void:
+	var edge: Rect2i = combat.bounds.grow(16)
+	if object.kind == "arrow":
+		if object.stage == 1 and not edge.has_point(object.position):
+			object.spark()
+			return
+	elif not object.returning and (not edge.has_point(object.position) or (object.position.x % 8 == 0 and object.position.y % 8 == 0 and is_blocked(object.position + Vector2i(8, 8)))):
+		object.returning = true
+	if object.kind == "boomerang" and object.returning:
+		var delta: Vector2i = player.pixel_position() - object.position
+		if absi(delta.x) < 8 and absi(delta.y) < 8:
+			object.active = false
+			return
+		object.position += Vector2i(signi(delta.x), signi(delta.y)) * 3
+	for reward in combat.rewards:
+		if object.kind == "boomerang" and reward.available() and reward.touches(object.position):
+			reward.take(state)
+			audio.play(&"heart" if reward.definition.effect == "health" else &"rupee")
+	for actor in combat.enemies:
+		if not actor.targetable() or not object.hits(actor.hit_position()): continue
+		if object.kind == "arrow":
+			var damage: int = actor.health if actor.definition.arrow_kills else object.damage()
+			if actor.receive_hit(damage, object.direction, "arrow"):
+				audio.play(&"enemy_hit")
+				if actor.health == 0:
+					audio.play(&"enemy_die")
+					combat.record_permanent_kill(self, actor)
+			elif actor.parried_hit:
+				audio.play(&"parry")
+			object.spark()
+			return
+		if object.returning: continue
+		object.returning = true
+		if "boomerang" in actor.definition.invincible_to:
+			audio.play(&"parry")
+		elif actor.definition.fragile:
+			if actor.receive_hit(actor.health, object.direction, "boomerang"):
+				audio.play(&"enemy_die")
+				combat.record_permanent_kill(self, actor)
+		elif actor.definition.stunnable:
+			actor.stun_ticks = 0xA0
+		return
+
 func use_item() -> bool:
 	var slot: StringName = state.selected_item
 	if slot.is_empty() or state.item_value(slot) == 0:
@@ -488,7 +569,7 @@ func use_item() -> bool:
 			var bombs: Array = item_objects.filter(func(object: RefCounted) -> bool: return object.kind == "bomb")
 			if bombs.size() >= 2 or bombs.any(func(object: RefCounted) -> bool: return object.stage < 3):
 				return false
-			if item_objects.size() >= 2:
+			if burning_objects() >= 2:
 				item_objects.erase(item_objects.filter(func(object: RefCounted) -> bool: return object.kind == "fire")[0])
 			state.slots[&"bombs"] -= 1
 			item_objects.append(ItemObject.bomb(ahead, player.facing))
@@ -496,24 +577,63 @@ func use_item() -> bool:
 			ensure_selected_item()
 		&"candle":
 			# Z_01 WieldCandle: two slots; the blue candle burns once per room.
-			if item_objects.size() >= 2 or (state.item_value(&"candle") == 1 and candle_used):
+			if burning_objects() >= 2 or (state.item_value(&"candle") == 1 and candle_used):
 				return false
 			candle_used = true
 			item_objects.append(ItemObject.fire(ahead, player.facing))
 			audio.play(&"flame")
 		&"potion":
-			# Provisional: the original refills gradually while Link waits.
-			state.health = state.max_health
+			# Z_05 WieldPotion: pause the game while World_FillHearts refills.
 			state.slots[&"potion"] -= 1
-			audio.play(&"heart")
+			filling_hearts = true
 			ensure_selected_item()
 			return true
+		&"arrows":
+			# Z_05 WieldArrow: needs the bow and a rupee; one arrow at a time.
+			if state.item_value(&"bow") == 0 or state.rupees == 0 or item_objects.any(func(o: RefCounted) -> bool: return o.kind == "arrow"):
+				return false
+			state.rupees_to_subtract += 1
+			item_objects.append(ItemObject.arrow(ahead, player.facing, 4 if state.item_value(&"arrows") >= 2 else 2))
+			audio.play(&"arrow")
+		&"boomerang":
+			# Z_05 WieldBoomerang: thrown along the held direction, diagonals included.
+			if item_objects.any(func(o: RefCounted) -> bool: return o.kind == "boomerang"):
+				return false
+			var aim: Vector2i = held_direction if held_direction != Vector2i.ZERO else player.facing
+			item_objects.append(ItemObject.boomerang(ahead, aim, 0xFF if state.item_value(&"boomerang") >= 2 else 0x31))
+			audio.play(&"arrow")
+		&"recorder":
+			play_recorder()
 		&"letter":
 			return cave_session != null and cave_session.show_letter(self)
 		_:
 			return false
 	item_use_remaining = ITEM_USE_TICKS
 	return true
+
+func burning_objects() -> int:
+	return item_objects.filter(func(o: RefCounted) -> bool: return o.kind in ["bomb", "fire"]).size()
+
+## Z_07 WieldFlute: the tune halts Link for $98 frames. Outdoors it drains
+## level 7's pond or calls the whirlwind; in a dungeon it marks the room.
+func play_recorder() -> void:
+	audio.play(&"recorder")
+	recorder_ticks = 0x98
+	if room.dungeon_level > 0:
+		recorder_used_here = true
+	elif room.secret != null and room.secret.trigger == "recorder" and not secrets.revealed:
+		secrets.recorder_pending = true
+	elif state.flags.keys().any(func(key: String) -> bool: return key.begins_with("triforce/")):
+		whirlwind_pending = true
+
+## Z_01 SummonWhirlwind and AdvanceTeleportingLevelIndex: step through the
+## levels whose triforce Link holds, forward when facing right or up.
+func whirlwind_destination() -> int:
+	var step := 1 if player.facing.x > 0 or player.facing.y < 0 else -1
+	for i in range(8):
+		teleport_index = posmod(teleport_index + step, 8)
+		if state.has_level_item(&"triforce", teleport_index + 1): return teleport_index
+	return -1
 
 func available_items() -> Array[StringName]:
 	var result: Array[StringName] = []
@@ -554,6 +674,8 @@ func is_blocked(pixel: Vector2i) -> bool:
 		var override: Variant = overrides.get(pixel / 16)
 		if override != null:
 			return override[1][(pixel.x % 16) / 8 * 2 + (pixel.y % 16) / 8] != 0
+	if secrets.drained(room, state) and Rect2i(Vector2i.ZERO, ROOM_SIZE).has_point(pixel):
+		return room.secret.drained_collision[(pixel.y / 8) * 32 + pixel.x / 8] != 0
 	if room.is_pixel_solid(pixel):
 		return true
 	for decoration in room.decorations:
@@ -784,6 +906,19 @@ func draw_cave() -> void:
 
 func draw_item_objects() -> void:
 	for object in item_objects:
+		if object.kind == "arrow":
+			var name := StringName("monster_arrow_" + direction_name(object.direction))
+			if object.stage == 1 and visual_theme.sprites.has(name): draw_named_sprite(name, Vector2(object.position))
+			elif object.stage == 1: draw_line(Vector2(object.center()) + Vector2(0, HUD_HEIGHT) - Vector2(object.direction) * 6, Vector2(object.center()) + Vector2(0, HUD_HEIGHT) + Vector2(object.direction) * 6, Color("e8d090"), 2)
+			continue
+		if object.kind == "boomerang":
+			var at := Vector2(object.position) + Vector2(0, HUD_HEIGHT)
+			var spin := (simulation_tick / 3) % 4
+			if visual_theme.sprites.has(&"boomerang"):
+				draw_texture_rect(visual_theme.sprites[&"boomerang"], Rect2(at + Vector2(16 if spin & 1 else 0, 16 if spin & 2 else 0), Vector2(-16 if spin & 1 else 16, -16 if spin & 2 else 16)), false)
+			else:
+				draw_circle(at + Vector2(8, 8), 4, Color("c87830"))
+			continue
 		if object.kind == "fire":
 			var sprite := StringName("fire_" + str((simulation_tick / 4) % 2))
 			if visual_theme.sprites.has(sprite): draw_named_sprite(sprite, Vector2(object.position))

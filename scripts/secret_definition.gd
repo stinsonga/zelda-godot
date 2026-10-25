@@ -2,7 +2,10 @@ class_name SecretDefinition
 extends Resource
 ## One overworld tile object (Z_05 CheckTileObject). Cells are 16-pixel squares.
 ## "block" is an underworld push block: any direction, after 16 ticks of pushing.
-@export_enum("bomb", "fire", "push", "bracelet_push", "block") var trigger: String = "bomb"
+## "recorder" drains a pond after the tune (Z_07 UpdateFluteSecret).
+@export_enum("bomb", "fire", "push", "bracelet_push", "block", "recorder") var trigger: String = "bomb"
+## Eight-pixel collision once a pond is drained: water below tile $99 becomes walkable.
+@export var drained_collision: PackedByteArray = PackedByteArray()
 ## What a revealed block opens: stairs at reveal_cell, or the room's shutters.
 @export_enum("entrance", "stairs", "shutters") var reveal_kind: String = "entrance"
 @export var cell: Vector2i

@@ -12,7 +12,7 @@ import struct
 import zlib
 
 from import_dungeons import MONSTERS, export_levels, level_rooms
-from import_caves import (CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
+from import_caves import (TELEPORT_YS, WHIRLWIND_ROOMS, CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
                           cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
                           secret_resource)
 
@@ -679,6 +679,7 @@ collision_tiles = PackedByteArray({array(collision)})
                 'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
                 'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in list(ENEMY_TYPES.items()) + list(MONSTERS.items())) + '})',
                 'legacy_ids = Dictionary[String, String]({"sword_cave": "cave_77", "sword_cave/sword_gift": "cave_77/taken"})',
+                'whirlwinds = [' + ', '.join(f'{{"room": "ow_{prg[WHIRLWIND_ROOMS + i] + 1:02x}", "y": {prg[TELEPORT_YS + i]}}}' for i in range(8)) + ']',
                 'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in cave_ids + level_room_ids]) + '])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
     (output / 'manifest.json').write_text(json.dumps({

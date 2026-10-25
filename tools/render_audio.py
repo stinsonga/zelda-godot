@@ -200,6 +200,8 @@ CUES = {
     'bomb_blow': (0x603,0x10,0.8), 'flame': (0x603,4,0.6),
     # Z_07 LevelSongIds: levels 1-8 share $40; level 9 plays $20.
     'dungeon': (0x600,0x40,50), 'level_9': (0x600,0x20,50),
+    # Z_05 WieldArrow/WieldBoomerang effect $02; Z_07 WieldFlute tune $10.
+    'arrow': (0x603,2,0.4), 'recorder': (0x602,0x10,2.6),
 }
 
 def export_audio(prg, destination):

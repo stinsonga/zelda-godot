@@ -441,7 +441,7 @@ def monster_definition(prg, kind):
     health = max(1, pair & 15 if kind & 1 else pair >> 4)   # HP 0 dies to any hit.
     raw = prg[0x72BA + kind]
     fields = {'id': f'&"{name}"', 'title': json.dumps(name.replace('_', ' ').title()), 'behavior': json.dumps(behavior),
-              'nes_type': kind, 'health': health, 'contact_damage': (raw & 15) * 2 + (1 if raw & 240 else 0), 'sprite': f'&"{name}"'}
+              'nes_type': kind, 'health': health, 'fragile': str((pair & 15 if kind & 1 else pair >> 4) == 0).lower(), 'contact_damage': (raw & 15) * 2 + (1 if raw & 240 else 0), 'sprite': f'&"{name}"'}
     if name in ('blue_goriya', 'red_goriya'):
         # Z_04 UpdateGoriya: dominant-axis aim within $51, boomerangs at 2.5 pixels a frame.
         fields.update(speed_subpixels=128, turn_chance=0x80, targeting='"dominant_axis"', projectile_kind='"boomerang"',
@@ -463,7 +463,7 @@ def monster_definition(prg, kind):
         fields.update(speed_subpixels=128, shooting_enabled='false')
     elif name in ('red_darknut', 'blue_darknut'):
         # Z_04 InitDarknut: mask $F6 leaves only sword and bomb; q-speed $20 red, $28 blue.
-        fields.update(speed_subpixels=128 if name == 'red_darknut' else 160, turn_chance=0x80, shooting_enabled='false', front_shield='true',
+        fields.update(speed_subpixels=128 if name == 'red_darknut' else 160, turn_chance=0x80, shooting_enabled='false', front_shield='true', stunnable='false',
                       invincible_to='PackedStringArray("boomerang", "arrow", "fire", "magic")')
     elif name in ('gibdo', 'like_like', 'vire'):
         # UpdateGibdo, UpdateLikeLike, UpdateVireState0: turn rate $80 at the default q-speed $20.
@@ -478,7 +478,8 @@ def monster_definition(prg, kind):
                       contact_effect=f'"{effect}"', contact_damage=0, counts_for_clear='false', invincible_to=f'PackedStringArray({EVERYTHING})')
     elif name == 'pols_voice':
         # UpdatePolsVoice sets mask $FE: only the sword hurts it here.
-        fields.update(invincible_to='PackedStringArray("boomerang", "bomb", "fire", "magic")', sprite_style='"frames"', animation_frame_ticks=8)
+        fields.update(invincible_to='PackedStringArray("boomerang", "bomb", "fire", "magic")', sprite_style='"frames"', animation_frame_ticks=8,
+                      arrow_kills='true')
     elif name == 'wallmaster':
         fields.update(contact_effect='"capture"', spawn_cloud='false', sprite_style='"frames"', animation_frame_ticks=8)
     elif 'wizzrobe' in name:

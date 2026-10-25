@@ -72,6 +72,12 @@ extends Resource
 @export var counts_for_clear: bool = true
 ## Touching Link: "hurt", "capture" (Like Like, Wallmaster), or a Bubble sword effect.
 @export_enum("hurt", "capture", "block_sword", "curse_sword", "restore_sword") var contact_effect: String = "hurt"
+## Z_01 CheckMonsterShotCollision: an arrow always kills Pols Voice.
+@export var arrow_kills: bool = false
+## HP 0 in the original: any hit kills, even the boomerang's zero damage.
+@export var fragile: bool = false
+## Darknuts are never stunned (Z_04 UpdateDarknut clears ObjStunTimer).
+@export var stunnable: bool = true
 ## Bosses draw and collide at their own size, centered on their middle.
 @export var size: Vector2i = Vector2i(16, 16)
 ## Vires hop while walking sideways (Z_04 VireJumpOffsets).

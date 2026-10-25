@@ -10,6 +10,9 @@ var pushed := false
 var push_direction := Vector2i.ZERO
 var push_travel := 0
 var push_timer := 0
+## Recorder: waiting for the tune to end, then the 12-step pond color cycle.
+var recorder_pending := false
+var drain_ticks := 0
 
 static func flag_key(definition: Resource) -> String:
 	return "secret/" + String(definition.id)
@@ -20,7 +23,15 @@ func enter(definition: Resource, state: RefCounted) -> void:
 	push_direction = Vector2i.ZERO
 	push_travel = 0
 	push_timer = 0
+	recorder_pending = false
+	drain_ticks = 0
 	revealed = definition.secret != null and state.flags.get(flag_key(definition), false)
+
+## Walkability for a remembered drained pond.
+func drained(definition: Resource, state: RefCounted) -> bool:
+	var secret: Resource = definition.secret
+	if secret == null or secret.drained_collision.is_empty(): return false
+	return revealed if definition == room else state.flags.get(flag_key(definition), false)
 
 func moving() -> bool:
 	return push_direction != Vector2i.ZERO and push_travel < 16 * 256
@@ -60,6 +71,14 @@ func update(world: Node) -> bool:
 		var was_revealed := revealed
 		reveal(world)
 		return not was_revealed
+	if secret.trigger == "recorder":
+		if revealed or not recorder_pending or world.recorder_ticks > 0: return false
+		# Twelve color steps, one every eight frames, then the stairs appear.
+		drain_ticks += 1
+		if drain_ticks < 12 * 8: return false
+		recorder_pending = false
+		reveal(world)
+		return true
 	if revealed or secret.trigger in ["push", "bracelet_push", "block"]: return false
 	var center: Vector2i = secret.cell * 16 + Vector2i(8, 8)
 	for object in world.item_objects:

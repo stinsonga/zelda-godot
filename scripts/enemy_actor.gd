@@ -29,6 +29,8 @@ var shot_out := false
 var split_pending := false
 ## Like Like and Wallmaster: ticks spent holding Link; 0 when free.
 var capture_ticks := 0
+## The boomerang (and later the clock) freezes monsters for $A0 frames.
+var stun_ticks := 0
 
 func setup(spawn: Resource) -> void:
 	id = spawn.id
@@ -96,6 +98,9 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 		return false
 	animation_ticks += 1
 	invulnerability = maxi(0, invulnerability - 1)
+	if stun_ticks > 0:
+		stun_ticks -= 1
+		return false
 	if definition.behavior != "native":
 		var probe := segment_probe
 		if not probe.is_valid(): probe = func(at: Vector2i, direction: Vector2i) -> bool: return can_occupy.call(at + direction * 16)
