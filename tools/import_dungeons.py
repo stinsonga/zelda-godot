@@ -394,7 +394,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
 
 
 # Dungeon monster types (Z_07 UpdateObject_JumpTable) with their native behavior.
-MONSTERS = {0x41: ('moldorm', 'moldorm'), 0x3A: ('red_lanmola', 'moldorm'), 0x3B: ('blue_lanmola', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
+MONSTERS = {0x47: ('patra_1', 'patra'), 0x48: ('patra_2', 'patra'), 0x41: ('moldorm', 'moldorm'), 0x3A: ('red_lanmola', 'moldorm'), 0x3B: ('blue_lanmola', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
             0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
             0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
             0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
@@ -410,13 +410,18 @@ DODONGO_IMAGES = [0x00, 0x01, 0x06, None, 0x08, 0x02, 0x03, 0x06, None, 0x08]
 DODONGO_BLOATED = [0x04, 0x05, 0x07, None, 0x09]
 # Bosses that start at fixed spots rather than spawn lists (Z_04 InitAquamentus).
 # Gohma's position is its middle part; ours is the left leg, 16 pixels earlier.
-# InitLamnola starts every segment at ($40, $8D).
-FIXED_POSITIONS = {0x3A:(0x40,0x8D), 0x3B:(0x40,0x8D), 0x41:(0x80,0x70),0x42:(0x74,0x57), 0x43:(0x74,0x57), 0x44:(0x74,0x57), 0x45:(0x74,0x57),0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
+# InitLamnola starts every segment at ($40, $8D); InitPatra at ($80, $70).
+FIXED_POSITIONS = {0x47:(0x80,0x70), 0x48:(0x80,0x70), 0x3A:(0x40,0x8D), 0x3B:(0x40,0x8D), 0x41:(0x80,0x70),0x42:(0x74,0x57), 0x43:(0x74,0x57), 0x44:(0x74,0x57), 0x45:(0x74,0x57),0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
 AQUAMENTUS_TILES = 0x11834          # Two frames of six 8x16 sprites.
 AQUAMENTUS_PALETTE = 0x1A28E        # AquamentusPaletteRow7TransferBuf.
 ORANGE_BOSS_PALETTE = 0x1A296       # OrangeBossPaletteRow7TransferBuf (Dodongo, Gohma).
 # Z_01 TrapXs/TrapYs: $49 makes six traps, $4A the first four.
 TRAPS = [(0x20, 0x5D), (0x20, 0xBD), (0xD0, 0x5D), (0xD0, 0xBD), (0x40, 0x8D), (0xB0, 0x8D)]
+SWORD_ONLY = 'PackedStringArray("boomerang", "arrow", "bomb", "fire", "magic")'
+PATRA_MANEUVER_TIMES = 0x12B64     # Z_04 PatraManeuverTimes; only the first is ever used.
+# Z_04 rotation bit tables, overlapping: child 1 cosine (Y) bits at +0, child 2
+# bits at +1, child 1 sine (X) bits at +2; each indexed by the maneuver.
+PATRA_BITS = 0x12BD6
 EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
 OBJECT_LISTS = 83775            # ObjListAddrs pointer table, bank 5.
 CELLAR_KEESE = [(0x20, 0x9D), (0x60, 0x5D), (0x90, 0x7D), (0xD0, 0x9D)]   # Z_05 CellarKeeseXs/Ys
@@ -505,6 +510,12 @@ def monster_definition(prg, kind):
         if 'lanmola' in name:
             # InitLamnola: speed is the type minus $39; segments revive at HP $20.
             fields.update(chain_style='"lanmola"', chain_speed=kind - 0x39)
+    elif behavior == 'patra':
+        # InitPatra: mask $FE (sword only), speed $1F up to $40; Flyer_PatraDecideState
+        # chases on random >= $40 for 8 turns. Patra $47 has children $25, $48 has $26.
+        fields.update(sprite='&"patra"', stunnable='false', invincible_to=SWORD_ONLY, flight_initial_speed=0x1F,
+                      flight_max_speed=0x40, flight_chase_threshold=0x40, flight_turn_count=8, flight_turn_ticks=16,
+                      flight_vulnerable_resting_only='false', patra_maneuver_ticks=prg[PATRA_MANEUVER_TIMES])
     elif behavior == 'gleeok':
         raw = prg[0x72BA+0x56]
         fields.update(size='Vector2i(24,32)', collision_size='Vector2i(16,16)', collision_offset='Vector2i(8,24)',
@@ -576,6 +587,24 @@ def write_monsters(prg, output):
             (output/'enemies'/'manhandla_hand.tres').write_text(header+'\n'.join(f'{key} = {value}' for key,value in hand.items())+'\n')
             ext.append('[ext_resource type="Resource" path="res://imported/enemies/manhandla_hand.tres" id="hand"]')
             fields['boss_hand'] = 'ExtResource("hand")'
+        if fields['behavior'] == '"patra"':
+            child_kind = 0x25 if kind == 0x47 else 0x26
+            child_name = f'{name}_child'
+            pair = prg[0x1FB4E + child_kind // 2]
+            raw = prg[0x72BA + child_kind]
+            # UpdatePatraChild: $25 orbits $2C above at angle step $70, $26 $18 at $60.
+            first = child_kind == 0x25
+            bits = lambda start: f'PackedInt32Array({prg[PATRA_BITS + start]}, {prg[PATRA_BITS + start + 1]})'
+            child = {'id': f'&"{child_name}"', 'title': json.dumps(child_name.replace('_', ' ').title()), 'behavior': '"patra_child"',
+                     'nes_type': child_kind, 'health': max(1, pair & 15 if child_kind & 1 else pair >> 4),
+                     'contact_damage': (raw & 15) * 2 + (1 if raw & 240 else 0), 'sprite': '&"patra_child"', 'spawn_cloud': 'false',
+                     'stunnable': 'false', 'counts_for_persistence': 'false', 'invincible_to': SWORD_ONLY,
+                     'orbit_radius': 0x2C if first else 0x18, 'orbit_angle_step': 0x70 if first else 0x60,
+                     'orbit_x_bits': bits(2 if first else 1), 'orbit_y_bits': bits(0 if first else 1)}
+            header = '[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]\n'+ext[0]+'\n[resource]\nscript = ExtResource("1")\n'
+            (output/'enemies'/f'{child_name}.tres').write_text(header+'\n'.join(f'{key} = {value}' for key,value in child.items())+'\n')
+            ext.append(f'[ext_resource type="Resource" path="res://imported/enemies/{child_name}.tres" id="child"]')
+            fields['patra_child'] = 'ExtResource("child")'
         if name == 'zol':
             ext.append('[ext_resource type="Resource" path="res://imported/enemies/child_gel.tres" id="gel"]')
             fields['splits_into'] = 'ExtResource("gel")'
@@ -629,6 +658,20 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
             png(output / f'l{level}_{name}_{part}.png', 16, 16, canvas)
             names.append(f'l{level}_{name}_{part}')
         kinds = kinds - {kind}
+    if kinds & {0x47, 0x48}:
+        # UpdatePatra: frame 0, not mirrored, flipped horizontally every other pose.
+        base = prg[0x6E04 + 0x48]
+        for pose in range(2): render(f'l{level}_patra_{pose}', base, flip_x=pose == 1)
+        # PatraChild_Draw: half-width (attribute $C3), red row 6, tiles alternating.
+        base = prg[0x6E04 + 0x26]
+        for pose in range(2):
+            tile = prg[0x6E83 + base + pose]
+            canvas = bytearray(16 * 16 * 4)
+            bank = patterns[0x1000:] if tile & 1 else patterns
+            for half in range(2): blit_tile(canvas, 16, 0, half * 8, bank, (tile & 0xFE) + half, palettes[6], True)
+            png(output / f'l{level}_patra_child_{pose}.png', 16, 16, canvas)
+            names.append(f'l{level}_patra_child_{pose}')
+        kinds = kinds - {0x47, 0x48}
     if 0x41 in kinds:
         # UpdateMoldorm draws one normal, red-palette 8x16 sprite at tile $44.
         canvas=bytearray(16*16*4)

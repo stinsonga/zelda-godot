@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://content/enemies/patra_child.tres" id="child"]
+[resource]
+script = ExtResource("1")
+id = &"lab_orbit_boss"
+behavior = "patra"
+health = 3
+contact_damage = 2
+spawn_cloud = false
+stunnable = false
+invincible_to = PackedStringArray("boomerang", "arrow", "bomb", "fire", "magic")
+flight_initial_speed = 31
+flight_max_speed = 64
+flight_chase_threshold = 64
+flight_turn_count = 8
+flight_turn_ticks = 16
+flight_vulnerable_resting_only = false
+patra_child = ExtResource("child")
+sprite = &"lab_orbit_boss"
+fallback_color = Color(0.55, 0.45, 0.95, 1)

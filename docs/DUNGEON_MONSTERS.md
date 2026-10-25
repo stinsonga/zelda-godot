@@ -2,9 +2,9 @@
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
 Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
-blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, and Lanmola. 188 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, and Patra. 193 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
 families, and every cellar holds its four blue Keese. Rooms with other monsters
-(Patra, Ganon, and the old men) stay empty until those exist,
+(Ganon and the old men) stay empty until those exist,
 rather than substituting a different monster. The manifest records the counts.
 
 ## Behaviors
@@ -55,7 +55,7 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Patras and Ganon. Dodongo does not yet drop its bombs. Second-quest Stalfos
+Ganon. Dodongo does not yet drop its bombs. Second-quest Stalfos
 shooting, the clock's freeze, and keys carried by monsters are also not
 implemented. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
 
@@ -196,3 +196,42 @@ head $9E and body $A0, in the row the speed XOR 3 selects. The authored
 content/enemies/lanmola*.tres fixture and `tests/lanmola.gd` need no ROM.
 `tests/test_lanmola.py` checks stats, rooms, and sprite pixels. Original art, palettes,
 room data, and extracted definitions stay under ignored imported/.
+
+## Patra
+
+`InitPatra` starts Patra at ($80, $70) facing up and fills slots 2-9 with eight
+children: type $25 for Patra $47 and $26 for $48. Everything except the sword
+(and its beam) is parried. Patra uses the shared flyer states: speed $1F rising
+to $40, then `Flyer_PatraDecideState` chases for eight turns on random >= $40 and
+otherwise wanders. It never slows or rests. While any child lives, Patra can hurt
+Link but cannot be hurt (`CheckLinkCollision` only).
+
+The update loop runs from slot $B down to 1, so the children (`PatraGroup.tick_child`)
+move before the parent and add the parent's movement from the previous frame.
+A child's first update is its own initialization. Slot 2 then appears straight
+above the parent at angle $18 (north). Each later child appears when slot 2 reaches
+its `PatraChildStartAngles` entry. Children collide only once the last has appeared.
+Each frame a child's angle drops by $70 ($25) or $60 ($26) out of 32 whole steps
+a circle. `RotateObjectLocation` then adds q-speed $20 times the top bits of the
+`PatraSines` value to X and Y. The bits come from the maneuver:
+
+| Child | Radius | Maneuver 0 (X, Y bits) | Maneuver 1 |
+| --- | --- | --- | --- |
+| $25 | $2C | 6, 6: wide circle | 6, 5: flattened, wobbling ring |
+| $26 | $18 | 5, 5: small circle | 6, 6: large circle |
+
+Positions are integrated rather than computed from the angle, so the ring's
+centre can drift from Patra, as in the original. The maneuver flips when its
+timer is out and the slot 3 child is at angle 0, and the timer reloads $FF. The
+timer is slot 2's `ObjTimer`, which that child's initialization clears, and room
+entry zeroes the angles, so a Patra without a spawn cloud flips on its first update.
+A dead child keeps its last angle.
+
+Sprites: Patra is one frame, tiles $F8/$FA, flipped horizontally every two frames.
+Children are half-width (attribute $C3), tiles $FC and $FE, in the red row 6.
+Only Patra counts toward the room. Partial fights rebuild on entry, like the other
+bosses. (The original stores any kill in this non-recurring template as a full
+clear; see ROOM_PERSISTENCE.md.) Child count, orbit radius, angle step, rotation
+bits, and maneuver time are editable. The authored content/enemies/patra*.tres
+fixture and `tests/patra.gd` need no ROM. `tests/test_patra.py` checks tables,
+stats, rooms, and pixels.

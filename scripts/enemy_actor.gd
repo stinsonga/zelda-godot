@@ -92,7 +92,7 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 	source.shove_started = false
 	shove_direction = direction
 	shove_remaining = 64
-	if definition.behavior == "moldorm_segment": shove_remaining=0
+	if definition.behavior in ["moldorm_segment", "patra", "patra_child"]: shove_remaining=0
 	if definition.behavior == "gleeok_head" and family.gleeok != null:
 		shove_remaining = 0
 		family.gleeok.head_hit(self)
@@ -204,6 +204,9 @@ func sprite_name() -> StringName:
 	if definition.behavior == "gleeok_head": return StringName("gleeok_flying_"+str(animation_ticks&1)) if family.gleeok_detached else &"gleeok_head"
 	if definition.behavior in ["jumper", "burrower", "flyer"]:
 		return StringName(String(definition.sprite) + "_" + str(family.frame(self)))
+	# Patra flips horizontally every two frames; children alternate two tiles.
+	if definition.behavior in ["patra", "patra_child"]:
+		return StringName(String(definition.sprite) + "_" + str((animation_ticks / 2) % 2))
 	if definition.behavior == "manhandla":
 		var part: String = "body" if definition.boss_hand != null else ["up","down","left","right"][family.manhandla_index]
 		return StringName("manhandla_%s_%d" % [part,(family.manhandla_animation >> 4)&1])

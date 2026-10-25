@@ -15,6 +15,12 @@ var gleeok_horizontal := 6
 var gleeok_vertical := 3
 var gleeok_direction_timer := 0
 var manhandla: RefCounted
+var patra: RefCounted
+var patra_index := 0
+var patra_state := 0
+## ObjAngleWhole and ObjAngleFrac as one 13-bit value: 32 whole steps a circle.
+var patra_angle := 0
+var patra_initialized := false
 var manhandla_offset := Vector2i.ZERO
 var manhandla_index := 0
 var manhandla_animation := 0
@@ -50,7 +56,8 @@ func initialize(actor: RefCounted) -> void:
 		var index: int = actor.source_next_random & 3
 		jump_direction = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(1,1), Vector2i(-1,-1)][index]
 		timer = [4,8,20,40][index]
-	elif actor.definition.behavior == "flyer":
+	elif actor.definition.behavior in ["flyer", "patra"]:
+		# InitPatra: facing up at flying speed $1F.
 		actor.facing = Vector2i.UP
 		flight_speed = actor.definition.flight_initial_speed
 		# Z_04 InitBlueKeese: one of eight random directions.
@@ -66,6 +73,7 @@ func visible(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm": return false
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok": return false
+	if actor.definition.behavior == "patra_child": return patra == null or patra.child_active(actor)
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase != 0
@@ -74,6 +82,9 @@ func vulnerable(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm": return false
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
+	# UpdatePatra checks monster collisions only once every child is gone.
+	if actor.definition.behavior == "patra": return patra == null or patra.living_children() == 0
+	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
 	# Dodongo_CheckCollisionsStandardSize: mask $FF except while stunned.
 	if actor.definition.behavior == "dodongo": return phase == 2
 	if actor.definition.behavior == "digdogger": return actor.definition.size.x == 16
@@ -86,6 +97,7 @@ func vulnerable(actor: RefCounted) -> bool:
 func contact_enabled(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm": return false
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
+	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase == 3
@@ -132,6 +144,13 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 		return false
 	if actor.definition.behavior == "manhandla":
 		if manhandla != null: manhandla.tick(actor,context)
+		return false
+	if actor.definition.behavior == "patra":
+		if patra != null: patra.tick_parent(actor, target)
+		else: tick_flight(actor, target)
+		return false
+	if actor.definition.behavior == "patra_child":
+		if patra != null: patra.tick_child(actor)
 		return false
 	if actor.shove_remaining > 0:
 		actor.source.shove(actor, probe)
@@ -244,7 +263,10 @@ func tick_flight(actor: RefCounted, target: Vector2i) -> void:
 				timer = definition.flight_rest_min + (actor.source_random & definition.flight_rest_random_mask)
 			elif (flight_speed & 224) >= definition.flight_max_speed: phase = 1
 		1:
-			phase = (2 if actor.source_next_random < 208 else 3) if definition.behavior == "gleeok_head" else (2 if actor.source_random >= definition.flight_chase_threshold else 3 if actor.source_random >= 32 else 4)
+			if definition.behavior == "gleeok_head": phase = 2 if actor.source_next_random < 208 else 3
+			# Flyer_PatraDecideState: chase or wander, never slowing down.
+			elif definition.behavior == "patra": phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3
+			else: phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3 if actor.source_random >= 32 else 4
 			turns = definition.flight_turn_count
 		2,3:
 			if timer == 0:

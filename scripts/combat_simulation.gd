@@ -65,6 +65,7 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	setup_moldorms()
 	setup_gleeoks()
 	setup_multipart_bosses()
+	setup_patras()
 	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
 
 func setup_moldorms() -> void:
@@ -149,6 +150,30 @@ func setup_multipart_bosses() -> void:
 		# Reverse update order visits the base before its hands, as on the NES.
 		enemies.erase(actor)
 		enemies.append(actor)
+
+## Z_04 InitPatra fills slots 2-9 with children; the parent keeps slot 1, so
+## it updates after them in the reverse loop.
+func setup_patras() -> void:
+	for actor in enemies.duplicate():
+		if actor.definition.behavior != "patra" or actor.definition.patra_child == null: continue
+		var group = preload("res://scripts/patra.gd").new()
+		group.setup(actor)
+		actor.family.patra = group
+		actor.slot = 1
+		enemies.erase(actor)
+		enemies.insert(0, actor)
+		for i in range(actor.definition.patra_child_count):
+			var spawn = preload("res://scripts/enemy_spawn.gd").new()
+			spawn.id = StringName(String(actor.id)+"_child_"+str(i))
+			spawn.enemy = actor.definition.patra_child
+			spawn.position = actor.position()
+			spawn.spawn_ticks = 0
+			var child = Actor.new()
+			child.setup(spawn)
+			child.spawn_remaining = 0
+			child.slot = i+2
+			group.add_child(child)
+			enemies.insert(1+i, child)
 
 func can_enemy_occupy(world: Node, at: Vector2i) -> bool:
 	if at.x < bounds.position.x - 1 or at.x > bounds.end.x or at.y < bounds.position.y - 1 or at.y > bounds.end.y: return false
@@ -545,7 +570,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm", "patra"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1
