@@ -15,3 +15,6 @@ extends Resource
 
 ## Named sprites for room decorations, weapons, and item poses.
 @export var sprites: Dictionary[StringName, Texture2D] = {}
+
+## Full, half, and empty HUD hearts. Preserve palette colors rather than tinting.
+@export var hud_hearts: Texture2D

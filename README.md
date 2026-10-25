@@ -38,16 +38,25 @@ or press F5 to run the project.
 
 - Move: arrow keys or WASD.
 - Use the sword after collecting it: Z or Space.
+- Save: F5. Load: F9.
 - Reset to the current room's spawn: R.
 - Walk through open screen edges to visit neighboring rooms.
 
 After a ROM import, the project starts in the original overworld with original
 tiles and animated Link sprites. It contains all 128 static overworld terrain
-layouts, fixed-tick cardinal movement, collision, and immediate room transitions.
+layouts, fixed-tick cardinal movement, collision, and scrolling room transitions.
 Without imported resources, it falls back to the two placeholder test rooms.
 The starting sword cave now supports entry, dialogue, a persistent session
-pickup, and sword thrusts. Enemies, sword beams, sound, other caves, and secrets
-are not implemented yet.
+pickup, and sword thrusts. Octoroks, rocks, shield blocking, sword damage, knockback, health, heart drops,
+and rupee drops now work. Sword beams are also implemented. Sound, other enemy types, other caves,
+and secrets are not implemented yet.
+
+At full health (or half a heart missing), swinging also fires a sword beam.
+See [sword beam rules](docs/SWORD_BEAM.md) for timing and fidelity notes.
+
+Get the sword, walk east to fight the four Octoroks, and collect rewards. At zero
+health, press Enter to retry. See [combat and rewards](docs/COMBAT.md) for content
+editing, the custom-enemy lab, source references, checks, and fidelity limits.
 
 See [cave and sword behavior](docs/CAVE_AND_SWORD.md) for controls, editable
 content definitions, fidelity notes, and verification.
@@ -64,3 +73,7 @@ Locally supplied ROMs live under the ignored `reference-inputs/` folder. All
 ROM-derived assets and resources live under the ignored `imported/` folder.
 The project runs placeholder rooms without them. See [asset boundary and source
 packaging](docs/ASSET_BOUNDARY.md) before publishing or extracting this folder.
+
+Overworld room edges now scroll with source-based timing. See [scrolling notes](docs/SCROLLING.md) for behavior and fidelity limits.
+
+Save/load now persists inventory, health, currency, collected items, defeated enemies, progression flags, and location. See [save controls and storage](docs/SAVING.md).

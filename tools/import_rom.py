@@ -278,21 +278,60 @@ def export_combat_sprites(prg, patterns, palettes, output):
                 key = f'{name}_{direction}_{pose}'
                 png(output / (key + '.png'), 16, 16, canvas)
                 names.append(key)
-    # Flying rock $53 uses animation $54; preserve its original mirrored pair.
+    # $53 is half-width (ObjectTypeToAttributes bit 1), drawn at X + 4.
     frame = animations[0x54]
     tile = prg[0x6E83 + frame]
     canvas = bytearray(16 * 16 * 4)
-    for column in range(2):
-        for row in range(2):
-            block = bytearray(8 * 8 * 4)
-            blit_tile(block, 8, 0, 0, patterns, tile + row, palettes[4], transparent=True)
-            for y in range(8):
-                for x in range(8):
-                    src = (y * 8 + (7 - x if column else x)) * 4
-                    dst = ((row * 8 + y) * 16 + column * 8 + x) * 4
-                    canvas[dst:dst + 4] = block[src:src + 4]
+    for row in range(2):
+        blit_tile(canvas, 16, 4, row * 8, patterns, tile + row, palettes[4], transparent=True)
     png(output / 'rock.png', 16, 16, canvas)
-    return names + ['rock']
+    names.append('rock')
+    # Rupee $18 maps to slot $16, tile $32. Heart $22 maps to slot $19,
+    # tile $F3: odd 8x16 sprite indices select the background pattern bank.
+    for name, tile in [('heart', 0xF3), ('rupee', 0x32)]:
+        for pose in range(2):
+            canvas = bytearray(16 * 16 * 4)
+            bank = patterns[0x1000:] if tile & 1 else patterns
+            for row in range(2):
+                blit_tile(canvas, 16, 4, row * 8, bank, (tile & 0xFE) + row,
+                          palettes[5 + pose], transparent=True)
+            key = f'{name}_{pose}'
+            png(output / (key + '.png'), 16, 16, canvas)
+            names.append(key)
+    return names
+
+
+def export_beam_sprites(prg, patterns, palettes, output):
+    names = []
+    def render(key, tile, palette, flip_x=False, flip_y=False, narrow=False):
+        canvas = bytearray(16 * 16 * 4)
+        bank = patterns[0x1000:] if tile & 1 else patterns
+        top = tile & 0xFE
+        for column in range(1 if narrow else 2):
+            for row in range(2):
+                block = bytearray(8 * 8 * 4)
+                blit_tile(block, 8, 0, 0, bank, top + column * 2 + row, palettes[4 + palette], transparent=True)
+                for y in range(8):
+                    for x in range(8):
+                        dx, dy = column * 8 + x + (4 if narrow else 0), row * 8 + y
+                        if flip_x: dx = 15 - dx
+                        if flip_y: dy = 15 - dy
+                        dst, src = (dy * 16 + dx) * 4, (y * 8 + x) * 4
+                        canvas[dst:dst + 4] = block[src:src + 4]
+        png(output / (key + '.png'), 16, 16, canvas)
+        names.append(key)
+    for palette in range(4):
+        for direction in ('up', 'down', 'left', 'right'):
+            horizontal = direction in ('left', 'right')
+            offset = prg[0x7127 + 0x22] + int(horizontal)
+            tile = prg[0x714C + offset]
+            render(f'beam_{direction}_{palette}', tile, palette,
+                   flip_x=direction == 'left', flip_y=direction == 'down', narrow=not horizontal)
+        tile = prg[0x714C + prg[0x7127 + 0x23] + 2]
+        for corner in range(4):
+            render(f'beam_burst_{corner}_{palette}', tile, palette,
+                   flip_x=corner in (2, 3), flip_y=corner in (1, 2), narrow=True)
+    return names
 
 
 def enemy_resources(prg, room_id, collision, spawn):
@@ -328,6 +367,7 @@ id = &"slot_{i}"
 enemy = ExtResource("enemy_def")
 position = Vector2i({x}, {y})
 seed_value = {room_id * 31 + i + 1}
+spawn_ticks = {32 + i * 16}
 '''
     field = 'enemies = Array[Resource]([' + ', '.join(f'SubResource("enemy_{i}")' for i in range(len(positions))) + '])'
     return ext, sub, field, len(positions)
@@ -380,8 +420,15 @@ def import_rom(prg, output):
         blit_tile(glyphs, 128, tile % 16 * 8, tile // 16 * 8,
                   patterns[0x1000:], tile, [0x0F, 0x30, 0x30, 0x30], transparent=True)
     png(output / 'hud_tiles.png', 128, 128, glyphs)
+    # HUD heart tiles use palette indices 1 and 3 to distinguish filled and
+    # missing health. A monochrome text mask destroys that distinction.
+    hearts = bytearray(24 * 8 * 4)
+    for frame, tile in enumerate((0xF2, 0x65, 0x66)):
+        blit_tile(hearts, 24, frame * 8, 0, patterns[0x1000:], tile, palettes[1], transparent=True)
+    png(output / 'hud_hearts.png', 24, 8, hearts)
     export_cave(prg, patterns, palettes, output)
     combat_names = export_combat_sprites(prg, patterns, palettes, output)
+    combat_names += export_beam_sprites(prg, patterns, palettes, output)
     start_id = prg[103168 + 47]
     start_y = prg[103168 + 40] - 64
     for room_id, layout in enumerate(layouts):
@@ -449,30 +496,44 @@ collision_tiles = PackedByteArray({array(collision)})
 '''
         (output / 'rooms' / f'ow_{room_id:02x}.tres').write_text(text)
     names = ['old_man', 'fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
-    theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={4 + len(names)} format=3]',
+    theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={5 + len(names)} format=3]',
              '[ext_resource type="Script" path="res://scripts/visual_theme.gd" id="1"]',
              '[ext_resource type="Texture2D" path="res://imported/player.png" id="2"]',
-             '[ext_resource type="Texture2D" path="res://imported/hud_tiles.png" id="3"]']
+             '[ext_resource type="Texture2D" path="res://imported/hud_tiles.png" id="3"]',
+             '[ext_resource type="Texture2D" path="res://imported/hud_hearts.png" id="hearts"]']
     for name in names:
         theme.append(f'[ext_resource type="Texture2D" path="res://imported/{name}.png" id="{name}"]')
-    theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")',
+    theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")', 'hud_hearts = ExtResource("hearts")',
               'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
     (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
-    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps=132 format=3]',
+    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps=138 format=3]',
                '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
                '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]']
     for i in range(128):
         catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/ow_{i:02x}.tres" id="r{i}"]')
     catalog.append('[ext_resource type="Resource" path="res://imported/rooms/sword_cave.tres" id="cave"]')
-    catalog += ['[resource]', 'script = ExtResource("script")', f'start_room = &"ow_{start_id:02x}"',
+    catalog += [
+        '[ext_resource type="Script" path="res://scripts/loot_table.gd" id="loot_script"]',
+        '[ext_resource type="Resource" path="res://content/items/heart.tres" id="heart"]',
+        '[ext_resource type="Resource" path="res://content/items/rupee.tres" id="rupee"]',
+        '[ext_resource type="Resource" path="res://content/items/five_rupees.tres" id="five_rupees"]']
+    # Original group rates and kill-cycle rows remain generated local data.
+    supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees'}
+    for name, group in [('red_loot', 0), ('blue_loot', 2)]:
+        row = prg[0x13042 + group * 10:0x13042 + group * 10 + 10]
+        entries = [f'ExtResource("{supported[value]}")' if value in supported else 'null' for value in row]
+        catalog += [f'[sub_resource type="Resource" id="{name}"]', 'script = ExtResource("loot_script")',
+                    f'chance = {prg[0x1303E + group]}', 'entries = Array[Resource]([' + ', '.join(entries) + '])']
+    catalog += ['[resource]', 'script = ExtResource("script")', 'id = &"original_quest_1"', f'start_room = &"ow_{start_id:02x}"',
                 'visual_theme = ExtResource("theme")',
+                'loot_tables = Dictionary[StringName, Resource]({&"red_octorok": SubResource("red_loot"), &"fast_red_octorok": SubResource("red_loot"), &"blue_octorok": SubResource("blue_loot"), &"fast_blue_octorok": SubResource("blue_loot")})',
                 'rooms = Array[Resource]([' + ', '.join(f'ExtResource("r{i}")' for i in range(128)) + ', ExtResource("cave")])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
     (output / 'manifest.json').write_text(json.dumps({
         'format_version': 1, 'revision': 'US PRG0', 'prg_sha1': PRG_SHA1,
         'rooms': 129, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
         'limitations': ['Static first-quest terrain only; no secret-state changes or room effects.',
-                        'Only the starting sword cave is functional; other caves, dungeons, non-Octorok enemies, and sword beams remain unimplemented.',
+                        'Only the starting sword cave is functional; other caves, dungeons, non-Octorok enemies remain unimplemented.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     print(f'Imported 128 overworld rooms, the sword cave, terrain, player, item, and Octorok sprites into {output}')
 

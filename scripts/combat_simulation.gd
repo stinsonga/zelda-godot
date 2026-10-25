@@ -1,8 +1,12 @@
 class_name CombatSimulation
 extends RefCounted
 
+const Beam = preload("res://scripts/sword_beam.gd")
 const Actor = preload("res://scripts/enemy_actor.gd")
+const Reward = preload("res://scripts/dropped_reward.gd")
 const Rock = preload("res://scripts/rock_projectile.gd")
+var beam: RefCounted
+var rewards: Array[RefCounted] = []
 var enemies: Array[RefCounted] = []
 var rocks: Array[RefCounted] = []
 var player_invulnerability := 0
@@ -10,8 +14,10 @@ var shove_remaining := 0
 var shove_direction := Vector2i.ZERO
 
 func enter_room(room: Resource, state: RefCounted) -> void:
+	beam = null
 	enemies.clear()
 	rocks.clear()
+	rewards.clear()
 	shove_remaining = 0
 	for spawn in room.enemies:
 		if state.defeated.has(String(room.id) + "/" + String(spawn.id)): continue
@@ -51,8 +57,13 @@ func move_shoved_player(world: Node) -> void:
 func tick(world: Node) -> void:
 	if world.state.health <= 0: return
 	player_invulnerability = maxi(0, player_invulnerability - 1)
+	var launched := false
+	if world.sword.phase == 2 and not world.sword.beam_attempted:
+		world.sword.beam_attempted = true
+		launched = launch_beam(world)
+	if not launched: tick_beam(world)
 	for actor in enemies:
-		if actor.alive() and world.sword.damaging() and world.sword.hitbox(world.player.pixel_position()).intersects(actor.hurtbox()):
+		if actor.alive() and world.sword.hits(world.player.pixel_position(), actor.position()):
 			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction) and actor.health == 0:
 				world.state.defeated[String(world.room.id) + "/" + String(actor.id)] = true
 		if actor.tick(world.player.pixel_position(), func(at: Vector2i) -> bool: return can_enemy_occupy(world, at)):
@@ -61,6 +72,17 @@ func tick(world: Node) -> void:
 			rock.direction = actor.facing
 			rock.speed_subpixels = actor.definition.projectile_speed_subpixels
 			rocks.append(rock)
+		if actor.health == 0 and actor.death_remaining == 0 and not actor.drop_resolved:
+			actor.drop_resolved = true
+			world.state.kill_cycle = (world.state.kill_cycle + 1) % 10
+			var table: Resource = world.loot_tables.get(actor.definition.id, actor.definition.loot_table)
+			if table != null:
+				var item: Resource = table.select(world.state.kill_cycle, actor.rng.randi_range(0, 255))
+				if item != null:
+					var reward = Reward.new()
+					reward.definition = item
+					reward.position = actor.position()
+					rewards.append(reward)
 		if actor.alive() and actor.invulnerability == 0 and actor.hurtbox().intersects(player_box(world)):
 			hurt_player(world, actor.definition.contact_damage, actor.position())
 	for rock in rocks:
@@ -72,6 +94,8 @@ func tick(world: Node) -> void:
 			var at: Vector2i = rock.position()
 			if at.x < -16 or at.x > 256 or at.y < -16 or at.y > 176:
 				rock.alive = false
+			elif world.room.is_pixel_solid(at + Vector2i(8, 8)):
+				rock.alive = false
 			elif rock.hurtbox().intersects(player_box(world)):
 				# The basic shield blocks rocks arriving from the facing direction,
 				# while Link is free to defend (not using the sword).
@@ -80,6 +104,52 @@ func tick(world: Node) -> void:
 				elif hurt_player(world, 1, at):
 					rock.alive = false
 	rocks = rocks.filter(func(rock: RefCounted) -> bool: return rock.alive)
+	for reward in rewards:
+		reward.age += 1
+		if world.state.health > 0 and reward.available():
+			var touched: bool = reward.touches(world.player.pixel_position())
+			if world.sword.visible():
+				touched = touched or reward.touches(world.player.pixel_position() + world.sword.offset())
+			if touched: reward.take(world.state)
+	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < Reward.LIFETIME)
 
 func player_box(world: Node) -> Rect2i:
 	return Rect2i(world.player.pixel_position() + Vector2i(2, 2), Vector2i(12, 12))
+
+func launch_beam(world: Node) -> bool:
+	if beam != null or not world.sword.weapon.fires_beam:
+		return false
+	# MakeSwordShot requires the last partial heart to be at least half full.
+	if world.state.health < world.state.max_health - 1:
+		return false
+	var at: Vector2i = world.player.pixel_position() + world.sword.direction * 16
+	if world.sword.direction.x != 0 and (at.x < 20 or at.x >= 236):
+		return false
+	beam = Beam.new()
+	beam.position = at
+	beam.direction = world.sword.direction
+	beam.damage = world.sword.weapon.damage
+	return true
+
+func tick_beam(world: Node) -> void:
+	if beam == null: return
+	if beam.burst_remaining > 0:
+		beam.burst_remaining -= 1
+		if beam.burst_remaining == 0:
+			beam.finished = true
+			beam = null
+		return
+	# MoveShot checks room bounds. Beam flight does not use rock terrain checks.
+	for pixel in range(Beam.SPEED):
+		var next: Vector2i = beam.position + beam.direction
+		if not world.room.movement_bounds.has_point(next):
+			beam.impact()
+			return
+		beam.position = next
+		for actor in enemies:
+			if actor.alive() and beam.hits(actor.position()):
+				if actor.receive_hit(beam.damage, beam.direction):
+					if actor.health == 0:
+						world.state.defeated[String(world.room.id) + "/" + String(actor.id)] = true
+					beam.impact()
+					return

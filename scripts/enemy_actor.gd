@@ -2,6 +2,7 @@ class_name EnemyActor
 extends RefCounted
 
 const DIRECTIONS := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
+var drop_resolved := false
 var definition: Resource
 var id: StringName
 var subposition := Vector2i.ZERO
@@ -24,7 +25,7 @@ func setup(spawn: Resource) -> void:
 	subposition = spawn.position * 256
 	facing = spawn.facing
 	rng.seed = spawn.seed_value
-	spawn_remaining = definition.spawn_ticks
+	spawn_remaining = definition.spawn_ticks if spawn.spawn_ticks < 0 else spawn.spawn_ticks
 	cooldown = definition.shoot_cooldown
 
 func position() -> Vector2i:
@@ -74,31 +75,44 @@ func tick(target: Vector2i, can_occupy: Callable) -> bool:
 			return true
 		return false
 	cooldown = maxi(0, cooldown - 1)
-	var at := position()
-	var delta := target - at
-	# Recover grid phase after a shove; no sideways snapping through terrain.
-	var phase := posmod(subposition.x if facing.x != 0 else subposition.y - 13 * 256, 16 * 256)
-	if phase == 0 or not can_occupy.call(at + facing):
-		var choices: Array[Vector2i] = []
-		for direction in DIRECTIONS:
-			if can_occupy.call(at + direction * 16): choices.append(direction)
-		if choices.is_empty(): return false
-		var aimed := Vector2i.ZERO
-		if absi(delta.x) < 9: aimed = Vector2i.DOWN if delta.y >= 0 else Vector2i.UP
-		elif absi(delta.y) < 9: aimed = Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT
-		if aimed in choices and rng.randi_range(0, 255) <= definition.turn_chance:
-			facing = aimed
-			if cooldown == 0 and definition.shoot_cooldown > 0:
-				windup = definition.shoot_windup
-				return false
-		elif facing not in choices or rng.randi_range(0, 255) < 48:
-			facing = choices[rng.randi_range(0, choices.size() - 1)]
 	var remaining: int = definition.speed_subpixels
 	while remaining > 0:
-		var amount := mini(256, remaining)
+		var at := position()
+		var coordinate := subposition.x if facing.x != 0 else subposition.y - 13 * 256
+		var phase := posmod(coordinate, 4096)
+		if phase == 0:
+			var choices: Array[Vector2i] = []
+			for direction in DIRECTIONS:
+				var clear := true
+				for distance in range(1, 17):
+					if not can_occupy.call(at + direction * distance):
+						clear = false
+						break
+				if clear: choices.append(direction)
+			if choices.is_empty(): return false
+			var delta := target - at
+			var aimed := Vector2i.ZERO
+			if absi(delta.x) < 9: aimed = Vector2i.DOWN if delta.y >= 0 else Vector2i.UP
+			elif absi(delta.y) < 9: aimed = Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT
+			if aimed in choices and rng.randi_range(0, 255) <= definition.turn_chance:
+				facing = aimed
+				if cooldown == 0 and definition.shoot_cooldown > 0:
+					windup = definition.shoot_windup
+					return false
+			elif facing not in choices or rng.randi_range(0, 255) < 48:
+				facing = choices[rng.randi_range(0, choices.size() - 1)]
+			coordinate = subposition.x if facing.x != 0 else subposition.y - 13 * 256
+			phase = posmod(coordinate, 4096)
+		var to_boundary := 4096 - phase if facing.x + facing.y > 0 else phase
+		if to_boundary == 0: to_boundary = 4096
+		var amount := mini(remaining, mini(256, to_boundary))
 		var candidate := subposition + facing * amount
 		var pixel := Vector2i(floori(candidate.x / 256.0), floori(candidate.y / 256.0))
-		if not can_occupy.call(pixel): break
+		if not can_occupy.call(pixel):
+			# A surviving enemy can be left between grid points by a shove.
+			# Back out along the same axis rather than turning off-grid.
+			facing = -facing
+			return false
 		subposition = candidate
 		remaining -= amount
 	return false

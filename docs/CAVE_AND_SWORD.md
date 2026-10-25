@@ -5,9 +5,9 @@ upper-left cliff. Link enters the cave, walks 48 pixels inward, and waits for
 the old man's message. Touch the gift to collect the wooden sword. Leave through
 the bottom opening. Press **Z** or **Space** to use the sword.
 
-Sword ownership and collected gifts persist across rooms for the current session.
-Restarting the game clears them. R resets position only, without clearing items.
-There is no disk save system yet.
+Sword ownership and collected gifts persist across rooms. Use F5 to save and F9
+to restore them after restarting. R resets position only, without clearing items.
+See [save/load behavior](SAVING.md).
 
 ## Content model
 
@@ -60,9 +60,9 @@ See [asset boundary](ASSET_BOUNDARY.md).
 This is a functional baseline, not a frame-perfect full-game port. Fades and the
 slow outdoor cave exit walk remain immediate transitions. Special untimed text
 spaces are rendered as ordinary spaces, so message duration is approximate.
-Cave decoration collision uses explicit content rectangles. Sound, sword beams,
-enemy damage, fire damage, shops, and other cave types are not implemented yet.
-HUD sword ownership is live; hearts and counters still use placeholder state.
+Cave decoration collision uses explicit content rectangles. Sound, fire damage, shops, and other cave types are not implemented
+yet. Sword damage now connects to Octorok encounters. HUD sword ownership, health,
+and currency are live. See [combat and rewards](COMBAT.md).
 
 ## Verification
 

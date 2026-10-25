@@ -15,14 +15,16 @@ spec.loader.exec_module(rom_import)
 def pixels(path):
     data = path.read_bytes()
     offset, compressed = 8, b''
+    width, height = struct.unpack_from('>II', data, 16)
     while offset < len(data):
         size = struct.unpack_from('>I', data, offset)[0]
         if data[offset + 4:offset + 8] == b'IDAT':
             compressed += data[offset + 8:offset + 8 + size]
         offset += size + 12
     raw = zlib.decompress(compressed)
-    return [[raw[y * 65 + 1 + x * 4:y * 65 + 5 + x * 4]
-             for x in range(16)] for y in range(16)]
+    stride = width * 4 + 1
+    return [[raw[y * stride + 1 + x * 4:y * stride + 5 + x * 4]
+             for x in range(width)] for y in range(height)]
 
 
 class ImportValidation(unittest.TestCase):
@@ -79,6 +81,82 @@ class ImportValidation(unittest.TestCase):
                 value = rom_import.chr_pixels(source, tile)[y % 8][column]
                 expected = rom_import.COLORS[palette[value]] + bytes([255 if value else 0])
                 self.assertEqual(actual[y][x], expected, (x, y))
+
+    def test_local_enemy_and_reward_sprite_composition(self):
+        roms = list((ROOT / 'reference-inputs').glob('*.nes'))
+        if not roms or not (ROOT / 'imported/heart_0.png').exists():
+            self.skipTest('No local ROM and imported combat sprites')
+        prg = rom_import.read_rom(roms[0])
+        def rgba(tile, x, y, palette, background=False):
+            offset = (36479 + (tile - 0xF2) * 16) if background else 53595 + (tile - 0x8E) * 16
+            value = ((prg[offset + y] >> (7 - x)) & 1) | (((prg[offset + y + 8] >> (7 - x)) & 1) << 1)
+            return rom_import.COLORS[palette[value]] + bytes([255 if value else 0])
+        for family, palette_index in [('red_octorok', 6), ('blue_octorok', 5)]:
+            palette = prg[103171 + palette_index * 4:103175 + palette_index * 4]
+            for direction in ('left', 'right', 'up', 'down'):
+                for pose in range(2):
+                    actual = pixels(ROOT / 'imported' / f'{family}_{direction}_{pose}.png')
+                    base = (0xB4 + pose * 4) if direction in ('left', 'right') else (0xB0 + pose * 2)
+                    for y in range(16):
+                        for x in range(16):
+                            sx = 15 - x if direction == 'right' else x
+                            column = sx // 8
+                            tile = base + y // 8 + (column * 2 if direction in ('left', 'right') else 0)
+                            tx = sx % 8
+                            if direction in ('up', 'down') and column == 1: tx = 7 - tx
+                            self.assertEqual(actual[y][x], rgba(tile, tx, y % 8, palette), (family, direction, pose, x, y))
+        rock = pixels(ROOT / 'imported/rock.png')
+        for y in range(16):
+            for x in range(16):
+                if x < 4 or x >= 12: self.assertEqual(rock[y][x][3], 0)
+        for pose in range(2):
+            heart = pixels(ROOT / 'imported' / f'heart_{pose}.png')
+            palette = prg[103171 + (5 + pose) * 4:103175 + (5 + pose) * 4]
+            for y in range(16):
+                for x in range(4, 12):
+                    self.assertEqual(heart[y][x], rgba(0xF2 + y // 8, x - 4, y % 8, palette, True))
+
+    def test_local_beam_palettes_and_directional_flips(self):
+        roms = list((ROOT / 'reference-inputs').glob('*.nes'))
+        if not roms or not (ROOT / 'imported/beam_up_0.png').exists():
+            self.skipTest('No local beam sprites and ROM')
+        prg = rom_import.read_rom(roms[0])
+        for palette_index in range(4):
+            images = {direction: pixels(ROOT / 'imported' / f'beam_{direction}_{palette_index}.png')
+                      for direction in ('left', 'right', 'up', 'down')}
+            self.assertEqual(images['left'], [list(reversed(row)) for row in images['right']])
+            self.assertEqual(images['down'], list(reversed(images['up'])))
+            palette = prg[103171 + (4 + palette_index) * 4:103175 + (4 + palette_index) * 4]
+            for y in range(16):
+                for x in range(4, 12):
+                    offset = 32895 + (0x20 + y // 8) * 16
+                    value = ((prg[offset + y % 8] >> (11 - x)) & 1) | (((prg[offset + y % 8 + 8] >> (11 - x)) & 1) << 1)
+                    expected = rom_import.COLORS[palette[value]] + bytes([255 if value else 0])
+                    self.assertEqual(images['up'][y][x], expected)
+            corners = [pixels(ROOT / 'imported' / f'beam_burst_{corner}_{palette_index}.png') for corner in range(4)]
+            self.assertEqual(corners[1], list(reversed(corners[0])))
+            self.assertEqual(corners[2], [list(reversed(row)) for row in corners[1]])
+            self.assertEqual(corners[3], [list(reversed(row)) for row in corners[0]])
+
+    def test_hud_hearts_keep_fill_and_empty_palette_colors(self):
+        roms = list((ROOT / 'reference-inputs').glob('*.nes'))
+        path = ROOT / 'imported/hud_hearts.png'
+        if not roms or not path.exists():
+            self.skipTest('No local ROM and HUD hearts')
+        prg = rom_import.read_rom(roms[0])
+        actual = pixels(path)
+        palette = prg[103175:103179]
+        for frame, offset in enumerate((36479, 34687 + 0x65 * 16, 34687 + 0x66 * 16)):
+            for y in range(8):
+                for x in range(8):
+                    value = ((prg[offset + y] >> (7 - x)) & 1) | (((prg[offset + y + 8] >> (7 - x)) & 1) << 1)
+                    expected = rom_import.COLORS[palette[value]] + bytes([255 if value else 0])
+                    self.assertEqual(actual[y][frame * 8 + x], expected)
+        red = rom_import.COLORS[palette[1]] + bytes([255])
+        filled = [sum(actual[y][frame * 8 + x] == red for y in range(8) for x in range(8)) for frame in range(3)]
+        self.assertGreater(filled[0], filled[1])
+        self.assertGreater(filled[1], filled[2])
+        self.assertEqual(filled[2], 0)
 
     def test_supported_local_rom(self):
         candidates = list(ROOT.glob('*.nes')) + list((ROOT / 'reference-inputs').glob('*.nes'))

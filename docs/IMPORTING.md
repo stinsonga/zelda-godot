@@ -32,7 +32,7 @@ resource assigned explicitly takes precedence over auto-detection.
 - Per-room visual indices (16 by 11 cells, row-major).
 - Per-room eight-pixel collision masks (32 by 22 cells, row-major).
 - Eight Link walking frames, in right/left/down/up order, two poses each.
-- HUD glyphs and a HUD scaffold. Sword ownership is functional; counts, hearts,
+- HUD glyphs and a HUD scaffold. Sword ownership, health, and rupees are functional; other counters
   and the map rectangle still use placeholder state.
 - `manifest.json` records revision, payload hash, start room, and limitations.
 
@@ -59,7 +59,8 @@ collision, spawn, and exits. For persistent changes:
 
 Worlds use a resource array, not a hardcoded 128-room engine limit. Imported
 exits connect cardinal neighbors; collision prevents traversal through solid
-boundaries. No scrolling or forced entry walks are implemented yet.
+boundaries. Overworld edges now scroll. Cave entry has its automatic walk; general forced
+entry walks remain unimplemented. See [scrolling notes](SCROLLING.md).
 
 To replace artwork, assign a new atlas to a copied room. For 32-pixel artwork in
 the same slot arrangement, set `atlas_cell_size` to `(32, 32)`. The displayed
@@ -93,7 +94,7 @@ choice.
 
 These resources represent initial terrain, not a complete playable overworld.
 The starting sword cave is functional; other cave entrances remain visual.
-Dungeons, monsters, sword beams, secrets, pushed objects, maze rules, room effects,
+Dungeons, non-Octorok monsters, secrets, pushed objects, maze rules, room effects,
 and general room state are not implemented. See [cave and sword notes](CAVE_AND_SWORD.md). Some overworld terrain needs those mechanics to be
 traversable. Collision now follows the original direction-dependent hotspot probes at grid
 boundaries. Full frame-by-frame fidelity, multi-button input priorities, and
@@ -116,3 +117,11 @@ solid side bushes, and reversing through the gap.
 
 All ROM-derived output, including room resources and decoded dialogue, belongs
 inside the ignored local asset boundary. See [source-only sharing](ASSET_BOUNDARY.md).
+
+The importer now also exports repeated Octorok encounters, directional enemy
+sprites, half-width rocks, heart/rupee graphics, and original Octorok drop rows.
+See [combat support and limitations](COMBAT.md). ROM-derived reward tables remain
+in `imported/world.tres`, while native item effects live under `content/items/`.
+
+The importer also generates all sword-beam palette variants and burst pieces.
+See [sword beam notes](SWORD_BEAM.md).

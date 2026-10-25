@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="RewardDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/reward_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"five_rupees"
+effect = "rupees"
+amount = 5
+sprite = &"rupee"
+fallback_color = Color(0.3, 0.6, 1, 1)

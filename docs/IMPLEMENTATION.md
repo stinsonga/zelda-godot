@@ -21,7 +21,7 @@ To add a room:
    reverse exit. Open matching passages at both edges.
 
 Exits preserve the coordinate along the edge. A blocked destination prevents
-transition. Transitions are currently immediate; scrolling comes later.
+transition. Overworld edge transitions now scroll; see [timing and behavior](SCROLLING.md).
 Resources are validated at startup in debug builds. The first room in the list
 is the initial room. Editing tile text is the initial authoring interface; a
 paintable editor can replace it once the original room format has been imported.
@@ -70,11 +70,13 @@ input priorities and frame-by-frame turn timing still need emulator comparison.
 2. Extend the completed static overworld importer to caves, dungeons, and room
    effects. Original graphics, metatiles, level palettes, and overworld terrain
    now import into ignored, editable local resources.
-3. Build enemy behavior resources and a custom enemy variant against the
-   implemented sword action. The starting sword cave, session inventory,
-   item pickup, and original sword phase timings are now in place.
-4. Add faithful screen scrolling, damage, room persistence, and save data using
-   stable content IDs.
+3. Continue fidelity checks of the implemented Octorok encounter. Native enemy
+   definitions, a custom variant, sword/contact damage, shield-blocked rocks,
+   health, heart/rupee drops, and an end-to-end encounter test are now in place.
+   See [combat notes](COMBAT.md) for remaining AI and respawn approximations.
+4. Refine original room persistence and enemy respawn history. Native save/load
+   now persists stable IDs, inventory, health, currency, and progression; see
+   [saving notes](SAVING.md). Screen scrolling and damage are also implemented.
 
 ## Verification
 
