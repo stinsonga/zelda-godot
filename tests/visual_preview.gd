@@ -12,6 +12,18 @@ func preview() -> void:
 		quit(1)
 		return
 	var args := OS.get_cmdline_user_args()
+	if args.has("manhandla"):
+		for candidate in world.room_resources:
+			if candidate.dungeon_level != 3 or not candidate.enemies.any(func(spawn: Resource) -> bool: return spawn.enemy.behavior == "manhandla"): continue
+			world.enter_room(candidate,candidate.spawn,Vector2i.UP)
+			for actor in world.combat.enemies:
+				actor.family.manhandla.center = Vector2i(120,77)
+				actor.subposition = (Vector2i(120,77)+actor.family.manhandla_offset)*256
+			world.queue_redraw()
+			return
+		push_error("Imported Manhandla room missing")
+		quit(1)
+		return
 	if args.has("enemies"):
 		world.enter_room(world.rooms[&"ow_78"],Vector2i(120,141),Vector2i.UP)
 		world.combat.enemies.clear()

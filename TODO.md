@@ -1,36 +1,46 @@
 # Implementation TODO
 
-## Deferred: original opening and file screens
+## Finish the dungeons
 
-- Title layout, waterfall animation, Start transition, and music.
-- Opening story scroll, item displays, sprite choreography, and timing.
-- Three-file selection, name entry, and profile-specific saves.
-- Original death, Continue / Save / Retry flow and restart semantics.
-- Attract-mode gameplay replay after sufficient game fidelity exists.
-- Decide how original menus expose native checkpoints versus NES restart rules.
+1. Remaining bosses: Gleeok (levels 4/8), Moldorm, Lanmola, Patra, then Ganon,
+   silver-arrow finish, and rescuing Zelda. Manhandla is now implemented and tested.
+2. Immediately after bosses: expansion groundwork below.
+3. Dungeon old men's hint rooms, money-or-life rooms, candle-lit dark rooms,
+   monster-carried keys and drops (including Dodongo bombs), Triforce of Power,
+   and the gate to Ganon.
+4. Remaining items: magical rod/book, bait, raft, ladder, magical-key edge cases,
+   clock, and fairies.
 
-## Current sequence
+## Expansion groundwork (after bosses)
 
-- Octorok fidelity follow-up: emulator replay comparison and full object-slot scheduling.
-  Source-based movement, targeting, shooting, spawning, and collision are implemented;
-  see docs/OCTOROK_FIDELITY.md.
-- Audio fidelity follow-up: fuller APU synthesis and reference listening comparisons.
-  Effects, room music, fanfares, and swappable audio banks are implemented; see docs/AUDIO.md.
-- Common overworld enemies implemented: Moblins, Lynels, Tektites, Leevers,
-  Peahats, and editable variants; see docs/MORE_ENEMIES.md. Follow up with
-  replay fidelity, Zora, Armos, Ghini, boulders, and special overworld actors.
-- Overworld caves, shop items, equipment, and bomb/fire/push secrets are implemented;
-  see docs/CAVES_AND_SECRETS.md. The bow, boomerang, recorder (pond and whirlwind),
-  and paused potion refill now work. Follow up with the item submenu, Armos
-  secrets, raft and ladder, bait, the magical rod, and traced item-use timing.
-- Dungeon foundations implemented: all nine first-quest levels, doors, keys,
-  cellars, push blocks, items, and the level map; see docs/DUNGEONS.md.
-  First dungeon monsters implemented: Stalfos, Goriyas, Gels, Zols, Keese, and
-  Ropes, Darknuts, Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters,
-  traps, Wizzrobes, Aquamentus, Dodongo, Gohma, and Digdogger; see
-  docs/DUNGEON_MONSTERS.md. Next: Manhandla, Gleeok, Moldorm, Lanmola, Patra, and Ganon (several
-  need arrows, the recorder, or bombs), then dark rooms, old men, and the
-  recorder entrance to level 7.
-- Improve visual content editing and asset-pack workflows alongside implementation.
+- A ROM-free dungeon lab with doors, push block, cellar, editable monster presets,
+  and meaningful tests that do not require imported content.
+- Doors described by direction and type without atlas indices.
+- Editable behavior settings for remaining hard-coded systems (Rope, B-items, bounds).
+- A guide to adding rooms, caves, items, variants, and dungeons while respecting
+  the content boundary. Keep ROM-derived assets and tables under ignored imported/.
 
-See docs/ for completed save/load, room persistence, combat, beam, and scrolling work.
+## Overworld and fidelity
+
+- Armos, their caves and the power bracelet; Zora, Ghini, boulders, special actors.
+- Item submenu replacing C/Tab; trace item-use timing against the original.
+- Emulator replay comparisons, starting with Octoroks and bosses. Resolve provisional
+  push/item poses, Pols Voice jumps, Wizzrobe/pond graphics, and whirlwind flight.
+- Full object-slot scheduling, fuller APU synthesis/reference listening, door sound.
+- Improve visual content editing and asset-pack workflows.
+
+## Front end (later)
+
+- Second-quest layouts, secrets, and enemies.
+- Title/waterfall, story scroll, three files, name entry, Continue/Save/Retry,
+  ending, and attract demo. Decide how menus expose native checkpoints versus
+  original restart rules.
+
+## Completed milestones
+
+Movement, source-based Octoroks, room scrolling/history, native checkpoints,
+sound/music, common overworld families and editable variants, 59 overworld caves,
+equipment and secrets, all nine dungeon foundations and 255 rooms, regular dungeon
+families and Wizzrobes, Aquamentus, Dodongo, Gohma, Digdogger, and Manhandla.
+Bow/arrows, boomerang, recorder/whirlwind, and gradual paused potion refill work.
+See docs/ for behavior, validation, and remaining fidelity limits.

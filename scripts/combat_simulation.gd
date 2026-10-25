@@ -62,6 +62,35 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 				actor.spawn_remaining = 0
 	elif room.source_spawn_lists:
 		assign_source_spawns(room, state, entry_position, entry_direction)
+	setup_multipart_bosses()
+	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
+
+func setup_multipart_bosses() -> void:
+	for actor in enemies.duplicate():
+		if actor.definition.behavior != "manhandla" or actor.definition.boss_hand == null: continue
+		var group = preload("res://scripts/manhandla.gd").new()
+		actor.source_random = source_random.at(actor.slot)
+		group.setup(actor)
+		actor.family.manhandla = group
+		for i in range(actor.definition.boss_hand_offsets.size()):
+			var spawn = preload("res://scripts/enemy_spawn.gd").new()
+			spawn.id = StringName(String(actor.id)+"_hand_"+str(i))
+			spawn.enemy = actor.definition.boss_hand
+			spawn.position = actor.position()+Vector2i(actor.definition.boss_hand_offsets[i])
+			spawn.spawn_ticks = 0
+			var hand = Actor.new()
+			hand.setup(spawn)
+			hand.spawn_remaining = 0
+			hand.slot = i+1
+			hand.family.manhandla = group
+			hand.family.manhandla_offset = Vector2i(actor.definition.boss_hand_offsets[i])
+			hand.family.manhandla_index = i
+			group.hands.append(weakref(hand))
+			enemies.append(hand)
+		actor.slot = 5
+		# Reverse update order visits the base before its hands, as on the NES.
+		enemies.erase(actor)
+		enemies.append(actor)
 
 func can_enemy_occupy(world: Node, at: Vector2i) -> bool:
 	if at.x < bounds.position.x - 1 or at.x > bounds.end.x or at.y < bounds.position.y - 1 or at.y > bounds.end.y: return false
@@ -106,7 +135,7 @@ func tick(world: Node) -> void:
 	update_edge_spawns(world)
 	ambush_timer = maxi(0,ambush_timer-1)
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
-	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds,
+	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds, "chase_target":chase_target,
 		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
@@ -124,6 +153,7 @@ func tick(world: Node) -> void:
 					record_permanent_kill(world, actor)
 			elif actor.parried_hit:
 				world.audio.play(&"parry")
+		var was_alive: bool = actor.health > 0
 		var original: bool = actor.definition.behavior != "native"
 		var target: Vector2i = chase_target if original else world.player.pixel_position()
 		if actor.tick(target, func(at: Vector2i) -> bool: return can_enemy_occupy(world, at),
@@ -142,6 +172,7 @@ func tick(world: Node) -> void:
 				rock.direction = actor.facing
 				rock.speed_subpixels = actor.definition.projectile_speed_subpixels
 				rocks.append(rock)
+		if was_alive and actor.health == 0: record_permanent_kill(world,actor)
 		for shot in actor.pending_shots:
 			if rocks.size() >= projectile_limit: break
 			var fireball: RefCounted = make_fireball(world, shot.position, shot.spread)
@@ -150,8 +181,8 @@ func tick(world: Node) -> void:
 		actor.pending_shots.clear()
 		if actor.health == 0 and actor.death_remaining == 0 and not actor.drop_resolved:
 			actor.drop_resolved = true
-			encounter_kills += 1
-			world.state.kill_cycle = (world.state.kill_cycle + 1) % 10
+			if actor.definition.counts_for_persistence: encounter_kills += 1
+			world.state.kill_cycle = (world.state.kill_cycle + 1) % 10 if actor.definition.advances_kill_cycle else world.state.kill_cycle
 			var table: Resource = world.loot_tables.get(actor.definition.id, actor.definition.loot_table)
 			if table != null:
 				var item: Resource = table.select(world.state.kill_cycle, actor.source_random if original else actor.rng.randi_range(0, 255))
@@ -394,7 +425,7 @@ func tick_beam(world: Node) -> void:
 					return
 
 func record_permanent_kill(world: Node, actor: RefCounted) -> void:
-	if world.room.enemy_persistence == "permanent":
+	if world.room.enemy_persistence == "permanent" and actor.definition.counts_for_persistence:
 		world.state.defeated[String(world.room.id) + "/" + String(actor.id)] = true
 
 func persisted_records(state: RefCounted) -> Dictionary:

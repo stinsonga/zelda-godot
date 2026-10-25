@@ -2,7 +2,7 @@
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
 Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
-blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, and Digdogger. 172 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, and Manhandla. 177 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
 families, and every cellar holds its four blue Keese. Rooms with other monsters
 (the other bosses, Lanmolas, Moldorms, Patras, and the old men) stay empty until those exist,
 rather than substituting a different monster. The manifest records the counts.
@@ -55,7 +55,35 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Lanmolas, Moldorms, Patras, and the remaining bosses: Manhandla, Gleeok, and
-Ganon. Dodongo does not yet drop its bombs. Second-quest
+Lanmolas, Moldorms, Patras, and the remaining bosses: Gleeok and Ganon. Dodongo does not yet drop its bombs. Second-quest
 Stalfos shooting, monster stun from the boomerang and clock, and keys carried by
 monsters are also not implemented.
+
+## Manhandla
+
+`InitManhandla`, `UpdateManhandla`, `Manhandla_Move`, and `Manhandla_CheckCollisions`
+are translated into a shared group with four independently damageable hands and
+an invulnerable center. Each hand has source HP, separate invulnerability, and
+immunity to fire/boomerangs. It ignores knockback. All parts move together in eight
+directions, turning every 16 ticks and bouncing when an outer part reaches room
+bounds. Speed starts at 0.5 pixels/tick and increases by 0.5 after a tick in which
+a hand dies. Each hand's independent animation can trigger a fireball when its
+mouth closes (random >= $E0); shots share the encounter cap. The last hand kills
+the center, allowing room rewards and shutters to use the existing clear rules.
+
+Hand deaths do not increment persistent encounter kills or the world loot cycle.
+The room stores one boss defeat; leaving a partial fight rebuilds its hands.
+Source HP, palettes, and part sprites stay under ignored imported/. Native
+`content/enemies/manhandla*.tres` are authored fixture presets; body speed,
+acceleration, turn interval, hand definition, and offsets are editable resources.
+Group links use weak references so replacing a room does not retain the actors.
+
+`tests/manhandla.gd` runs without a ROM and checks independent HP, damage masks,
+knockback, acceleration, bomb multi-hits, partial-fight reconstruction, and room
+persistence. With imports it also runs the level 3 encounter. Python tests compare
+all ten imported part images pixel by pixel against the original patterns and
+palette. `visual_preview.gd -- manhandla` renders the assembled boss.
+
+Exact within-frame collision/movement ordering, per-part boundary bounce delays,
+and original boss cries still need emulator comparison; this is a native boss
+implementation, not a claim of frame-perfect parity.

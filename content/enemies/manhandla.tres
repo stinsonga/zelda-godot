@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://content/enemies/manhandla_hand.tres" id="hand"]
+[resource]
+script = ExtResource("1")
+id = &"lab_multipart_boss"
+behavior = "manhandla"
+health = 2
+spawn_cloud = false
+stunnable = false
+boss_hand = ExtResource("hand")
+invincible_to = PackedStringArray("sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic")
+fallback_color = Color(0.5, 0.8, 0.3, 1)

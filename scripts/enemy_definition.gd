@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -87,9 +87,18 @@ extends Resource
 ## Vires hop while walking sideways (Z_04 VireJumpOffsets).
 @export var hops: bool = false
 
+## A multipart boss owns the encounter; hands have their own HP and damage timers.
+@export var boss_hand: Resource
+@export var boss_hand_offsets: PackedVector2Array = PackedVector2Array([Vector2(0,-16),Vector2(0,16),Vector2(-16,0),Vector2(16,0)])
+@export var boss_initial_speed: int = 128
+@export var boss_lost_hand_speed: int = 128
+@export var boss_turn_ticks: int = 16
+@export var advances_kill_cycle: bool = true
+@export var counts_for_persistence: bool = true
+
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")
@@ -106,4 +115,6 @@ func validation_errors() -> PackedStringArray:
 			for i in range(6):
 				if burrow_times[i] < 0 or burrow_speeds[i] < 0 or burrow_animation_ticks[i] < 1: errors.append("Invalid burrow settings")
 	if flight_max_speed < 32 or flight_acceleration < 1 or flight_turn_ticks < 1 or flight_turn_count < 1 or flight_rest_min < 1: errors.append("Invalid flight settings")
+	if behavior == "manhandla" and boss_hand != null:
+		if boss_hand_offsets.size() != 4 or boss_turn_ticks < 1 or boss_initial_speed < 0 or boss_lost_hand_speed < 0: errors.append("Invalid multipart boss configuration")
 	return errors

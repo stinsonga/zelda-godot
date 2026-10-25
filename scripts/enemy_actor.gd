@@ -186,6 +186,9 @@ func body_visible() -> bool:
 func sprite_name() -> StringName:
 	if definition.behavior in ["jumper", "burrower", "flyer"]:
 		return StringName(String(definition.sprite) + "_" + str(family.frame(self)))
+	if definition.behavior == "manhandla":
+		var part: String = "body" if definition.boss_hand != null else ["up","down","left","right"][family.manhandla_index]
+		return StringName("manhandla_%s_%d" % [part,(family.manhandla_animation >> 4)&1])
 	if definition.behavior == "dodongo":
 		return family.dodongo_sprite(self)
 	if definition.behavior == "gohma":

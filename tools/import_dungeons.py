@@ -392,7 +392,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
 
 
 # Dungeon monster types (Z_07 UpdateObject_JumpTable) with their native behavior.
-MONSTERS = {0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
+MONSTERS = {0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
             0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
             0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
             0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
@@ -496,6 +496,11 @@ def monster_definition(prg, kind):
         fields.update(invincible_to='PackedStringArray("boomerang", "arrow", "fire", "magic")', spawn_cloud='false',
                       projectile_kind='"magic"', projectile_speed_subpixels=768, projectile_blockable='false',
                       projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0), shooting_enabled='true')
+    elif name == 'manhandla':
+        raw = prg[0x72BA + 0x56]
+        fields.update(spawn_cloud='false', stunnable='false', sprite_style='"frames"',
+                      invincible_to=f'PackedStringArray({EVERYTHING})', projectile_kind='"fireball"',
+                      projectile_blockable='false', projectile_damage=(raw & 15)*2+bool(raw & 240))
     elif name == 'aquamentus':
         # InitAquamentus: mask $E2 (immune to boomerang and fire); fireballs are type $55.
         raw = prg[0x72BA + 0x55]
@@ -529,6 +534,14 @@ def write_monsters(prg, output):
     for kind in MONSTERS:
         name, fields = monster_definition(prg, kind)
         ext = ['[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]']
+        if name == 'manhandla':
+            hand = fields.copy()
+            hand.update(id='&"manhandla_hand"', title='"Manhandla hand"', counts_for_clear='false', advances_kill_cycle='false',
+                        loot_table='null', counts_for_persistence='false', invincible_to='PackedStringArray("boomerang", "fire")')
+            header = '[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]\n'+ext[0]+'\n[resource]\nscript = ExtResource("1")\n'
+            (output/'enemies'/'manhandla_hand.tres').write_text(header+'\n'.join(f'{key} = {value}' for key,value in hand.items())+'\n')
+            ext.append('[ext_resource type="Resource" path="res://imported/enemies/manhandla_hand.tres" id="hand"]')
+            fields['boss_hand'] = 'ExtResource("hand")'
         if name == 'zol':
             ext.append('[ext_resource type="Resource" path="res://imported/enemies/child_gel.tres" id="gel"]')
             fields['splits_into'] = 'ExtResource("gel")'
@@ -571,6 +584,28 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
         png(output / f'{key}.png', 16, 16, canvas)
         names.append(key)
 
+    if 0x3C in kinds:
+        base = prg[0x6E04+0x3D]
+        for part,offset in [('up',0),('down',0),('left',2),('right',2),('body',4)]:
+            for pose in range(2):
+                key = f'l{level}_manhandla_{part}_{pose}'
+                render(key,base+offset+pose,mirrored=part not in ('left','right'),flip_x=part=='right',palette=1)
+                if part == 'down':
+                    # NES vertical flip applies to each complete 8x16 sprite.
+                    # Redraw the vertically flipped, mirrored pair.
+                    tile = prg[0x6E83+base+offset+pose]
+                    canvas = bytearray(16*16*4)
+                    for col in range(2):
+                        for row_index in range(2):
+                            block = bytearray(8*8*4)
+                            blit_tile(block,8,0,0,patterns,tile+row_index,palettes[5],True)
+                            for y in range(8):
+                                for x in range(8):
+                                    src=(y*8+(7-x if col else x))*4
+                                    dst=((15-row_index*8-y)*16+col*8+x)*4
+                                    canvas[dst:dst+4]=block[src:src+4]
+                    png(output/f'{key}.png',16,16,canvas)
+        kinds = kinds-{0x3C}
     if 0x3D in kinds:
         # Aquamentus_Draw: six 8x16 sprites, AquamentusTiles frames, its own palette row.
         row = list(prg[AQUAMENTUS_PALETTE + 3:AQUAMENTUS_PALETTE + 7])

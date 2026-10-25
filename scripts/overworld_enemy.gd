@@ -2,6 +2,10 @@ class_name OverworldEnemy
 extends RefCounted
 ## Family state stays on the actor; shared editable definitions stay immutable.
 const DIRS := [Vector2i.UP, Vector2i(1,-1), Vector2i.RIGHT, Vector2i(1,1), Vector2i.DOWN, Vector2i(-1,1), Vector2i.LEFT, Vector2i(-1,-1)]
+var manhandla: RefCounted
+var manhandla_offset := Vector2i.ZERO
+var manhandla_index := 0
+var manhandla_animation := 0
 var initialized := false
 var phase := 0
 var timer := 0
@@ -99,6 +103,9 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	if not initialized: initialize(actor)
 	if timer > 0: timer -= 1
 	if actor.source.turn_timer > 0: actor.source.turn_timer -= 1
+	if actor.definition.behavior == "manhandla":
+		if manhandla != null: manhandla.tick(actor,context)
+		return false
 	if actor.shove_remaining > 0:
 		actor.source.shove(actor, probe)
 		return false
