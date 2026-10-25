@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=8 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/door_definition.gd" id="door"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]
+[sub_resource type="Resource" id="door_left"]
+script = ExtResource("door")
+direction = Vector2i(-1, 0)
+kind = "bombable"
+[sub_resource type="Resource" id="block"]
+script = ExtResource("secret")
+trigger = "block"
+cell = Vector2i(6, 5)
+reveal_cell = Vector2i(13, 2)
+reveal_kind = "stairs"
+persistent = false
+[sub_resource type="Resource" id="stairs"]
+script = ExtResource("portal")
+area = Rect2i(208, 29, 1, 1)
+required_direction = Vector2i(0, 0)
+target_room = &"lab_dungeon_cellar"
+target_position = Vector2i(48, 1)
+target_facing = Vector2i(0, 1)
+entry_walk_pixels = 28
+requires_secret = true
+[resource]
+script = ExtResource("room")
+id = &"lab_dungeon_block"
+title = "Dungeon lab block room"
+tiles = "################\n################\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n################\n################"
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+dungeon_level = 10
+music = &"dungeon"
+map_room_id = 116
+enemy_persistence = "reset"
+shutter_trigger = 5
+exits = Dictionary[String, String]({"left": "lab_dungeon_entry"})
+doors = Array[Resource]([SubResource("door_left")])
+secret = SubResource("block")
+portals = Array[Resource]([SubResource("stairs")])

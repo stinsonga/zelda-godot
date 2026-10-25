@@ -8,3 +8,4 @@ effect = "grade"
 slot = &"boomerang"
 value = 2
 usable = true
+use_range = 255

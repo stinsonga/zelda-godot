@@ -33,6 +33,9 @@ extends Resource
 @export_multiline var tiles: String = ""
 @export var exits: Dictionary[String, String] = {}
 @export var movement_bounds: Rect2i = Rect2i(0, 0, 241, 161)
+## Where monsters may roam (Z_05 ObjectRoomBoundsOW/UW); empty uses the
+## original overworld or underworld bounds.
+@export var monster_bounds: Rect2i = Rect2i()
 @export var grid_origin: Vector2i = Vector2i.ZERO
 @export var tile_atlas: Texture2D
 @export var atlas_cell_size: Vector2i = Vector2i(16, 16)

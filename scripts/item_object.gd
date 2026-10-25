@@ -14,14 +14,18 @@ var travelled := 0
 var subpixel := 0
 var active := true
 var damage_points := 1
+## Pixels a frame for arrows and boomerangs; bomb stage lengths.
+var speed := 3
+var fuse: Array[int] = BOMB_TIMES
 ## Boomerang: pixels it may fly out, and whether it is coming back.
 var limit := 0
 var returning := false
 
-static func bomb(at: Vector2i, facing: Vector2i) -> RefCounted:
+static func bomb(at: Vector2i, facing: Vector2i, fuse_ticks: Array[int] = BOMB_TIMES) -> RefCounted:
 	var object = new()
 	object.position = at
 	object.direction = facing
+	object.fuse = fuse_ticks
 	return object
 
 static func fire(at: Vector2i, facing: Vector2i) -> RefCounted:
@@ -31,21 +35,23 @@ static func fire(at: Vector2i, facing: Vector2i) -> RefCounted:
 	object.direction = facing
 	return object
 
-static func arrow(at: Vector2i, facing: Vector2i, damage: int) -> RefCounted:
+static func arrow(at: Vector2i, facing: Vector2i, damage: int, pixels_per_tick := 3) -> RefCounted:
 	var object = new()
 	object.kind = "arrow"
 	# Z_05 WieldWeapon: vertical arrows sit 3 pixels right of Link's line.
 	object.position = at + (Vector2i(3, 0) if facing.y != 0 else Vector2i.ZERO)
 	object.direction = facing
 	object.damage_points = damage
+	object.speed = pixels_per_tick
 	return object
 
-static func boomerang(at: Vector2i, direction: Vector2i, flight_limit: int) -> RefCounted:
+static func boomerang(at: Vector2i, direction: Vector2i, flight_limit: int, pixels_per_tick := 3) -> RefCounted:
 	var object = new()
 	object.kind = "boomerang"
 	object.position = at
 	object.direction = direction
 	object.limit = flight_limit
+	object.speed = pixels_per_tick
 	return object
 
 ## Arrows end in a three-frame spark (state $20) after a hit or at the room edge.
@@ -60,19 +66,19 @@ func tick() -> StringName:
 	if timer > 0:
 		timer -= 1
 	if kind == "arrow":
-		if stage == 1: position += direction * 3
+		if stage == 1: position += direction * speed
 		elif timer == 0: active = false
 		return &""
 	if kind == "boomerang":
 		if not returning:
-			position += direction * 3
-			travelled += 3
+			position += direction * speed
+			travelled += speed
 			if travelled >= limit: returning = true
 		return &""
 	if kind == "bomb":
 		if timer > 0:
 			return &""
-		timer = BOMB_TIMES[stage - 1] if stage <= 4 else 0
+		timer = fuse[stage - 1] if stage <= 4 else 0
 		stage += 1
 		if stage == 5: active = false
 		return &"bomb_blow" if stage == 3 else &""

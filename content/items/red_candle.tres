@@ -8,3 +8,4 @@ effect = "grade"
 slot = &"candle"
 value = 2
 usable = true
+use_once_per_room = false

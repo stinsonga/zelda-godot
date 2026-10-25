@@ -127,6 +127,12 @@ extends Resource
 @export var ganon_brown_health: int = 15
 @export var ganon_spots: PackedVector2Array = PackedVector2Array([Vector2(0x30, 0xA0 - 64), Vector2(0xB0, 0xA0 - 64)])
 @export var ganon_ashes_offset: Vector2i = Vector2i(8, 8)
+## Rope (Z_04 UpdateRope): walking uses speed_subpixels; within rope_line_up
+## pixels of Link's row or column it rushes, and walking turns come after a
+## random timer of up to rope_turn_mask frames.
+@export var rope_rush_speed: int = 384
+@export var rope_line_up: int = 8
+@export var rope_turn_mask: int = 0x3F
 @export var collision_size: Vector2i = Vector2i.ZERO
 @export var collision_offset: Vector2i = Vector2i.ZERO
 ## Fireball2 ($56) cannot be blocked, even with the magical shield.

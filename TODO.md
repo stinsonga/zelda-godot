@@ -2,22 +2,19 @@
 
 ## Finish the dungeons
 
-1. Next: expansion groundwork below. Every boss, the silver-arrow finish, and
-   Zelda's rescue are implemented and tested.
-2. Dungeon old men's hint rooms, money-or-life rooms, candle-lit dark rooms,
-   monster-carried keys and drops (including Dodongo bombs), Triforce of Power,
+1. Dungeon old men's hint rooms, money-or-life rooms, candle-lit dark rooms,
+   monster-carried keys and drops (including Dodongo bombs),
    and the gate to Ganon. Real dark rooms replace the overlay in Ganon's room.
-3. Remaining items: magical rod/book, bait, raft, ladder, magical-key edge cases,
+2. Remaining items: magical rod/book, bait, raft, ladder, magical-key edge cases,
    clock, and fairies.
 
 ## Expansion groundwork
 
-- A ROM-free dungeon lab with doors, push block, cellar, editable monster presets,
-  and meaningful tests that do not require imported content.
-- Doors described by direction and type without atlas indices.
-- Editable behavior settings for remaining hard-coded systems (Rope, B-items, bounds).
-- A guide to adding rooms, caves, items, variants, and dungeons while respecting
-  the content boundary. Keep ROM-derived assets and tables under ignored imported/.
+Done: the ROM-free dungeon lab (`scenes/dungeon_lab.tscn`, `tests/dungeon_lab.gd`),
+doors from direction and kind, push blocks without atlases, editable B-item, Rope,
+and monster-bound settings, and [docs/EXTENDING.md](docs/EXTENDING.md). Still to
+make editable: Wizzrobe, Like Like, and Wallmaster timings; Link's speed and sword
+timings. A visual room editor would help authors most.
 
 ## Overworld and fidelity
 
@@ -43,4 +40,5 @@ sound/music, common overworld families and editable variants, 59 overworld caves
 equipment and secrets, all nine dungeon foundations and 255 rooms, regular dungeon
 families and Wizzrobes, Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, Patra, Ganon, and Zelda's rescue.
 Bow/arrows, boomerang, recorder/whirlwind, and gradual paused potion refill work.
+Expansion groundwork: dungeon lab, authored doors, editable settings, guide.
 See docs/ for behavior, validation, and remaining fidelity limits.

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_skeleton"
+title = "Skeleton"
+behavior = "walker"
+health = 2
+speed_subpixels = 128
+turn_chance = 128
+shooting_enabled = false
+sprite_style = "frames"
+animation_frame_ticks = 8
+sprite = &"lab_skeleton"
+fallback_color = Color(0.92, 0.9, 0.82, 1)

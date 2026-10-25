@@ -52,6 +52,10 @@ func overrides(definition: Resource, state: RefCounted) -> Dictionary:
 	var secret: Resource = definition.secret
 	if secret == null: return result
 	var current := definition == room
+	# A push block stands on its cell until pushed. Imported layouts already draw
+	# and collide it; this makes authored rooms need only the secret itself.
+	if secret.trigger == "block" and not (current and pushed) and not (revealed if current else state.flags.get(flag_key(definition), false)):
+		result[secret.cell] = [secret.object_tile, secret.object_collision, "object"]
 	if current and pushed:
 		result[secret.cell] = [secret.floor_tile, PackedByteArray([0, 0, 0, 0]), "floor"]
 		if not moving():

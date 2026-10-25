@@ -66,7 +66,7 @@ func initialize(actor: RefCounted) -> void:
 		# Z_04 InitBlueKeese: one of eight random directions.
 		if actor.definition.flight_random_start: actor.facing = DIRS[actor.source_random & 7]
 	elif actor.definition.behavior == "rope":
-		rope_speed = 128
+		rope_speed = actor.definition.speed_subpixels
 	elif actor.definition.behavior == "trap":
 		origin = actor.position()
 	elif actor.definition.behavior == "digdogger" and actor.definition.size.x > 16:
@@ -334,24 +334,27 @@ func tick_gel(actor: RefCounted, target: Vector2i, probe: Callable) -> void:
 
 ## Z_04 UpdateRope: wander slowly, turning at random; rush when lined up within 8 pixels.
 func tick_rope(actor: RefCounted, target: Vector2i, probe: Callable) -> void:
+	var definition: Resource = actor.definition
 	var source: RefCounted = actor.source
 	var original: Vector2i = actor.facing
+	var walk: int = definition.speed_subpixels
+	var rushing: bool = rope_speed == definition.rope_rush_speed and rope_speed != walk
 	if source.grid_offset == 0 and not probe.call(actor.position(), actor.facing):
 		face_unblocked(actor, probe)
 	else:
 		source.advance_position(actor, actor.facing, rope_speed)
-	if rope_speed != 384 and timer == 0:
-		timer = actor.source_random & 0x3F
+	if not rushing and timer == 0:
+		timer = actor.source_random & definition.rope_turn_mask
 		face_unblocked(actor, probe)
-	if actor.facing != original: rope_speed = 128
-	if rope_speed == 128 and source.grid_offset == 0:
+	if actor.facing != original: rope_speed = walk
+	if rope_speed == walk and source.grid_offset == 0:
 		var delta: Vector2i = target - actor.position()
-		if absi(delta.x) < 8:
+		if absi(delta.x) < definition.rope_line_up:
 			actor.facing = Vector2i.DOWN if delta.y >= 0 else Vector2i.UP
-			rope_speed = 384
-		elif absi(delta.y) < 8:
+			rope_speed = definition.rope_rush_speed
+		elif absi(delta.y) < definition.rope_line_up:
 			actor.facing = Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT
-			rope_speed = 384
+			rope_speed = definition.rope_rush_speed
 
 ## Z_07 _FaceUnblockedDir: starting from a random direction, the first open one.
 func face_unblocked(actor: RefCounted, probe: Callable) -> void:

@@ -45,6 +45,9 @@ room edge that `CheckDoorway` lets Link walk.
 | shutter | Open while the room is clear: no living monsters, plus a pushed block for trigger 4. |
 
 Opening a key or bombable door sets `door/<room>/<direction>` for both sides.
+Authored doors need only direction and kind: empty cell arrays use the standard
+doorway geometry the importer derives (`DoorDefinition.STANDARD_CELLS`). See
+[EXTENDING.md](EXTENDING.md).
 
 ## Rooms, items, and secrets
 

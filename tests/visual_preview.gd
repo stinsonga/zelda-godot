@@ -4,6 +4,19 @@ func _initialize() -> void:
 	call_deferred("preview")
 
 func preview() -> void:
+	var args := OS.get_cmdline_user_args()
+	# The ROM-free dungeon lab: dungeon_lab [entry|hall|block|cellar|treasure].
+	if args.has("dungeon_lab"):
+		var lab = preload("res://scenes/dungeon_lab.tscn").instantiate()
+		root.add_child(lab)
+		lab.set_physics_process(false)
+		for name in ["entry", "hall", "block", "cellar", "treasure"]:
+			if args.has(name): lab.enter_room(lab.rooms[StringName("lab_dungeon_" + name)], Vector2i(120, 125), Vector2i.UP)
+		if args.has("block"):
+			lab.secrets.revealed = true
+			lab.overrides = lab.compute_overrides(lab.room)
+		lab.queue_redraw()
+		return
 	var world = preload("res://scenes/main.tscn").instantiate()
 	root.add_child(world)
 	world.set_physics_process(false)
@@ -11,7 +24,6 @@ func preview() -> void:
 		push_error("Visual previews require a local ROM import")
 		quit(1)
 		return
-	var args := OS.get_cmdline_user_args()
 	if args.has("ganon") or args.has("ganon_brown") or args.has("ganon_burst") or args.has("zelda"):
 		if args.has("zelda"):
 			world.enter_room(world.rooms[&"l9_32"], Vector2i(120, 125), Vector2i.UP)

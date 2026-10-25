@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=7 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/bow.tres" id="bow"]
+[sub_resource type="Resource" id="ladder"]
+script = ExtResource("portal")
+area = Rect2i(48, -3, 1, 3)
+required_direction = Vector2i(0, -1)
+target_room = &"lab_dungeon_block"
+target_position = Vector2i(192, 45)
+target_facing = Vector2i(0, 1)
+entry_walk_pixels = 0
+[sub_resource type="Resource" id="bow"]
+script = ExtResource("pickup")
+id = &"bow"
+item = ExtResource("bow")
+position = Vector2i(160, 125)
+lift_ticks = 128
+tolerance = Vector2i(8, 8)
+[resource]
+script = ExtResource("room")
+id = &"lab_dungeon_cellar"
+title = "Dungeon lab cellar"
+tiles = "###.############\n###.############\n###.############\n###.############\n###.############\n###.############\n###.############\n###.############\n##...........###\n################\n################"
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+dungeon_level = 10
+music = &"dungeon"
+history_id = &"lab_dungeon_block"
+enemy_persistence = "reset"
+spawn = Vector2i(48, 29)
+portals = Array[Resource]([SubResource("ladder")])
+pickups = Array[Resource]([SubResource("bow")])

@@ -13,6 +13,15 @@ extends Resource
 @export var limit: int = 255
 ## Selectable for the B button.
 @export var usable: bool = false
+## B-button use, read from the item at Link's current grade of its slot (Z_05
+## WieldArrow and WieldBoomerang, Z_07 UpdateBombOrFire). Defaults are the
+## original first grades: arrows 2 damage, 3 pixels a frame; a boomerang flies
+## $31 pixels out; a candle burns once a room; bomb stages last BombTimes.
+@export var use_damage: int = 2
+@export var use_speed: int = 3
+@export var use_range: int = 0x31
+@export var use_once_per_room: bool = true
+@export var use_fuse_ticks: PackedInt32Array = PackedInt32Array([0x30, 0x18, 0x0C, 0x06])
 ## Sprite name in the visual theme; empty uses the ID.
 @export var sprite: StringName
 
@@ -24,4 +33,5 @@ func validation_errors() -> PackedStringArray:
 	if id.is_empty(): errors.append("Item ID is empty")
 	if effect in ["unique", "grade", "count", "level"] and slot.is_empty(): errors.append("Item " + String(id) + " needs a slot")
 	if value < 0 or limit < 1: errors.append("Item " + String(id) + " has an invalid value or limit")
+	if use_damage < 0 or use_speed < 1 or use_range < 1 or use_fuse_ticks.size() != 4: errors.append("Item " + String(id) + " has invalid use settings")
 	return errors

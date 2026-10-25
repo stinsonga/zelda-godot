@@ -1,0 +1,12 @@
+[gd_scene load_steps=8 format=3]
+[ext_resource type="Script" path="res://scripts/world.gd" id="world"]
+[ext_resource type="Resource" path="res://content/rooms/lab_dungeon_gate.tres" id="gate"]
+[ext_resource type="Resource" path="res://content/rooms/lab_dungeon_entry.tres" id="entry"]
+[ext_resource type="Resource" path="res://content/rooms/lab_dungeon_hall.tres" id="hall"]
+[ext_resource type="Resource" path="res://content/rooms/lab_dungeon_treasure.tres" id="treasure"]
+[ext_resource type="Resource" path="res://content/rooms/lab_dungeon_block.tres" id="block"]
+[ext_resource type="Resource" path="res://content/rooms/lab_dungeon_cellar.tres" id="cellar"]
+[node name="DungeonLab" type="Node2D"]
+script = ExtResource("world")
+use_imported_world = false
+room_resources = Array[Resource]([ExtResource("gate"), ExtResource("entry"), ExtResource("hall"), ExtResource("treasure"), ExtResource("block"), ExtResource("cellar")])

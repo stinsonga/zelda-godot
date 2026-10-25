@@ -8,3 +8,4 @@ effect = "grade"
 slot = &"arrows"
 value = 2
 usable = true
+use_damage = 4

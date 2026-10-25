@@ -393,11 +393,15 @@ func compute_overrides(definition: Resource) -> Dictionary:
 	var result: Dictionary = secrets.overrides(definition, state)
 	for door in definition.doors:
 		if not door_passable(definition, door): continue
-		for i in range(door.cells.size()):
-			var cell := Vector2i(door.cells[i] % 16, door.cells[i] / 16)
+		var door_cells: PackedInt32Array = door.door_cells()
+		var collision: PackedInt32Array = door.door_collision()
+		var tiles: PackedInt32Array = door.door_tiles()
+		for i in range(door_cells.size()):
+			var cell := Vector2i(door_cells[i] % 16, door_cells[i] / 16)
 			if result.has(cell): continue
-			var bits: int = door.open_collision[i]
-			result[cell] = [door.open_tiles[i], PackedByteArray([bits & 1, bits >> 1 & 1, bits >> 2 & 1, bits >> 3 & 1]), "door"]
+			var bits: int = collision[i]
+			# A false wall keeps looking like the wall it replaces.
+			result[cell] = [tiles[i], PackedByteArray([bits & 1, bits >> 1 & 1, bits >> 2 & 1, bits >> 3 & 1]), "false_door" if door.kind == "false" else "door"]
 	return result
 
 func door_key(definition: Resource, direction: Vector2i) -> String:
@@ -596,12 +600,17 @@ func use_item() -> bool:
 			if burning_objects() >= 2:
 				item_objects.erase(item_objects.filter(func(object: RefCounted) -> bool: return object.kind == "fire")[0])
 			state.slots[&"bombs"] -= 1
-			item_objects.append(ItemObject.bomb(ahead, player.facing))
+			var bomb_item: Resource = item_for_slot(&"bombs")
+			var fuse: Array[int] = []
+			fuse.assign(bomb_item.use_fuse_ticks if bomb_item != null else ItemObject.BOMB_TIMES)
+			item_objects.append(ItemObject.bomb(ahead, player.facing, fuse))
 			audio.play(&"bomb_drop")
 			ensure_selected_item()
 		&"candle":
 			# Z_01 WieldCandle: two slots; the blue candle burns once per room.
-			if burning_objects() >= 2 or (state.item_value(&"candle") == 1 and candle_used):
+			var candle: Resource = item_for_slot(&"candle")
+			var once: bool = candle.use_once_per_room if candle != null else state.item_value(&"candle") == 1
+			if burning_objects() >= 2 or (once and candle_used):
 				return false
 			candle_used = true
 			item_objects.append(ItemObject.fire(ahead, player.facing))
@@ -617,14 +626,18 @@ func use_item() -> bool:
 			if state.item_value(&"bow") == 0 or state.rupees == 0 or item_objects.any(func(o: RefCounted) -> bool: return o.kind == "arrow"):
 				return false
 			state.rupees_to_subtract += 1
-			item_objects.append(ItemObject.arrow(ahead, player.facing, 4 if state.item_value(&"arrows") >= 2 else 2))
+			var arrow: Resource = item_for_slot(&"arrows")
+			if arrow != null: item_objects.append(ItemObject.arrow(ahead, player.facing, arrow.use_damage, arrow.use_speed))
+			else: item_objects.append(ItemObject.arrow(ahead, player.facing, 4 if state.item_value(&"arrows") >= 2 else 2))
 			audio.play(&"arrow")
 		&"boomerang":
 			# Z_05 WieldBoomerang: thrown along the held direction, diagonals included.
 			if item_objects.any(func(o: RefCounted) -> bool: return o.kind == "boomerang"):
 				return false
 			var aim: Vector2i = held_direction if held_direction != Vector2i.ZERO else player.facing
-			item_objects.append(ItemObject.boomerang(ahead, aim, 0xFF if state.item_value(&"boomerang") >= 2 else 0x31))
+			var thrown: Resource = item_for_slot(&"boomerang")
+			if thrown != null: item_objects.append(ItemObject.boomerang(ahead, aim, thrown.use_range, thrown.use_speed))
+			else: item_objects.append(ItemObject.boomerang(ahead, aim, 0xFF if state.item_value(&"boomerang") >= 2 else 0x31))
 			audio.play(&"arrow")
 		&"recorder":
 			play_recorder()
@@ -871,7 +884,14 @@ func draw_room_objects() -> void:
 		if not state.has_collected(room.id, pickup.id) and (not pickup.requires_clear or room_clear()):
 			var sprite := item_sprite(pickup.item)
 			if not visual_theme.sprites.has(sprite): sprite = StringName(String(sprite) + "_" + str((simulation_tick / 8) % 2))
-			draw_named_sprite(sprite, Vector2(pickup_position(pickup)) + Vector2(0, 3) if room.dungeon_level > 0 else Vector2(pickup_position(pickup)))
+			var spot: Vector2 = Vector2(pickup_position(pickup)) + (Vector2(0, 3) if room.dungeon_level > 0 else Vector2.ZERO)
+			if visual_theme.sprites.has(sprite): draw_named_sprite(sprite, spot)
+			else:
+				# Unthemed items: a diamond with the item's initial.
+				var center: Vector2 = spot + Vector2(8, HUD_HEIGHT + 8)
+				draw_colored_polygon(PackedVector2Array([center + Vector2(0, -7), center + Vector2(7, 0), center + Vector2(0, 7), center + Vector2(-7, 0)]), visual_theme.accent_color)
+				var label: String = String(pickup.item.title if "title" in pickup.item and pickup.item.title != "" else pickup.item.id).left(1).to_upper()
+				draw_string(font, center + Vector2(-3, 4), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color("2a2a2a"))
 	if cave_session != null:
 		draw_cave()
 	elif dialogue_visible() and entry_walk_remaining == 0:
@@ -1172,6 +1192,27 @@ func draw_terrain(definition: Resource, offset: Vector2) -> void:
 	var replaced: Dictionary = overrides if definition == room else compute_overrides(definition)
 	for cell in replaced:
 		draw_square(definition, replaced[cell][0], Vector2(cell * 16) + offset, replaced[cell][2])
+	if definition.tile_atlas == null: draw_closed_doors(definition, offset)
+
+## Unthemed rooms mark closed key doors and shutters; bombable and false walls
+## stay hidden in the wall, as in the original.
+func draw_closed_doors(definition: Resource, offset: Vector2) -> void:
+	for door in definition.doors:
+		if door.kind not in ["key", "shutter"] or door_passable(definition, door): continue
+		var cells: PackedInt32Array = door.door_cells()
+		if cells.is_empty(): continue
+		var outer := Rect2()
+		for index in cells:
+			var square := Rect2(Vector2((index % 16) * 16, (index / 16) * 16 + HUD_HEIGHT) + offset, Vector2(16, 16))
+			outer = square if outer.size == Vector2.ZERO else outer.merge(square)
+		var clip := Rect2(0, HUD_HEIGHT, 256, 176)
+		draw_rect(outer.grow(-2).intersection(clip), Color("2a2a2a"))
+		if door.kind == "key":
+			draw_rect(Rect2(outer.get_center() - Vector2(2, 4), Vector2(4, 8)).intersection(clip), visual_theme.accent_color)
+		else:
+			for bar in range(1, 4):
+				var x: float = outer.position.x + outer.size.x * bar / 4.0
+				draw_line(Vector2(x, outer.position.y + 2), Vector2(x, outer.end.y - 2), visual_theme.accent_color, 1)
 
 ## A replacement square: atlas index, or a placeholder color for unthemed rooms.
 func draw_square(definition: Resource, index: int, at: Vector2, kind: String) -> void:
@@ -1181,8 +1222,10 @@ func draw_square(definition: Resource, index: int, at: Vector2, kind: String) ->
 		var columns: int = definition.tile_atlas.get_width() / cell_size.x
 		draw_clipped_texture(definition.tile_atlas, rect, Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size)))
 	else:
-		var colors := {"floor": visual_theme.floor_color, "object": visual_theme.wall_color, "entrance": Color.BLACK, "door": visual_theme.floor_color}
+		var colors := {"floor": visual_theme.floor_color, "object": visual_theme.wall_color, "entrance": Color.BLACK, "door": visual_theme.floor_color, "false_door": visual_theme.wall_color}
 		draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), colors[kind])
+		# A false wall must look exactly like the placeholder wall around it.
+		if kind == "false_door": draw_rect(rect.grow(-3).intersection(Rect2(0, 64, 256, 176)), Color("394f36"), false, 1)
 
 func draw_pushed_object() -> void:
 	if room.secret == null or not secrets.moving(): return

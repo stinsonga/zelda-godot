@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=4 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[sub_resource type="Resource" id="entrance"]
+script = ExtResource("portal")
+area = Rect2i(112, 13, 1, 1)
+required_direction = Vector2i(0, 0)
+target_room = &"lab_dungeon_entry"
+target_position = Vector2i(120, 157)
+target_facing = Vector2i(0, -1)
+entry_walk_pixels = 16
+[resource]
+script = ExtResource("room")
+id = &"lab_dungeon_gate"
+title = "Dungeon lab  /  North: enter"
+tiles = "################\n#######.########\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n################"
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+enemy_persistence = "reset"
+tracks_history = false
+spawn = Vector2i(112, 125)
+portals = Array[Resource]([SubResource("entrance")])

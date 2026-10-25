@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_bat"
+title = "Bat"
+behavior = "flyer"
+health = 1
+shooting_enabled = false
+flight_initial_speed = 31
+flight_max_speed = 192
+flight_random_start = true
+flight_vulnerable_resting_only = false
+flight_chase_threshold = 160
+sprite = &"lab_bat"
+fallback_color = Color(0.35, 0.4, 0.85, 1)

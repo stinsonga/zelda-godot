@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=13 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/door_definition.gd" id="door"]
+[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/key.tres" id="key"]
+[ext_resource type="Resource" path="res://content/items/bombs.tres" id="bombs"]
+[sub_resource type="Resource" id="door_up"]
+script = ExtResource("door")
+direction = Vector2i(0, -1)
+kind = "key"
+[sub_resource type="Resource" id="door_right"]
+script = ExtResource("door")
+direction = Vector2i(1, 0)
+kind = "bombable"
+[sub_resource type="Resource" id="door_down"]
+script = ExtResource("door")
+direction = Vector2i(0, 1)
+kind = "open"
+[sub_resource type="Resource" id="exit"]
+script = ExtResource("portal")
+area = Rect2i(104, 157, 32, 1)
+required_direction = Vector2i(0, 1)
+target_room = &"lab_dungeon_gate"
+target_position = Vector2i(112, 13)
+target_facing = Vector2i(0, 1)
+entry_walk_pixels = 0
+exit_rise_pixels = 16
+[sub_resource type="Resource" id="key"]
+script = ExtResource("pickup")
+id = &"key"
+item = ExtResource("key")
+position = Vector2i(48, 45)
+lift_ticks = 0
+tolerance = Vector2i(8, 8)
+[sub_resource type="Resource" id="bombs"]
+script = ExtResource("pickup")
+id = &"bombs"
+item = ExtResource("bombs")
+position = Vector2i(192, 45)
+lift_ticks = 0
+tolerance = Vector2i(8, 8)
+[resource]
+script = ExtResource("room")
+id = &"lab_dungeon_entry"
+title = "Dungeon lab entry"
+tiles = "################\n################\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n################\n################"
+movement_bounds = Rect2i(0, -3, 241, 161)
+grid_origin = Vector2i(0, 5)
+dungeon_level = 10
+music = &"dungeon"
+map_room_id = 115
+enemy_persistence = "reset"
+spawn = Vector2i(120, 125)
+exits = Dictionary[String, String]({"up": "lab_dungeon_hall", "right": "lab_dungeon_block"})
+doors = Array[Resource]([SubResource("door_up"), SubResource("door_right"), SubResource("door_down")])
+portals = Array[Resource]([SubResource("exit")])
+pickups = Array[Resource]([SubResource("key"), SubResource("bombs")])
