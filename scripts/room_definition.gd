@@ -17,6 +17,7 @@ extends Resource
 @export var map_room_id: int = -1
 @export var id: StringName
 @export var title: String = ""
+@export var music: StringName = &"overworld" # Empty selects silence.
 @export_multiline var tiles: String = ""
 @export var exits: Dictionary[String, String] = {}
 @export var movement_bounds: Rect2i = Rect2i(0, 0, 241, 161)

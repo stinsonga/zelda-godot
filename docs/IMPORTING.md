@@ -125,3 +125,6 @@ in `imported/world.tres`, while native item effects live under `content/items/`.
 
 The importer also generates all sword-beam palette variants and burst pieces.
 See [sword beam notes](SWORD_BEAM.md).
+
+Audio is also rendered from the verified ROM into ignored `imported/audio/`.
+See [audio extraction and fidelity](AUDIO.md).

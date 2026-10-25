@@ -14,7 +14,8 @@
 - Octorok fidelity follow-up: emulator replay comparison and full object-slot scheduling.
   Source-based movement, targeting, shooting, spawning, and collision are implemented;
   see docs/OCTOROK_FIDELITY.md.
-- Sound and music.
+- Audio fidelity follow-up: fuller APU synthesis and reference listening comparisons.
+  Effects, room music, fanfares, and swappable audio banks are implemented; see docs/AUDIO.md.
 - More overworld enemies and data-defined variants.
 - Items, equipment, secrets, caves, then dungeon foundations and bosses.
 - Improve visual content editing and asset-pack workflows alongside implementation.

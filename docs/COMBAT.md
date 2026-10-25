@@ -74,7 +74,7 @@ Only repeated Octorok types 7 through 10 are imported. Mixed object lists and al
 other monsters remain unimplemented. Red and blue drop rows may reference bombs,
 clocks, or fairies; those unsupported entries currently produce no drop. Help-drop
 counters and the forced-fairy rule are not implemented. Currency applies instantly
-rather than counting upward over multiple frames. Sword beams are implemented; sound remains unimplemented. See [beam rules](SWORD_BEAM.md).
+rather than counting upward over multiple frames. Sword beams are implemented; sound effects and music are implemented; see [audio notes](AUDIO.md). See [beam rules](SWORD_BEAM.md).
 
 Imported overworld enemies now use the original six-entry history and kill-count
 respawn rules. Custom encounters can retain permanent defeats or reset on entry.

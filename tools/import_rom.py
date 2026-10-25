@@ -233,6 +233,7 @@ blocking_area = Rect2i(168, 64, 16, 16)
 [resource]
 script = ExtResource("room")
 id = &"sword_cave"
+music = &"cave"
 history_id = &"ow_77"
 title = "Sword cave"
 map_room_id = 119
@@ -567,6 +568,8 @@ collision_tiles = PackedByteArray({array(collision)})
         'limitations': ['Static first-quest terrain only; no secret-state changes or room effects.',
                         'Only the starting sword cave is functional; other caves, dungeons, non-Octorok enemies remain unimplemented.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
+    from render_audio import export_audio
+    export_audio(prg, output / 'audio')
     print(f'Imported 128 overworld rooms, the sword cave, terrain, player, item, and Octorok sprites into {output}')
 
 

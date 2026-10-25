@@ -14,6 +14,7 @@ const ROOM_SIZE := Vector2i(256, 176)
 	preload("res://content/rooms/test_field.tres"),
 	preload("res://content/rooms/expansion_field.tres")]
 @export var visual_theme: Resource = preload("res://content/themes/default.tres")
+var audio = preload("res://scripts/game_audio.gd").new()
 var world_id := ""
 var item_catalog: Dictionary[StringName, Resource] = {}
 var save_store = Saves.new()
@@ -41,6 +42,7 @@ var held: Array[Vector2i] = []
 @onready var font := ThemeDB.fallback_font
 
 func _ready() -> void:
+	add_child(audio)
 	var start_id: StringName = &""
 	var selected_world: Resource = world_definition
 	if selected_world == null and use_imported_world and ResourceLoader.exists("res://imported/world.tres"):
@@ -54,6 +56,7 @@ func _ready() -> void:
 		combat.projectile_limit = selected_world.projectile_limit
 		world_id = String(selected_world.id)
 		item_resources = item_resources + selected_world.items
+	audio.configure(selected_world.audio_bank if selected_world != null else null, selected_world != null and String(selected_world.id) == "original_quest_1")
 	assert(not room_resources.is_empty(), "World must contain rooms")
 	for definition in room_resources:
 		var errors: PackedStringArray = definition.validation_errors()
@@ -82,6 +85,10 @@ func _input(event: InputEvent) -> void:
 		KEY_DOWN, KEY_S: direction = Vector2i.DOWN
 		KEY_LEFT, KEY_A: direction = Vector2i.LEFT
 		KEY_RIGHT, KEY_D: direction = Vector2i.RIGHT
+		KEY_M:
+			if event.pressed:
+				audio.muted = not audio.muted
+				audio.apply_pause()
 		KEY_F5:
 			if event.pressed: save_game()
 		KEY_F9:
@@ -103,7 +110,12 @@ func _input(event: InputEvent) -> void:
 			held.append(direction)
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		audio.suspended = false
+		audio.apply_pause()
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		audio.suspended = true
+		audio.apply_pause()
 		held.clear()
 		attack_requested = false
 
@@ -129,6 +141,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	sword.phase = -1
 	combat.enter_room(room, state, restoring, at, facing)
 	state.visit_room(room)
+	audio.set_music(room.music)
 
 func dialogue_visible() -> bool:
 	return not room.dialogue.is_empty() and (room.dialogue_until_pickup.is_empty() or not state.has_collected(room.id, room.dialogue_until_pickup))
@@ -163,6 +176,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false) -> void:
 		combat.tick(self)
 		return
 	elif attack_pressed and sword.start(state.equipped_weapon, player.facing):
+		audio.play(&"attack")
 		combat.tick(self)
 		return
 	else:
@@ -205,6 +219,7 @@ func try_pickups() -> void:
 		if distance.x > pickup.tolerance.x or distance.y > pickup.tolerance.y:
 			continue
 		if state.collect(room.id, pickup):
+			audio.play(&"item_fanfare" if pickup.lift_ticks > 0 else &"item")
 			lifted_item = pickup.item
 			lift_remaining = pickup.lift_ticks
 			pickup_ticks[state.pickup_key(room.id, pickup.id)] = simulation_tick
@@ -621,4 +636,11 @@ func load_game() -> bool:
 	player.subposition = position
 	combat.player_invulnerability = 48
 	show_status("BACKUP SAVE LOADED" if result.backup else "LOADED AT ROOM ENTRANCE" if relocated else "GAME LOADED")
+	return true
+
+## Secret systems call this only after their world change has succeeded.
+func reveal_secret(flag: String) -> bool:
+	if flag.is_empty() or state.flags.get(flag, false): return false
+	state.flags[flag] = true
+	audio.play(&"secret")
 	return true

@@ -64,6 +64,8 @@ func can_enemy_occupy(world: Node, at: Vector2i) -> bool:
 func hurt_player(world: Node, damage: int, source: Vector2i) -> bool:
 	if player_invulnerability > 0 or world.state.health <= 0: return false
 	world.state.health = maxi(0, world.state.health - damage)
+	if world.state.health == 0: world.audio.silence()
+	world.audio.play(&"player_hurt")
 	player_invulnerability = 48
 	var delta: Vector2i = world.player.pixel_position() - source
 	var relative: Vector2i = world.player.subposition - world.player.grid_origin * 256
@@ -100,8 +102,11 @@ func tick(world: Node) -> void:
 		actor.source_random = source_random.at(actor.slot)
 		actor.source_next_random = source_random.at(actor.slot + 1)
 		if actor.alive() and world.sword.hits(world.player.pixel_position(), actor.position()):
-			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction) and actor.health == 0:
-				record_permanent_kill(world, actor)
+			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction):
+				world.audio.play(&"enemy_hit")
+				if actor.health == 0:
+					world.audio.play(&"enemy_die")
+					record_permanent_kill(world, actor)
 		var original: bool = actor.definition.behavior == "nes_octorok"
 		var target: Vector2i = chase_target if original else world.player.pixel_position()
 		if actor.tick(target, func(at: Vector2i) -> bool: return can_enemy_occupy(world, at),
@@ -145,6 +150,7 @@ func tick(world: Node) -> void:
 				# The basic shield blocks rocks arriving from the facing direction,
 				# while Link is free to defend (not using the sword).
 				if world.player.facing == -rock.direction and not world.sword.active():
+					world.audio.play(&"parry")
 					rock.alive = false
 				elif hurt_player(world, 1, at):
 					rock.alive = false
@@ -155,7 +161,9 @@ func tick(world: Node) -> void:
 			var touched: bool = reward.touches(world.player.pixel_position())
 			if world.sword.visible():
 				touched = touched or reward.touches(world.player.pixel_position() + world.sword.offset())
-			if touched: reward.take(world.state)
+			if touched:
+				reward.take(world.state)
+				world.audio.play(&"heart" if reward.definition.effect == "health" else &"rupee")
 	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < Reward.LIFETIME)
 
 func player_box(world: Node) -> Rect2i:
@@ -194,7 +202,9 @@ func tick_beam(world: Node) -> void:
 		for actor in enemies:
 			if actor.alive() and beam.hits(actor.position()):
 				if actor.receive_hit(beam.damage, beam.direction):
+					world.audio.play(&"enemy_hit")
 					if actor.health == 0:
+						world.audio.play(&"enemy_die")
 						record_permanent_kill(world, actor)
 					beam.impact()
 					return
@@ -334,6 +344,7 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 	var player_center: Vector2i = world.player.pixel_position() + Vector2i(8, 8)
 	if player_invulnerability == 0 and source_contact(center, player_center):
 		if world.player.facing == -rock.direction and not world.sword.active():
+			world.audio.play(&"parry")
 			rock.bounce_direction = world.player.facing
 			rock.bounce_remaining = 16
 		else:

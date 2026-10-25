@@ -79,3 +79,7 @@ Overworld room edges now scroll with source-based timing. See [scrolling notes](
 Save/load now persists inventory, health, currency, collected items, defeated enemies, progression flags, and location. See [save controls and storage](docs/SAVING.md).
 
 Imported overworld enemies now respawn using the original six-entry room history and kill counts. See [room persistence and custom policies](docs/ROOM_PERSISTENCE.md).
+
+Sound effects and room music are implemented; press **M** to mute. Local ROM imports
+include audio; clean source projects use original placeholder tones. See
+[audio setup and fidelity notes](docs/AUDIO.md).
