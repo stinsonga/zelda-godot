@@ -5,7 +5,7 @@ extends Resource
 @export var id: StringName
 @export var title: String
 ## "level" items (map, compass, triforce) set a flag for the current dungeon level.
-@export_enum("unique", "grade", "count", "heart_container", "rupees", "health", "level") var effect: String = "unique"
+@export_enum("unique", "grade", "count", "heart_container", "rupees", "health", "level", "bomb_capacity") var effect: String = "unique"
 ## Items sharing a slot replace or add to each other, as the original slot table does.
 @export var slot: StringName
 @export var value: int = 1

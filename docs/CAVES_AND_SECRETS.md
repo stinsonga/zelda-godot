@@ -27,8 +27,9 @@ $58, $78, and $98, each holding an item, a price, and an optional paid hint.
 `CaveSession` follows `UpdateCavePerson` for one visit:
 
 1. Prices appear with a 10-frame delay. Text then types one character every six
-   frames. Link is held until the text ends. A non-breaking space is the ROM's
-   untimed tile $25.
+   frames. Link is held until the text ends. An underscore in cave text marks the ROM's
+   untimed space tile $25. Godot 4.6 decodes U+00A0 in `.tres` files as U+FFFD,
+   so the earlier non-breaking-space marker lost its meaning.
 2. Talk-only residents stop. A door-repair resident then posts a 20-rupee charge.
 3. Choosing residents watch for Link at a ware's exact X, within six pixels of Y $98.
    Nothing is taken while the rupee counter is still paying.

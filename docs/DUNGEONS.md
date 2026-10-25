@@ -42,7 +42,7 @@ room edge that `CheckDoorway` lets Link walk.
 | false | Looks like a wall; Link walks through. |
 | key | Opens when Link presses into it (`DoorwayBoundsMinOver/MaxOver`) holding a key, or the magical key without spending it. |
 | bombable | Opens when a detonating bomb is within $18 of its `BombableWallHotspots` point. |
-| shutter | Open while the room is clear: no living monsters, plus a pushed block for trigger 4. |
+| shutter | Closes behind Link and reopens when the room's trigger fires (`CheckSecretTrigger`): triggers 1, 2, 3, and 7 when the monsters are gone, 4 when the block is pushed, 6 when the money-or-life man leaves. Triggers 0 and 5 never open them; trigger 0 shutters are one-way. Seen from the next room, a shutter is open. |
 
 Opening a key or bombable door sets `door/<room>/<direction>` for both sides.
 Authored doors need only direction and kind: empty cell arrays use the standard
@@ -68,8 +68,35 @@ doorway geometry the importer derives (`DoorDefinition.STANDARD_CELLS`). See
 
 Entry walks stop exactly on their target, as mode 4 does.
 
+## Residents, statues, and rupee stashes
+
+- Types $4B-$52 are residents (`InitUnderworldPerson`). Each imports as a
+  `CaveDefinition` on the room (`imported/caves/uw_l<N>_<room>.tres`) with the old
+  man at ($78, $80) and his two fires. His text comes from the level group's selector table:
+  A for levels 1, 2, 5, and 7; B for 3, 4, 6, and 8; C for 9. He holds Link until
+  the text ends, then blocks the way north (Y $8E) while present.
+- In levels 1, 2, 5, and 7 the $4F man sells bomb capacity: Link stands on the
+  rupee at ($78, $98) with 100 rupees. Capacity rises by four and fills, without
+  lifting. The man flickers away and stays gone (`bomb_upgrade`, `lifts_wares = false`).
+- The level 9 entrance man (`triforce_gate`) leaves on entry once Link holds the
+  triforce of levels 1-8, and sets `shutters/<room>` to open his trigger-0 shutters.
+- Striking a resident with the sword enables the fires' fireballs: statue pattern 2
+  from ($48, $82) and ($A8, $86).
+- Statue rooms (unique layout $24: four statues, $23: two) shoot `$55` fireballs
+  (`UpdateStatues`). Each statue keeps a timer. When it runs out, random >= $F0 waits 256
+  frames, otherwise a start time of $50, $80, $F0, or $60 is chosen. The shot is
+  skipped when Link is within $18 on both axes or no object slot from 6 up is free.
+  Rooms list them in `statues` and `provoked_statues`; each fireball starts 4
+  pixels right of its statue.
+- A rupee stash ($35) makes ten rupees at `RupeeStashXs`/`Ys`. Each is taken within 9
+  pixels. Taking one sets the room's count to zero, so after leaving none return.
+  Leaving without taking any keeps all ten.
+
 ## Verification
 
+- `tests/dungeon_people.gd` covers shutter triggers, the gate man, the bomb offer,
+  statues and provoked fires, and rupee stashes with built-in fixtures; with an
+  import it checks the original rooms.
 - `tests/dungeons.gd` covers level structure, entrance and exit, key, magical-key,
   and bombable doors, open doorways, the level 1 cellar and bow, map and triforce,
   the level exit, push-block shutters, and saving inside a level.
@@ -81,8 +108,10 @@ Entry walks stop exactly on their target, as mode 4 does.
 
 ## Known gaps
 
-- Dungeon monsters, bosses, dark rooms, and the old men and money-or-life rooms are not
-  implemented.
+- Dark rooms are not implemented. The money-or-life man ($51) appears only in the
+  second quest and is not implemented. The hungry Goriya needs bait.
+- Only the sword provokes a resident; the original's `CheckMonsterCollisions`
+  also counts other weapons.
 - False walls do not wait the original 24 frames. Doorway movement uses lanes
   instead of `Link_ModifyDirInDoorway`. Room-to-room walks scroll as outdoors.
 - Cellar keese are not spawned. Link is drawn 2 pixels high in cellars.

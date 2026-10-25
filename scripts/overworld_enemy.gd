@@ -87,7 +87,7 @@ func vulnerable(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.sword_vulnerable()
-	if actor.definition.behavior == "zelda": return false
+	if actor.definition.behavior in ["zelda", "rupee_stash"]: return false
 	# UpdatePatra checks monster collisions only once every child is gone.
 	if actor.definition.behavior == "patra": return patra == null or patra.living_children() == 0
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
@@ -105,7 +105,7 @@ func contact_enabled(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.touches_link()
-	if actor.definition.behavior == "zelda": return false
+	if actor.definition.behavior in ["zelda", "rupee_stash"]: return false
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase == 3
@@ -169,6 +169,7 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 		return false
 	# UpdateGuardFire only animates and collides.
 	if actor.definition.behavior == "guard_fire": return false
+	if actor.definition.behavior == "rupee_stash": return false
 	if actor.shove_remaining > 0:
 		actor.source.shove(actor, probe)
 		return false

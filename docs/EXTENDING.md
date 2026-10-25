@@ -82,7 +82,7 @@ Imported rooms list their cells only because their atlas draws the frame.
 | `false` | Drawn as wall; Link walks through. Use it on both sides. |
 | `key` | Opens when Link presses into it with a key (the magical key is never spent). Opening marks both sides. |
 | `bombable` | Hidden in the wall until a bomb detonates near it; marks both sides. |
-| `shutter` | Shut while monsters that count for clearing live (plus a pushed block when `shutter_trigger` is 4). |
+| `shutter` | Closes behind Link; reopens on the room's `shutter_trigger`: 1 when the monsters are gone, 4 when the block is pushed. The default 0 never reopens: a one-way door. |
 | `wall` | No doorway. |
 
 Pair each door with the matching `exits` entry. Rooms without an atlas mark closed
@@ -93,6 +93,12 @@ key doors and shutters; bombable and false walls stay hidden.
 with `shutter_trigger = 4`. The block is solid until pushed. Link must line up
 and push away from himself for 16 ticks with every monster gone. A stairs
 portal on the revealed square needs `requires_secret = true`.
+
+**Residents**: give a dungeon room a `cave` (a `CaveDefinition`), set
+`lifts_wares = false` for the dungeon style, add the two fire decorations, and
+list `provoked_statues` for the fires to shoot when he is struck. `triforce_gate`
+makes him leave once Link holds the triforce of levels 1-8. **Statues**: list
+fireball origins in `statues`.
 
 **Cellars** are ordinary rooms: a ladder column of `.` squares, a portal at the
 top (`required_direction` up), and an item with `lift_ticks = 128`. Set

@@ -61,6 +61,11 @@ func take_item(item: Resource) -> bool:
 		"count":
 			var cap: int = max_bombs if item.slot == &"bombs" else item.limit
 			slots[item.slot] = mini(cap, before + item.value)
+		"bomb_capacity":
+			# Z_01 UpdateUnderworldPersonComplexState_SenseLink: more capacity, filled.
+			max_bombs += item.value
+			slots[&"bombs"] = max_bombs
+			return true
 		"heart_container":
 			if max_health >= 32: return false
 			max_health += 2

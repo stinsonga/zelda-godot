@@ -371,7 +371,8 @@ func check_imported() -> void:
 	var caves := 0
 	for id in world.rooms:
 		var definition: Resource = world.rooms[id]
-		if definition.cave == null: continue
+		# Dungeon residents reuse caves but have no overworld entrance.
+		if definition.cave == null or definition.dungeon_level > 0: continue
 		caves += 1
 		var exit: Resource = definition.portals[0]
 		var source: Resource = world.rooms[exit.target_room]

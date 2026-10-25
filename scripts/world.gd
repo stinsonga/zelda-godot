@@ -413,7 +413,18 @@ func door_passable(definition: Resource, door: Resource) -> bool:
 	match door.kind:
 		"open", "false": return true
 		"key", "bombable": return state.flags.get(door_key(definition, door.direction), false)
-		"shutter": return definition != room or room_clear()
+		"shutter": return definition != room or shutters_open()
+	return false
+
+## Z_05 CheckSecretTrigger: shutters close behind Link and reopen only when the
+## room's trigger fires. Trigger 0 never fires; the level 9 gate man opens his
+## room's shutters through a flag. Trigger 5 reveals stairs and opens nothing.
+func shutters_open() -> bool:
+	if state.flags.get("shutters/" + String(room.id), false): return true
+	match room.shutter_trigger:
+		1, 2, 3, 7: return monsters_gone()
+		4: return secrets.revealed
+		6: return cave_session == null or not cave_session.person_visible()
 	return false
 
 ## Z_05 CheckHasLivingMonsters: Bubbles and traps do not count.
@@ -729,7 +740,8 @@ func can_occupy(at: Vector2i) -> bool:
 func can_enter_segment(at: Vector2i, direction: Vector2i) -> bool:
 	if not room.movement_bounds.has_point(at + direction * 8):
 		return false
-	if room.cave != null and direction == Vector2i.UP and at.y < CAVE_PERSON_LINE:
+	# Underworld residents block only while present (Z_07 checks ObjType+1).
+	if room.cave != null and direction == Vector2i.UP and at.y < CAVE_PERSON_LINE and (room.dungeon_level == 0 or (cave_session != null and cave_session.person_visible())):
 		return false
 	# Z_07 GetCollidingTileMoving / GetCollidableTile. At grid points,
 	# horizontal movement checks one leading column at the foot hotspot;

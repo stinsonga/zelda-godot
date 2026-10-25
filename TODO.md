@@ -2,10 +2,10 @@
 
 ## Finish the dungeons
 
-1. Dungeon old men's hint rooms, money-or-life rooms, candle-lit dark rooms,
-   monster-carried keys and drops (including Dodongo bombs),
-   and the gate to Ganon. Real dark rooms replace the overlay in Ganon's room.
-2. Remaining items: magical rod/book, bait, raft, ladder, magical-key edge cases,
+1. Candle-lit dark rooms (replacing the overlay in Ganon's room), monster-carried
+   keys and drops (including Dodongo bombs). Old men, the bomb offer, the level 9
+   gate, statues, and rupee stashes are done.
+2. Remaining items: magical rod/book, bait (and the hungry Goriya it feeds), raft, ladder, magical-key edge cases,
    clock, and fairies.
 
 ## Expansion groundwork

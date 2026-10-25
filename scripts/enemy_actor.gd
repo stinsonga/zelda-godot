@@ -211,7 +211,7 @@ func sprite_name() -> StringName:
 	# UpdateGuardFire: one image, flipped every six frames.
 	if definition.behavior == "guard_fire":
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / 6) % 2))
-	if definition.behavior == "zelda": return definition.sprite
+	if definition.behavior in ["zelda", "rupee_stash"]: return definition.sprite
 	# Patra flips horizontally every two frames; children alternate two tiles.
 	if definition.behavior in ["patra", "patra_child"]:
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / 2) % 2))

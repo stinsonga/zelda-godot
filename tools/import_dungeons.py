@@ -8,6 +8,7 @@ See docs/DUNGEONS.md for the routines behind each table.
 import json
 
 from nes_cpu import Cpu
+from import_caves import person_text
 
 LEVEL_BLOCKS = {1: 0x18700, 7: 0x18A00}   # Levels 1-6 and 7-9 share a 128-room grid.
 LEVEL_INFO = 0x19300
@@ -262,6 +263,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
         for room in rooms:
             types = monster_types(prg, block, info, room)
             if types and all(kind in MONSTERS for kind in types): kinds.update(types)
+            if types and types[0] in PEOPLE: kinds.add(GATE_MAN)
         if 0x13 in kinds: kinds.add(0x14)
         sprite_names += monster_sprites(prg, level, kinds, output, png, blit_tile)
         for room in rooms:
@@ -327,7 +329,26 @@ def export_levels(prg, output, png, blit_tile, entrances):
             types = monster_types(prg, block, info, room)
             coverage['rooms'] += bool(types)
             persistence = 'reset'
-            if types and all(kind in MONSTERS for kind in types):
+            unique = block[384 + room] & 0x3F
+            statues = statue_points(prg, unique)
+            if statues:
+                fields.append(f'statues = PackedVector2Array({", ".join(f"{x}, {y}" for x, y in statues)})')
+            if len(types) == 1 and types[0] in PEOPLE:
+                cave = person_cave(prg, level, room, types[0])
+                (output / 'caves').mkdir(exist_ok=True)
+                (output / 'caves' / f'{cave["id"]}.tres').write_text(cave['text'])
+                ext += [f'[ext_resource type="Resource" path="res://imported/caves/{cave["id"]}.tres" id="cave"]',
+                        '[ext_resource type="Script" path="res://scripts/decoration_definition.gd" id="decoration"]']
+                for name, x in (('fire_left', 72), ('fire_right', 168)):
+                    subs += [f'[sub_resource type="Resource" id="{name}"]', 'script = ExtResource("decoration")',
+                             f'position = Vector2i({x}, 64)', 'sprite = &"fire"', 'frames = 2', 'frame_ticks = 6',
+                             f'blocking_area = Rect2i({x}, 64, 16, 16)']
+                # A struck person sets PersonFireballsEnabled: statue pattern 2 shoots from the fires.
+                provoked = statue_points(prg, None, pattern=2)
+                fields += ['cave = ExtResource("cave")', 'decorations = Array[Resource]([SubResource("fire_left"), SubResource("fire_right")])',
+                           f'provoked_statues = PackedVector2Array({", ".join(f"{x}, {y}" for x, y in provoked)})']
+                coverage['populated'] += 1
+            elif types and all(kind in MONSTERS for kind in types):
                 # Z_05 AssignObjSpawnPositions uses the same spawn lists as the overworld.
                 enemy_ext, enemy_subs, enemy_field = enemy_lines(level, types, room=room)
                 ext += enemy_ext
@@ -394,7 +415,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
 
 
 # Dungeon monster types (Z_07 UpdateObject_JumpTable) with their native behavior.
-MONSTERS = {0x3E: ('ganon', 'ganon'), 0x37: ('zelda', 'zelda'), 0x3F: ('guard_fire', 'guard_fire'), 0x47: ('patra_1', 'patra'), 0x48: ('patra_2', 'patra'), 0x41: ('moldorm', 'moldorm'), 0x3A: ('red_lanmola', 'moldorm'), 0x3B: ('blue_lanmola', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
+MONSTERS = {0x35: ('rupee_stash', 'rupee_stash'), 0x3E: ('ganon', 'ganon'), 0x37: ('zelda', 'zelda'), 0x3F: ('guard_fire', 'guard_fire'), 0x47: ('patra_1', 'patra'), 0x48: ('patra_2', 'patra'), 0x41: ('moldorm', 'moldorm'), 0x3A: ('red_lanmola', 'moldorm'), 0x3B: ('blue_lanmola', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
             0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
             0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
             0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
@@ -429,7 +450,20 @@ GANON_START_XS = 0x12D2D           # GanonStartXs: $30, $B0.
 GANON_PALETTE = 0x1A202            # GanonPaletteRow7TransferBuf (blue).
 GANON_COLOR_SETS = 0x61C5          # GanonColorSets: brown, blue, triforce.
 GUARD_FIRES = 0x128C0              # GuardFireXs (5), GuardFireYs (5); slot 1 becomes Zelda.
+RUPEE_STASH_SPOTS = [(0x78, 0x70), (0x70, 0x80), (0x80, 0x80), (0x60, 0x90), (0x70, 0x90), (0x80, 0x90), (0x90, 0x90),
+                     (0x70, 0xA0), (0x80, 0xA0), (0x78, 0xB0)]
 GUARD_FIRE_SPOTS = [(0x78, 0x88), (0x60, 0xB5), (0x70, 0x9D), (0x80, 0x9D), (0x90, 0xB5)]
+# Z_01 InitUnderworldPerson: text selectors by level group (A: 1, 2, 5, 7;
+# B: 3, 4, 6, 8; C: 9), indexed by person type - $4B.
+PERSON_SELECTORS = {'A': 0x4A1B, 'B': 0x4A61, 'C': 0x4A80}
+PERSON_GROUPS = {1: 'A', 2: 'A', 3: 'B', 4: 'B', 5: 'A', 6: 'B', 7: 'A', 8: 'B', 9: 'C'}
+PEOPLE = range(0x4B, 0x53)
+MORE_BOMBS = 0x4F                  # The A-level man selling bomb capacity for 100.
+GATE_MAN = 0x4B                    # The level 9 man who waits for the whole triforce.
+# Z_04 UpdateStatues: StatueRoomLayouts (2), StatueFireballCounts (3), StartTimes (4),
+# PatternToBasePositionIndex (3), StatueXs (8), StatueYs (8).
+STATUES = 0x10634
+RUPEE_STASH = 0x62CE               # Z_01 RupeeStashXs (10), RupeeStashYs (10).
 EVERYTHING = '"sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"'
 OBJECT_LISTS = 83775            # ObjListAddrs pointer table, bank 5.
 CELLAR_KEESE = [(0x20, 0x9D), (0x60, 0x5D), (0x90, 0x7D), (0xD0, 0x9D)]   # Z_05 CellarKeeseXs/Ys
@@ -440,6 +474,41 @@ UW_COMMON_SPRITES = 56507       # PatternBlockUWSP, $100 bytes at $08E0.
 BOSS_SPRITES = {1: 57307, 2: 57307, 5: 57307, 7: 57307, 3: 58331, 4: 58331, 6: 58331, 8: 58331, 9: 59355}
 
 
+def statue_points(prg, unique, pattern=None):
+    """Z_04 UpdateStatues: layouts $24 and $23 use patterns 0 and 1; pattern 2 is the
+    struck person's fires. Returns fireball origins in play-area pixels: each
+    fireball starts 4 right of its statue (ShootFireball)."""
+    if pattern is None:
+        layouts = list(prg[STATUES:STATUES + 2])
+        if unique not in layouts: return []
+        pattern = layouts.index(unique)
+    count = prg[STATUES + 2 + pattern] + 1
+    base = prg[STATUES + 9 + pattern]
+    return [(prg[STATUES + 12 + base + i] + 4, prg[STATUES + 20 + base + i] - 64) for i in range(count)]
+
+
+def person_cave(prg, level, room, kind):
+    """Z_01 InitUnderworldPerson: a cave-style resident with level-group text.
+    The A-level $4F man sells four more bombs for 100 rupees, shown as a rupee
+    at ($78, $98); the level 9 $4B man opens his shutters for the whole triforce."""
+    group = PERSON_GROUPS[level]
+    selector = prg[PERSON_SELECTORS[group] + kind - 0x4B]
+    ident = f'uw_l{level}_{room:02x}'
+    ext = ['[ext_resource type="Script" path="res://scripts/cave_definition.gd" id="cave"]']
+    subs, wares = [], 'Array[Resource]([null, null, null])'
+    fields = [f'id = &"{ident}"', f'person_sprite = &"l{level}_old_man"', f'text = {json.dumps(person_text(prg, selector))}', 'lifts_wares = false']
+    if kind == MORE_BOMBS and group == 'A':
+        ext += ['[ext_resource type="Script" path="res://scripts/cave_ware.gd" id="ware"]',
+                '[ext_resource type="Resource" path="res://content/items/bomb_upgrade.tres" id="upgrade"]']
+        subs += ['[sub_resource type="Resource" id="ware"]', 'script = ExtResource("ware")', 'item = ExtResource("upgrade")', 'price = 100']
+        wares = 'Array[Resource]([null, SubResource("ware"), null])'
+        fields += ['choose = true', 'pay = true', 'show_items = true', 'show_prices = true', 'negative_prices = true', 'remember = true']
+    if kind == GATE_MAN and group == 'C': fields.append('triforce_gate = true')
+    lines = ext + subs + ['[resource]', 'script = ExtResource("cave")', f'wares = {wares}'] + fields
+    steps = sum(line.startswith(('[ext_resource', '[sub_resource')) for line in lines) + 1
+    return {'id': ident, 'text': '\n'.join([f'[gd_resource type="Resource" script_class="CaveDefinition" load_steps={steps} format=3]'] + lines) + '\n'}
+
+
 def monster_types(prg, block, info, room):
     """Z_05 object templates: one type with a count, or a mixed list from ObjListAddrs."""
     attr_c, attr_d = block[256 + room], block[384 + room]
@@ -447,6 +516,8 @@ def monster_types(prg, block, info, room):
     count = info[36 + (attr_c >> 6)]
     if template == 0: return []
     if template in (0x49, 0x4A): return [0x49] * (6 if template == 0x49 else 4)
+    # InitRupeeStash_Full makes ten rupees from the one object.
+    if template == 0x35: return [0x35] * 10
     # InitZelda: Zelda in slot 1 and four guard fires.
     if template == 0x37: return [0x37] + [0x3F] * 4
     if template < 0x62: return [template] * (1 if template >= 0x32 else count)
@@ -535,6 +606,10 @@ def monster_definition(prg, kind):
                       invincible_to='PackedStringArray("beam", "boomerang", "bomb", "fire", "magic")', projectile_kind='"fireball"',
                       projectile_blockable='false', projectile_magic_blockable='false', projectile_damage=(raw & 15) * 2 + bool(raw & 240),
                       ganon_spots=f'PackedVector2Array({xs[0]}, {0xA0 - 64}, {xs[1]}, {0xA0 - 64})')
+    elif name == 'rupee_stash':
+        # UpdateRupeeStash_Full: each rupee is taken within 9 pixels; nothing hurts it.
+        fields.update(spawn_cloud='false', stunnable='false', contact_damage=0, counts_for_clear='false', drops_rewards='false',
+                      advances_kill_cycle='false', invincible_to=f'PackedStringArray({EVERYTHING})', sprite='&"rupee_0"')
     elif name == 'zelda':
         fields.update(spawn_cloud='false', stunnable='false', contact_damage=0, counts_for_clear='false', counts_for_persistence='false',
                       drops_rewards='false', advances_kill_cycle='false', invincible_to=f'PackedStringArray({EVERYTHING})')
@@ -732,6 +807,10 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
             png(output / f'l{level}_{name}_{part}.png', 16, 16, canvas)
             names.append(f'l{level}_{name}_{part}')
         kinds = kinds - {kind}
+    if GATE_MAN in kinds:
+        # Person_Draw: mirrored, attribute 2 in the level's palette.
+        render(f'l{level}_old_man', prg[0x6E04 + GATE_MAN + 1], mirrored=True)
+        kinds = kinds - {GATE_MAN}
     if 0x3E in kinds:
         ganon_sprites(prg, level, patterns, palettes, output, png, blit_tile, names)
         kinds = kinds - {0x3E}
@@ -988,11 +1067,15 @@ def enemy_lines(level, types, positions=None, room=0):
     subs = []
     trap = 0
     fire = 0
+    stash = 0
     for i, kind in enumerate(types):
         x, y = positions[i] if positions else (120, 77)
         if kind == 0x49:
             x, y = TRAPS[trap][0], TRAPS[trap][1] - 64
             trap += 1
+        elif kind == 0x35:
+            x, y = RUPEE_STASH_SPOTS[stash][0], RUPEE_STASH_SPOTS[stash][1] - 64
+            stash += 1
         elif kind == 0x3F:
             fire += 1
             x, y = GUARD_FIRE_SPOTS[fire][0], GUARD_FIRE_SPOTS[fire][1] - 64

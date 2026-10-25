@@ -34,7 +34,7 @@ class CaveImportTests(unittest.TestCase):
         data = bytearray(131072)
         data[caves.PERSON_TEXT_ADDRS:caves.PERSON_TEXT_ADDRS + 2] = (0x804C).to_bytes(2, 'little')
         data[0x404C:0x4050] = bytes([0x25, 0x0A | 0x80, 0x24, 0x0B | 0xC0])
-        self.assertEqual(caves.person_text(data, 0), ' A\n B')
+        self.assertEqual(caves.person_text(data, 0), '_A\n B')
 
     def local(self):
         inputs = list((ROOT / 'reference-inputs').glob('*.nes'))
@@ -45,7 +45,7 @@ class CaveImportTests(unittest.TestCase):
         prg = self.local()
         table = {cave['type']: cave for cave in caves.cave_types(prg)}
         self.assertEqual(table[0x6A]['wares'][1]['item'], 'wooden_sword')
-        self.assertTrue(table[0x6A]['remember'] and table[0x6A]['text'].strip().startswith("IT'S DANGEROUS TO GO"))
+        self.assertTrue(table[0x6A]['remember'] and table[0x6A]['text'].strip('_ ').startswith("IT'S DANGEROUS TO GO"))
         self.assertEqual((table[0x6C]['heart_requirement'], table[0x6D]['heart_requirement']), (5, 12))
         self.assertTrue(table[0x70]['money_game'] and table[0x70]['negative_prices'])
         self.assertEqual(table[0x71]['door_charge'], 20)
@@ -77,7 +77,7 @@ class CaveImportTests(unittest.TestCase):
         prg = self.local()
         lines = set()
         for selector in range(0, 0x4C, 2):
-            for line in caves.person_text(prg, selector).replace('\u00a0', ' ').split('\n'):
+            for line in caves.person_text(prg, selector).replace('_', ' ').split('\n'):
                 if len(line.strip()) >= 8: lines.add(line.strip())
         for folder in ('content', 'scenes'):
             for path in (ROOT / folder).rglob('*'):

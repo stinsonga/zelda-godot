@@ -4,7 +4,7 @@ extends Resource
 ## caves import exactly and custom caves can mix behaviors.
 @export var id: StringName
 @export var person_sprite: StringName = &"old_man"
-## A non-breaking space is shown without taking typing time, like tile $25.
+## An underscore is a space shown without taking typing time, like tile $25.
 @export_multiline var text: String = ""
 ## Exactly three slots; a null entry is empty.
 @export var wares: Array[Resource] = [null, null, null]
@@ -24,6 +24,12 @@ extends Resource
 @export var gift_money: bool = false
 ## The resident only does business after the letter is shown.
 @export var requires_letter: bool = false
+## Taken wares are held overhead with the fanfare, as in caves; dungeon people
+## hand over without lifting (Z_01 L_Person_FlagItemTakenAndAdvanceState).
+@export var lifts_wares: bool = true
+## Z_01 InitUnderworldPersonC: with the triforce of levels 1-8 the resident
+## leaves on entry and his room's shutters open.
+@export var triforce_gate: bool = false
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()

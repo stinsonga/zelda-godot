@@ -37,7 +37,9 @@ ITEMS = {0x00: 'bombs', 0x01: 'wooden_sword', 0x02: 'white_sword', 0x03: 'magica
          0x1E: 'magical_boomerang', 0x1F: 'blue_potion', 0x20: 'red_potion', 0x22: 'heart'}
 # Sprites that already exist as two-frame drop animations.
 ANIMATED_ITEMS = {'rupee', 'five_rupees', 'heart'}
-TEXT_CHARS = {0x24: ' ', 0x25: ' ', 0x28: ',', 0x29: '.', 0x2A: "'", 0x2C: '!',
+# Tile $25 is a space typed without delay; '_' marks it, because Godot 4.6 text
+# resources decode U+00A0 as U+FFFD.
+TEXT_CHARS = {0x24: ' ', 0x25: '_', 0x28: ',', 0x29: '.', 0x2A: "'", 0x2C: '!',
               0x2D: '"', 0x2E: '?', 0x2F: '-'}
 SECRET_KINDS = {0xE5: 'rock', 0xE6: 'wall', 0xE7: 'tree', 0xE8: 'grave'}
 FLUTE_ROOMS = 0x1EF66       # Z_07 FluteRoomSecretsOW; entry 0 is the first quest's pond.
@@ -107,10 +109,10 @@ def cave_resource(cave):
             wares.append('null')
             continue
         subs += [f'[sub_resource type="Resource" id="ware_{i}"]', 'script = ExtResource("ware")',
-                 f'item = ExtResource("{ware["item"]}")', f'price = {ware["price"]}', f'hint = {json.dumps(ware["hint"], ensure_ascii=False)}']
+                 f'item = ExtResource("{ware["item"]}")', f'price = {ware["price"]}', f'hint = {json.dumps(ware["hint"])}']
         wares.append(f'SubResource("ware_{i}")')
     sprite = {0x98: 'old_man', 0x9A: 'old_woman', 0x9C: 'merchant', 0xF8: 'cave_moblin'}[cave['person_tile']]
-    fields = [f'id = &"{cave["id"]}"', f'person_sprite = &"{sprite}"', f'text = {json.dumps(cave["text"], ensure_ascii=False)}',
+    fields = [f'id = &"{cave["id"]}"', f'person_sprite = &"{sprite}"', f'text = {json.dumps(cave["text"])}',
               'wares = Array[Resource]([' + ', '.join(wares) + '])']
     for key in ('choose', 'pay', 'show_items', 'show_prices', 'negative_prices', 'hint', 'money_game', 'remember', 'gift_money', 'requires_letter'):
         fields.append(f'{key} = {str(cave[key]).lower()}')

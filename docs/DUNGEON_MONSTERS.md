@@ -2,10 +2,11 @@
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
 Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
-blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, Patra, and Ganon, plus Zelda and her guard fires. 195 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
-families, and every cellar holds its four blue Keese. Rooms with other monsters
-(the old men) stay empty until those exist,
-rather than substituting a different monster. The manifest records the counts.
+blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, Patra, and Ganon, plus Zelda and her guard fires. Dungeon residents and rupee
+stashes are in too (see DUNGEONS.md). 215 of the 216 first-quest dungeon rooms
+that hold monsters are populated, and every cellar holds its four blue Keese.
+The last, level 7's hungry Goriya, waits for bait. It stays empty rather than
+substituting a different monster. The manifest records the counts.
 
 ## Behaviors
 
@@ -55,7 +56,7 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Dodongo does not yet drop its bombs. Second-quest Stalfos
+Dodongo does not yet drop its bombs. Grumble (type $36) needs the bait item. Second-quest Stalfos
 shooting, the clock's freeze, and keys carried by monsters are also not
 implemented. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
 

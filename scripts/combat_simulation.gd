@@ -35,6 +35,12 @@ var wallmaster_cooldown := 0
 var room_item_position = null
 ## Zelda's rescue finished; the ending (mode $13) is the front end's job.
 var ending := false
+## Z_04 Statue_ObjFireballTimer per fireball index, and PersonFireballsEnabled.
+var statue_timers: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
+var person_provoked := false
+const STATUE_START_TIMES := [0x50, 0x80, 0xF0, 0x60]
+## SetUpCommonCaveObjects: residents stand at ($78, $80).
+const PERSON_POSITION := Vector2i(0x78, 0x80 - 64)
 
 func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entry_position: Vector2i = Vector2i.ZERO, entry_direction: Vector2i = Vector2i.UP) -> void:
 	beam = null
@@ -72,6 +78,8 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	setup_patras()
 	room_item_position = null
 	ending = false
+	statue_timers = PackedInt32Array([0, 0, 0, 0])
+	person_provoked = false
 	for actor in enemies:
 		if actor.definition.behavior == "ganon": actor.family.ganon = preload("res://scripts/ganon.gd").new()
 	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
@@ -232,6 +240,9 @@ func tick(world: Node) -> void:
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11)),
 		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at)}
+	# Z_01 Person_CheckCollisions: striking a dungeon resident enables the fires' fireballs.
+	if world.room.dungeon_level > 0 and world.cave_session != null and world.cave_session.person_visible() and world.sword.hits(world.player.pixel_position(), PERSON_POSITION):
+		person_provoked = true
 	var updates: Array = enemies.duplicate()
 	updates.reverse()
 	for actor in updates:
@@ -295,6 +306,8 @@ func tick(world: Node) -> void:
 		var gap: Vector2i = (actor.position() + actor.definition.collision_offset + actor.collision_size() / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
 		if actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
 			touch_player(world, actor)
+	tick_rupee_stash(world)
+	tick_statues(world)
 	ambush_timer = int(context.ambush_timer)
 	wallmaster_cooldown = int(context.wallmaster_cooldown)
 	split_zols(world)
@@ -355,6 +368,48 @@ func rescue_zelda(world: Node, actor: RefCounted) -> void:
 	if actor.family.zelda_state == 2 and not ending:
 		ending = true
 		world.state.flags["zelda_rescued"] = true
+
+## Z_01 UpdateRupeeStash_Full: Link takes a rupee within 9 pixels. Taking one
+## counts as taking them all once he leaves (RoomObjCount = 0).
+func tick_rupee_stash(world: Node) -> void:
+	var at: Vector2i = world.player.pixel_position()
+	for actor in enemies:
+		if actor.definition.behavior != "rupee_stash" or actor.health <= 0: continue
+		var delta: Vector2i = (at - actor.position()).abs()
+		if delta.x >= 9 or delta.y >= 9: continue
+		world.state.rupees_to_add += 1
+		world.audio.play(&"rupee")
+		actor.health = 0
+		actor.death_remaining = 0
+		actor.drop_resolved = true
+		encounter_kills = encounter_total
+
+## Z_04 UpdateStatues: each fireball index waits on its own timer; when it runs
+## out, random >= $F0 waits 256 more frames, otherwise a start time is chosen and
+## a $55 fireball leaves unless Link is within $18 on both axes. A free object
+## slot from 6 up is needed. A struck resident's fires replace the room's statues.
+func tick_statues(world: Node) -> void:
+	var room: Resource = world.room
+	if room.dungeon_level == 0: return
+	var points: PackedVector2Array = room.provoked_statues if person_provoked else room.statues
+	if points.is_empty(): return
+	var busy: int = rocks.size() + enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.slot >= 6).size()
+	if busy >= 6: return
+	var player: Vector2i = world.player.pixel_position()
+	for i in range(points.size() - 1, -1, -1):
+		var waited: int = statue_timers[i]
+		statue_timers[i] = (waited - 1) & 0xFF
+		if waited != 0: continue
+		var random_byte: int = source_random.at(i)
+		if random_byte >= 0xF0: continue
+		statue_timers[i] = STATUE_START_TIMES[random_byte & 3]
+		var origin := Vector2i(points[i])
+		var delta: Vector2i = (player - (origin - Vector2i(4, 0))).abs()
+		if delta.x < 0x18 and delta.y < 0x18: continue
+		if rocks.size() >= projectile_limit: continue
+		var fireball: RefCounted = make_fireball(world, origin, 0)
+		fireball.damage = room.statue_damage
+		rocks.append(fireball)
 
 ## Ganon's intro and Zelda's rescue halt Link while monsters keep updating.
 func holds_player() -> bool:
@@ -616,7 +671,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm", "patra", "zelda", "guard_fire"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm", "patra", "zelda", "guard_fire", "rupee_stash"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

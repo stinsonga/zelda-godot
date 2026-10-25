@@ -4,7 +4,9 @@ extends RefCounted
 ## that outlive the visit are recorded in GameState under room_id/taken.
 const WARE_X: Array[int] = [88, 120, 152]
 const WARE_Y := 88
-const UNTIMED_SPACE := "\u00a0"
+## Tile $25: a space shown without typing time. Text resources mark it with an
+## underscore, since Godot 4.6 decodes U+00A0 in .tres files as U+FFFD.
+const UNTIMED_SPACE := "_"
 const TAKEN := &"taken"
 var cave: Resource
 var room_id: StringName
@@ -31,6 +33,11 @@ func start(definition: Resource, room: StringName, state: RefCounted, random: Re
 		var ware: Resource = cave.wares[i]
 		prices[i] = ware.price if ware != null else 0
 		signs[i] = "-" if cave.negative_prices else ""
+	if cave.triforce_gate and range(1, 9).all(func(level: int) -> bool: return state.has_level_item(&"triforce", level)):
+		phase = "gone"
+		halting = false
+		state.flags["shutters/" + String(room_id)] = true
+		return
 	if cave.remember and state.has_collected(room_id, TAKEN):
 		phase = "gone"
 		halting = false
@@ -148,7 +155,10 @@ func shop(world: Node) -> void:
 	if cave.heart_requirement > 0 and state.max_health / 2 < cave.heart_requirement: return
 	state.collected[state.pickup_key(room_id, TAKEN)] = true
 	taken[index] = true
-	world.take_cave_item(ware.item)
+	if cave.lifts_wares: world.take_cave_item(ware.item)
+	else:
+		state.take_item(ware.item)
+		world.audio.play(&"key")
 	show_prices = false
 	text = ""
 	shown = 0
