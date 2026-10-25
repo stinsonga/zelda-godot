@@ -70,7 +70,9 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 func setup_moldorms() -> void:
 	for actor in enemies.duplicate():
 		if actor.definition.behavior!="moldorm":continue
-		var group=preload("res://scripts/moldorm.gd").new()
+		var lanmola: bool=actor.definition.chain_style=="lanmola"
+		var group=preload("res://scripts/lanmola.gd").new() if lanmola else preload("res://scripts/moldorm.gd").new()
+		if lanmola: group.speed=actor.definition.chain_speed
 		group.setup(actor)
 		actor.family.moldorm=group
 		for chain_index in range(actor.definition.moldorm_chain_count):
@@ -95,7 +97,8 @@ func setup_moldorms() -> void:
 				part.family.moldorm_is_head=head
 				enemies.append(part)
 				parts.append(part)
-			group.add_chain(parts,OverworldEnemy.DIRS[source_random.at(parts.back().slot)&7])
+			# InitLamnola: both heads start facing up; Moldorm heads pick at random.
+			group.add_chain(parts,Vector2i.UP if lanmola else OverworldEnemy.DIRS[source_random.at(parts.back().slot)&7])
 		enemies.erase(actor)
 		enemies.append(actor)
 

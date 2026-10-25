@@ -2,9 +2,9 @@
 
 Implemented families: Stalfos, Goriyas, Gels, Zols, Keese, Ropes, Darknuts,
 Gibdos, Bubbles, Like Likes, Vires, Pols Voices, Wallmasters, blade traps, and
-blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, and Moldorm. 184 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
+blue and red Wizzrobes, and the bosses Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, and Lanmola. 188 of the 216 first-quest dungeon rooms that hold monsters now contain only implemented
 families, and every cellar holds its four blue Keese. Rooms with other monsters
-(the other bosses, Lanmolas, Patras, and the old men) stay empty until those exist,
+(Patra, Ganon, and the old men) stay empty until those exist,
 rather than substituting a different monster. The manifest records the counts.
 
 ## Behaviors
@@ -55,9 +55,9 @@ copy one into `content/` to make variants, as with overworld enemies.
 
 ## Not yet
 
-Lanmolas, Patras, and Ganon. Dodongo does not yet drop its bombs. Second-quest
-Stalfos shooting, monster stun from the boomerang and clock, and keys carried by
-monsters are also not implemented.
+Patras and Ganon. Dodongo does not yet drop its bombs. Second-quest Stalfos
+shooting, the clock's freeze, and keys carried by monsters are also not
+implemented. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
 
 ## Manhandla
 
@@ -172,5 +172,27 @@ they simulate all Moldorm rooms. Python checks source stats and each sprite pixe
 in levels 2 and 7. `visual_preview.gd -- moldorm` renders a deterministic encounter.
 
 Per-slot movement/collision order, initial timer phase, exact death-spark timing,
-and boss cries remain emulator-comparison follow-ups. Original art, palettes,
+and boss cries remain emulator-comparison follow-ups.
+
+## Lanmola
+
+Lanmolas reuse the Moldorm chain machinery with `chain_style = "lanmola"`
+(`LanmolaGroup` extends `MoldormGroup`), so setup, tail replacement, kill history,
+and persistence are shared. `InitLamnola` places both five-segment worms at
+($40, $8D) with only the heads moving, upward. Speed is the type minus $39: red
+($3A) one pixel a frame, blue ($3B) two (`chain_speed`). `UpdateLamnola` moves
+every segment that has a direction. At every 8-pixel point, the head copies
+directions one segment back, tail first. At every 16-pixel square it picks a new
+direction that never reverses:
+
+- half the time toward Link, sideways only if that is allowed and Link faces that way;
+- otherwise straight on (random+1 >= $80), or turning to the first perpendicular
+  ($40-$7F) or the second (< $40);
+- then rotating past the room bounds and walls (`BoundByRoom`, walker tile probe).
+
+A lethal hit kills the chain's tail in the hit segment's place and revives the hit segment
+at HP $20 (2). Rooms remember at most eight kills. Sprites are narrow 8x16 tiles,
+head $9E and body $A0, in the row the speed XOR 3 selects. The authored
+content/enemies/lanmola*.tres fixture and `tests/lanmola.gd` need no ROM.
+`tests/test_lanmola.py` checks stats, rooms, and sprite pixels. Original art, palettes,
 room data, and extracted definitions stay under ignored imported/.

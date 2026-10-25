@@ -197,7 +197,9 @@ func body_visible() -> bool:
 	return family.visible(self)
 
 func sprite_name() -> StringName:
-	if definition.behavior == "moldorm_segment": return &"moldorm"
+	if definition.behavior == "moldorm_segment":
+		if definition.chain_style == "lanmola": return StringName(String(definition.sprite) + ("_head" if family.moldorm_is_head else "_body"))
+		return &"moldorm"
 	if definition.behavior == "gleeok": return StringName("gleeok_body_"+str(family.gleeok.animation if family.gleeok != null else 0))
 	if definition.behavior == "gleeok_head": return StringName("gleeok_flying_"+str(animation_ticks&1)) if family.gleeok_detached else &"gleeok_head"
 	if definition.behavior in ["jumper", "burrower", "flyer"]:

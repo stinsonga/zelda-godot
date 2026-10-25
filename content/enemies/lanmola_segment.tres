@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_burrower_segment"
+behavior = "moldorm_segment"
+health = 4
+spawn_cloud = false
+shooting_enabled = false
+stunnable = false
+counts_for_persistence = false
+advances_kill_cycle = false
+drops_rewards = false
+loot_table = null
+chain_style = "lanmola"
+sprite = &"lab_burrower"
+fallback_color = Color(0.3, 0.45, 0.9, 1)

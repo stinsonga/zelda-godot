@@ -333,7 +333,8 @@ def export_levels(prg, output, png, blit_tile, entrances):
                 ext += enemy_ext
                 subs += enemy_subs
                 fields += [enemy_field, 'source_spawn_lists = true']
-                if 0x41 in types: fields.append('persistence_enemy_count = 8')
+                # InitMoldorm/InitLamnola: RoomObjCount 8, the most kills a room remembers.
+                if {0x41, 0x3A, 0x3B} & set(types): fields.append('persistence_enemy_count = 8')
                 persistence = 'overworld'
                 coverage['populated'] += 1
             elif types: coverage['unsupported'] += 1
@@ -393,7 +394,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
 
 
 # Dungeon monster types (Z_07 UpdateObject_JumpTable) with their native behavior.
-MONSTERS = {0x41: ('moldorm', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
+MONSTERS = {0x41: ('moldorm', 'moldorm'), 0x3A: ('red_lanmola', 'moldorm'), 0x3B: ('blue_lanmola', 'moldorm'), 0x42: ('gleeok_1', 'gleeok'), 0x43: ('gleeok_2', 'gleeok'), 0x44: ('gleeok_3', 'gleeok'), 0x45: ('gleeok_4', 'gleeok'), 0x3C: ('manhandla', 'manhandla'), 0x05: ('blue_goriya', 'walker'), 0x06: ('red_goriya', 'walker'), 0x13: ('zol', 'gel'),
             0x14: ('child_gel', 'gel'), 0x15: ('gel', 'gel'), 0x1B: ('blue_keese', 'flyer'),
             0x1C: ('red_keese', 'flyer'), 0x1D: ('black_keese', 'flyer'), 0x28: ('rope', 'rope'),
             0x2A: ('stalfos', 'walker'), 0x0B: ('red_darknut', 'walker'), 0x0C: ('blue_darknut', 'walker'),
@@ -409,7 +410,8 @@ DODONGO_IMAGES = [0x00, 0x01, 0x06, None, 0x08, 0x02, 0x03, 0x06, None, 0x08]
 DODONGO_BLOATED = [0x04, 0x05, 0x07, None, 0x09]
 # Bosses that start at fixed spots rather than spawn lists (Z_04 InitAquamentus).
 # Gohma's position is its middle part; ours is the left leg, 16 pixels earlier.
-FIXED_POSITIONS = {0x41:(0x80,0x70),0x42:(0x74,0x57), 0x43:(0x74,0x57), 0x44:(0x74,0x57), 0x45:(0x74,0x57),0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
+# InitLamnola starts every segment at ($40, $8D).
+FIXED_POSITIONS = {0x3A:(0x40,0x8D), 0x3B:(0x40,0x8D), 0x41:(0x80,0x70),0x42:(0x74,0x57), 0x43:(0x74,0x57), 0x44:(0x74,0x57), 0x45:(0x74,0x57),0x3D: (0xB0, 0x80), 0x33: (0x70, 0x70), 0x34: (0x70, 0x70)}
 AQUAMENTUS_TILES = 0x11834          # Two frames of six 8x16 sprites.
 AQUAMENTUS_PALETTE = 0x1A28E        # AquamentusPaletteRow7TransferBuf.
 ORANGE_BOSS_PALETTE = 0x1A296       # OrangeBossPaletteRow7TransferBuf (Dodongo, Gohma).
@@ -500,6 +502,9 @@ def monster_definition(prg, kind):
     elif behavior == 'moldorm':
         fields.update(spawn_cloud='false',stunnable='false',shooting_enabled='false',drops_rewards='false',
                       advances_kill_cycle='false',speed_subpixels=128)
+        if 'lanmola' in name:
+            # InitLamnola: speed is the type minus $39; segments revive at HP $20.
+            fields.update(chain_style='"lanmola"', chain_speed=kind - 0x39)
     elif behavior == 'gleeok':
         raw = prg[0x72BA+0x56]
         fields.update(size='Vector2i(24,32)', collision_size='Vector2i(16,16)', collision_offset='Vector2i(8,24)',
@@ -546,10 +551,11 @@ def write_monsters(prg, output):
         ext = ['[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]']
         if fields['behavior'] == '"moldorm"':
             segment=fields.copy()
-            segment.update(id='&"moldorm_segment"',title='"Moldorm segment"',behavior='"moldorm_segment"',counts_for_persistence='false')
+            segment_name=f'{name}_segment'
+            segment.update(id=f'&"{segment_name}"',title=json.dumps(segment_name.replace('_',' ').title()),behavior='"moldorm_segment"',counts_for_persistence='false')
             header='[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]\n'+ext[0]+'\n[resource]\nscript = ExtResource("1")\n'
-            (output/'enemies'/'moldorm_segment.tres').write_text(header+'\n'.join(f'{key} = {value}' for key,value in segment.items())+'\n')
-            ext.append('[ext_resource type="Resource" path="res://imported/enemies/moldorm_segment.tres" id="segment"]')
+            (output/'enemies'/f'{segment_name}.tres').write_text(header+'\n'.join(f'{key} = {value}' for key,value in segment.items())+'\n')
+            ext.append(f'[ext_resource type="Resource" path="res://imported/enemies/{segment_name}.tres" id="segment"]')
             fields['moldorm_segment']='ExtResource("segment")'
         if fields['behavior'] == '"gleeok"':
             head = fields.copy()
@@ -612,6 +618,17 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
         png(output / f'{key}.png', 16, 16, canvas)
         names.append(key)
 
+    for kind, name in ((0x3A, 'red_lanmola'), (0x3B, 'blue_lanmola')):
+        if kind not in kinds: continue
+        # UpdateLamnola: narrow 8x16 sprites, head $9E and body $A0; attributes are speed XOR 3.
+        row = palettes[4 + ((kind - 0x39) ^ 3)]
+        for part, tile in (('head', 0x9E), ('body', 0xA0)):
+            canvas = bytearray(16 * 16 * 4)
+            bank = patterns[0x1000:] if tile & 1 else patterns
+            for half in range(2): blit_tile(canvas, 16, 4, half * 8, bank, (tile & 0xFE) + half, row, True)
+            png(output / f'l{level}_{name}_{part}.png', 16, 16, canvas)
+            names.append(f'l{level}_{name}_{part}')
+        kinds = kinds - {kind}
     if 0x41 in kinds:
         # UpdateMoldorm draws one normal, red-palette 8x16 sprite at tile $44.
         canvas=bytearray(16*16*4)

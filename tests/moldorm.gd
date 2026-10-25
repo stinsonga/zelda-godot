@@ -109,7 +109,7 @@ func run()->void:
 		world.set_physics_process(false)
 		var found:=0
 		for candidate in world.room_resources:
-			if not candidate.enemies.any(func(s:Resource)->bool:return s.enemy.behavior=="moldorm"):continue
+			if not candidate.enemies.any(func(s:Resource)->bool:return s.enemy.behavior=="moldorm" and s.enemy.chain_style=="moldorm"):continue
 			world.enter_room(candidate,candidate.spawn,Vector2i.UP)
 			check(world.combat.enemies.size()==11 and candidate.persistence_enemy_count==8,"Original room must create ten segments and preserve its history cap")
 			owner=world.combat.enemies.back()

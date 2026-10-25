@@ -2,8 +2,8 @@
 
 ## Finish the dungeons
 
-1. Remaining bosses: Lanmola, Patra, then Ganon,
-   silver-arrow finish, and rescuing Zelda. Manhandla, Gleeok, and Moldorm are now implemented and tested.
+1. Remaining bosses: Patra, then Ganon, silver-arrow finish, and rescuing Zelda.
+   Manhandla, Gleeok, Moldorm, and Lanmola are implemented and tested.
 2. Immediately after bosses: expansion groundwork below.
 3. Dungeon old men's hint rooms, money-or-life rooms, candle-lit dark rooms,
    monster-carried keys and drops (including Dodongo bombs), Triforce of Power,
@@ -41,6 +41,6 @@
 Movement, source-based Octoroks, room scrolling/history, native checkpoints,
 sound/music, common overworld families and editable variants, 59 overworld caves,
 equipment and secrets, all nine dungeon foundations and 255 rooms, regular dungeon
-families and Wizzrobes, Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, and Moldorm.
+families and Wizzrobes, Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, and Lanmola.
 Bow/arrows, boomerang, recorder/whirlwind, and gradual paused potion refill work.
 See docs/ for behavior, validation, and remaining fidelity limits.

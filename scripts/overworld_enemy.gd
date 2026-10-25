@@ -124,6 +124,7 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	if timer > 0: timer -= 1
 	if actor.source.turn_timer > 0: actor.source.turn_timer -= 1
 	if actor.definition.behavior in ["moldorm", "moldorm_segment"]:
+		context.probe = probe
 		if moldorm != null: moldorm.tick(actor,context)
 		return false
 	if actor.definition.behavior in ["gleeok", "gleeok_head"]:

@@ -99,6 +99,10 @@ extends Resource
 @export_range(1, 4) var moldorm_chain_count: int = 2
 @export_range(1, 8) var moldorm_segments_per_chain: int = 5
 @export var moldorm_segment_reset_health: int = 2
+## "lanmola" chains move segment by segment (Z_04 UpdateLamnola) at chain_speed
+## pixels a frame, heads starting upward; "moldorm" chains fly on turn timers.
+@export_enum("moldorm", "lanmola") var chain_style: String = "moldorm"
+@export_range(1, 4) var chain_speed: int = 1
 @export var drops_rewards: bool = true
 @export var gleeok_head: Resource
 @export_range(1, 4) var gleeok_neck_count: int = 2
