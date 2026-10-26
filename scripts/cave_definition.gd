@@ -30,9 +30,14 @@ extends Resource
 ## Z_01 InitUnderworldPersonC: with the triforce of levels 1-8 the resident
 ## leaves on entry and his room's shutters open.
 @export var triforce_gate: bool = false
+## Hungry dungeon resident: accepts placed bait, then leaves permanently.
+@export var accepts_bait: bool = false
+@export var feeding_ticks: int = 64
+@export var text_line_offset: int = 0
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
+	if feeding_ticks<1 or text_line_offset<0:errors.append("Invalid resident timing or text offset")
 	if id.is_empty(): errors.append("Cave ID is empty")
 	if wares.size() != 3: errors.append("Cave " + String(id) + " needs exactly three ware slots")
 	for ware in wares:

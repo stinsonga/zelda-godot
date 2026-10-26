@@ -5,6 +5,12 @@ extends Resource
 @export_enum("permanent", "overworld", "reset") var enemy_persistence: String = "permanent"
 ## Original Moldorm uses ten live segments but stores at most eight kills.
 @export var persistence_enemy_count: int = 0
+## Dark rooms fade background palettes; sprites and HUD remain unaffected.
+@export var dark_room: bool = false
+## Source mode follows the first enemy template; custom rooms may override it.
+@export_enum("source", "enabled", "disabled") var bait_attraction: String = "source"
+@export var dark_tile_atlases: Array[Texture2D] = []
+@export_range(1, 120) var light_step_ticks: int = 10
 @export var source_spawn_lists: bool = false
 @export var source_edge_spawns: bool = false
 @export var source_edge_cells: PackedByteArray = PackedByteArray()
@@ -65,6 +71,11 @@ func is_pixel_solid(pixel: Vector2i) -> bool:
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
+	if light_step_ticks < 1: errors.append("Lighting steps need positive timing")
+	if not dark_tile_atlases.is_empty():
+		if dark_tile_atlases.size()!=3:errors.append("Lighting requires three progressively darker atlases")
+		for atlas in dark_tile_atlases:
+			if atlas==null or tile_atlas==null or atlas.get_size()!=tile_atlas.get_size():errors.append("Lighting atlases must match the base atlas")
 	if enemy_persistence not in ["permanent", "overworld", "reset"]:
 		errors.append("Unknown enemy persistence policy")
 	if id.is_empty():

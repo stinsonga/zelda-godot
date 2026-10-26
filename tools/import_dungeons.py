@@ -6,6 +6,7 @@ FillPlayAreaAttrs) on nes_cpu, so walls, doors, and floors match the game.
 See docs/DUNGEONS.md for the routines behind each table.
 """
 import json
+import re
 
 from nes_cpu import Cpu
 from import_caves import person_text
@@ -264,6 +265,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
             types = monster_types(prg, block, info, room)
             if types and all(kind in MONSTERS for kind in types): kinds.update(types)
             if types and types[0] in PEOPLE: kinds.add(GATE_MAN)
+            if types and types[0]==0x36:kinds.add(0x36)
         if 0x13 in kinds: kinds.add(0x14)
         sprite_names += monster_sprites(prg, level, kinds, output, png, blit_tile)
         for room in rooms:
@@ -293,6 +295,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
                     exits[direction] = room_id(level, target)
             # Stairs squares (tile $70) and push-block stairs lead into cellars.
             stairs = [(x // 2, y // 2) for x in range(0, 32, 2) for y in range(0, 22, 2) if tile_at(closed, x, y) == 0x70]
+            fields.append(f'dark_room = {str(bool(block[512+room]&128)).lower()}')
             attr_f = block[640 + room]
             trigger = attr_f & 7
             if block[384 + room] & 0x40:
@@ -339,7 +342,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
             statues = statue_points(prg, unique)
             if statues:
                 fields.append(f'statues = PackedVector2Array({", ".join(f"{x}, {y}" for x, y in statues)})')
-            if len(types) == 1 and types[0] in PEOPLE:
+            if len(types) == 1 and (types[0] in PEOPLE or types[0]==0x36):
                 cave = person_cave(prg, level, room, types[0])
                 (output / 'caves').mkdir(exist_ok=True)
                 (output / 'caves' / f'{cave["id"]}.tres').write_text(cave['text'])
@@ -412,7 +415,17 @@ def export_levels(prg, output, png, blit_tile, entrances):
                 f'tile_indices = PackedInt32Array({cell_lines(indices)})', f'collision_tiles = PackedByteArray({cell_lines(collision(tiles))})',
                 f'portals = Array[Resource]([{", ".join(portals)}])'] + fields)
         atlas.write(output / 'levels' / f'level_{level}.png', patterns[0x1000:], palettes, png, blit_tile)
+        for stage in range(1,4):
+            faded=[row[:] for row in palettes]
+            # LevelInfo_PaletteCycles at $6BFA, cycle $40: bottom background half only.
+            cycle=info[0x7C+0x40+stage*8:0x7C+0x48+stage*8]
+            faded[2],faded[3]=list(cycle[:4]),list(cycle[4:])
+            atlas.write(output/'levels'/f'level_{level}_dark_{stage}.png',patterns[0x1000:],faded,png,blit_tile)
         for name, text in texts.items():
+            extra='\n'.join(f'[ext_resource type="Texture2D" path="res://imported/levels/level_{level}_dark_{stage}.png" id="dark_{stage}"]' for stage in range(1,4))
+            text=text.replace('\n','\n'+extra+'\n',1)
+            text=text.replace('tile_atlas = ExtResource("atlas")','tile_atlas = ExtResource("atlas")\ndark_tile_atlases = Array[Texture2D]([ExtResource("dark_1"),ExtResource("dark_2"),ExtResource("dark_3")])',1)
+            text=re.sub(r'load_steps=(\d+)',lambda m:'load_steps='+str(int(m[1])+3),text,count=1)
             (output / 'rooms' / f'{name}.tres').write_text(text)
             rooms_written.append(name)
     if missing_items:
@@ -501,11 +514,14 @@ def person_cave(prg, level, room, kind):
     The A-level $4F man sells four more bombs for 100 rupees, shown as a rupee
     at ($78, $98); the level 9 $4B man opens his shutters for the whole triforce."""
     group = PERSON_GROUPS[level]
-    selector = prg[PERSON_SELECTORS[group] + kind - 0x4B]
+    selector = 0x24 if kind==0x36 else prg[PERSON_SELECTORS[group] + kind - 0x4B]
     ident = f'uw_l{level}_{room:02x}'
     ext = ['[ext_resource type="Script" path="res://scripts/cave_definition.gd" id="cave"]']
     subs, wares = [], 'Array[Resource]([null, null, null])'
     fields = [f'id = &"{ident}"', f'person_sprite = &"l{level}_old_man"', f'text = {json.dumps(person_text(prg, selector))}', 'lifts_wares = false']
+    if kind==0x36:
+        fields=[field for field in fields if not field.startswith('person_sprite =')]
+        fields += [f'person_sprite = &"l{level}_hungry_goriya"','accepts_bait = true','remember = true','text_line_offset = 2']
     if kind == MORE_BOMBS and group == 'A':
         ext += ['[ext_resource type="Script" path="res://scripts/cave_ware.gd" id="ware"]',
                 '[ext_resource type="Resource" path="res://content/items/bomb_upgrade.tres" id="upgrade"]']
@@ -824,6 +840,9 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
     if 0x3E in kinds:
         ganon_sprites(prg, level, patterns, palettes, output, png, blit_tile, names)
         kinds = kinds - {0x3E}
+    if 0x36 in kinds:
+        render(f'l{level}_hungry_goriya',prg[0x6E04+0x37])
+        kinds=kinds-{0x36}
     if 0x37 in kinds:
         # Person_Draw: frame 0, mirrored, table attribute.
         render(f'l{level}_zelda', prg[0x6E04 + 0x38], mirrored=True)

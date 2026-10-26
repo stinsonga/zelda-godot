@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/world.gd" id="world"]
+[ext_resource type="Resource" path="res://content/rooms/bait_lab.tres" id="room"]
+[node name="BaitLab" type="Node2D"]
+script = ExtResource("world")
+use_imported_world = false
+room_resources = Array[Resource]([ExtResource("room")])

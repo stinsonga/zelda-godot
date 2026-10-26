@@ -56,6 +56,7 @@ var held_direction := Vector2i.ZERO
 ## A Like Like or Wallmaster holding Link.
 var captor: RefCounted
 const DIRECTION_NAMES := {Vector2i.UP: "up", Vector2i.DOWN: "down", Vector2i.LEFT: "left", Vector2i.RIGHT: "right"}
+var lighting = preload("res://scripts/room_lighting.gd").new()
 var simulation_tick := 0
 var entry_walk_remaining := 0
 var entry_walk_subpixels := 0
@@ -174,6 +175,8 @@ func _physics_process(_delta: float) -> void:
 	queue_redraw()
 
 func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: int = 0, restoring: bool = false, rise: int = 0) -> void:
+	var previous: Resource=room
+	var previous_light: int=lighting_stage() if room!=null else 0
 	if not restoring: combat.commit_room(state)
 	transition = null
 	room = target
@@ -205,6 +208,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 		cave_session = preload("res://scripts/cave_session.gd").new()
 		cave_session.start(room.cave, room.id, state, combat.source_random)
 	combat.enter_room(room, state, restoring, at, facing)
+	lighting.enter(room,previous!=null and previous.dungeon_level==room.dungeon_level,previous_light,restoring,ganon_intro())
 	state.visit_room(room)
 	audio.set_music(room.music)
 
@@ -220,6 +224,11 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		audio.play(&"heart")
 	state.sword_block_ticks = maxi(0, state.sword_block_ticks - 1)
 	if state.health <= 0:
+		return
+	if lighting.fading():
+		lighting.tick()
+		# Hardware object timers continue counting while the play loop is held.
+		for object in item_objects:object.timer=maxi(0,object.timer-1)
 		return
 	if transition != null:
 		if transition.tick():
@@ -255,8 +264,9 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	var lifting := lift_remaining > 0
 	var cave_halts := false
 	if cave_session != null and entry_walk_remaining == 0:
+		var was_feeding:bool=cave_session.phase=="feeding"
 		cave_session.tick(self)
-		cave_halts = cave_session.blocks_player()
+		cave_halts = was_feeding or cave_session.blocks_player()
 	if lift_remaining > 0:
 		if lifting: lift_remaining -= 1
 		return
@@ -523,6 +533,8 @@ func tick_item_objects() -> void:
 		var cue: StringName = object.tick()
 		if not cue.is_empty(): audio.play(cue)
 		if not object.active: continue
+		if object.kind=="bait":continue
+		if object.kind=="fire" and object.stage==2:lighting.candle(room)
 		if object.kind in ["arrow", "boomerang"]:
 			tick_thrown(object)
 			continue
@@ -652,13 +664,18 @@ func use_item() -> bool:
 			audio.play(&"arrow")
 		&"boomerang":
 			# Z_05 WieldBoomerang: thrown along the held direction, diagonals included.
-			if item_objects.any(func(o: RefCounted) -> bool: return o.kind == "boomerang"):
+			if item_objects.any(func(o: RefCounted) -> bool: return o.active and o.kind in ["boomerang","bait"]):
 				return false
 			var aim: Vector2i = held_direction if held_direction != Vector2i.ZERO else player.facing
 			var thrown: Resource = item_for_slot(&"boomerang")
 			if thrown != null: item_objects.append(ItemObject.boomerang(ahead, aim, thrown.use_range, thrown.use_speed))
 			else: item_objects.append(ItemObject.boomerang(ahead, aim, 0xFF if state.item_value(&"boomerang") >= 2 else 0x31))
 			audio.play(&"arrow")
+		&"bait":
+			if item_objects.any(func(o:RefCounted)->bool:return o.active and o.kind in ["boomerang","bait"]):return false
+			var food:Resource=item_for_slot(&"bait")
+			item_objects.append(ItemObject.bait(ahead,food.use_duration_ticks if food!=null else 765))
+			if cave_session!=null:cave_session.try_feed(self)
 		&"recorder":
 			play_recorder()
 		&"letter":
@@ -789,6 +806,7 @@ func try_exit(direction: Vector2i) -> void:
 	transition.source_position = at
 	transition.destination = destination
 	transition.direction = direction
+	if target.dark_room and lighting_stage()<3:lighting.begin(false,target.light_step_ticks)
 	player.facing = direction
 	# Transient projectiles and loose drops cannot leak into the next room.
 	combat.beam = null
@@ -814,7 +832,6 @@ func _draw() -> void:
 		draw_scrolling_rooms()
 		return
 	draw_terrain(room, Vector2.ZERO)
-	draw_darkness()
 	draw_pushed_object()
 	draw_room_objects()
 	draw_item_objects()
@@ -972,10 +989,14 @@ func draw_cave() -> void:
 	if entry_walk_remaining == 0:
 		var lines: PackedStringArray = session.visible_text().split("\n")
 		for i in range(lines.size()):
-			draw_hud_text(lines[i], Vector2(32, 104 + i * 8))
+			draw_hud_text(lines[i], Vector2(32, 104 + (i+session.cave.text_line_offset) * 8))
 
 func draw_item_objects() -> void:
 	for object in item_objects:
+		if object.kind=="bait":
+			if visual_theme.sprites.has(&"bait"):draw_named_sprite(&"bait",Vector2(object.position))
+			else:draw_circle(Vector2(object.position)+Vector2(8,HUD_HEIGHT+8),4,Color("d89048"))
+			continue
 		if object.kind == "arrow":
 			var name := StringName("monster_arrow_" + direction_name(object.direction))
 			if object.stage == 1 and visual_theme.sprites.has(name): draw_named_sprite(name, Vector2(object.position))
@@ -1005,6 +1026,10 @@ func draw_item_objects() -> void:
 				else: draw_circle(Vector2(object.center() + offset) + Vector2(0, HUD_HEIGHT), 6, Color("e8e8e8"))
 
 func draw_hud_text(text: String, at: Vector2, color: Color = Color.WHITE) -> void:
+	if visual_theme.hud_tiles == null:
+		for i in range(text.length()):
+			draw_string(font, at + Vector2(i * 8, 8), text.substr(i, 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, color)
+		return
 	for i in range(text.length()):
 		var code := text.unicode_at(i)
 		var tile := -1
@@ -1062,11 +1087,17 @@ func draw_original_hud() -> void:
 func ganon_intro() -> bool:
 	return combat.enemies.any(func(a: RefCounted) -> bool: return a.definition.behavior == "ganon" and a.health > 0 and a.family.ganon != null and a.family.ganon.holds_player())
 
-## Dark rooms are not drawn yet; Ganon's room fades from dark in four steps.
-## Provisional: an overlay stands in for LevelInfo_PaletteCycles.
-func draw_darkness() -> void:
-	var steps: int = combat.darkness()
-	if steps > 0: draw_rect(Rect2(Vector2(0, HUD_HEIGHT), Vector2(256, 176)), Color(0, 0, 0, steps * 0.2))
+## The palette is global during scrolling, as on the NES. Ganon owns its intro.
+func lighting_stage() -> int:
+	return mini(3,combat.darkness()) if combat.darkness()>0 else lighting.stage
+
+func terrain_atlas(definition: Resource) -> Texture2D:
+	var stage:=lighting_stage()
+	if stage>0 and definition.dark_tile_atlases.size()==3:return definition.dark_tile_atlases[stage-1]
+	return definition.tile_atlas
+
+func floor_tint(color: Color) -> Color:
+	return color.darkened(float(lighting_stage())/3.0)
 
 ## Z_04 Ganon_DrawAshes and Ganon_DrawBurst: ashes, eight clouds closing in,
 ## and eight rays flying out with flashing palettes.
@@ -1193,6 +1224,7 @@ func draw_combat() -> void:
 					draw_circle(at + Vector2(8, HUD_HEIGHT + 8), 2, Color("b5eaff"))
 
 func draw_terrain(definition: Resource, offset: Vector2) -> void:
+	var atlas: Texture2D=terrain_atlas(definition)
 	for y in range(11):
 		for x in range(16):
 			var wall: bool = definition.is_solid(Vector2i(x, y))
@@ -1203,13 +1235,13 @@ func draw_terrain(definition: Resource, offset: Vector2) -> void:
 				var cell_size: Vector2i = definition.atlas_cell_size
 				var columns: int = definition.tile_atlas.get_width() / cell_size.x
 				var source := Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size))
-				draw_clipped_texture(definition.tile_atlas, rect, source)
+				draw_clipped_texture(atlas, rect, source)
 				continue
 			var texture: Texture2D = visual_theme.wall_texture if wall else visual_theme.floor_texture
 			if texture:
-				draw_clipped_texture(texture, rect, Rect2(Vector2.ZERO, texture.get_size()))
+				draw_clipped_texture(texture, rect, Rect2(Vector2.ZERO, texture.get_size()),Color.WHITE if wall else floor_tint(Color.WHITE))
 			else:
-				draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), visual_theme.wall_color if wall else visual_theme.floor_color)
+				draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), visual_theme.wall_color if wall else floor_tint(visual_theme.floor_color))
 				if wall:
 					draw_rect(rect.grow(-3).intersection(Rect2(0, 64, 256, 176)), Color("394f36"), false, 1)
 	var replaced: Dictionary = overrides if definition == room else compute_overrides(definition)
@@ -1243,10 +1275,10 @@ func draw_square(definition: Resource, index: int, at: Vector2, kind: String) ->
 	if definition.tile_atlas and index >= 0:
 		var cell_size: Vector2i = definition.atlas_cell_size
 		var columns: int = definition.tile_atlas.get_width() / cell_size.x
-		draw_clipped_texture(definition.tile_atlas, rect, Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size)))
+		draw_clipped_texture(terrain_atlas(definition), rect, Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size)))
 	else:
 		var colors := {"floor": visual_theme.floor_color, "object": visual_theme.wall_color, "entrance": Color.BLACK, "door": visual_theme.floor_color, "false_door": visual_theme.wall_color}
-		draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), colors[kind])
+		draw_rect(rect.intersection(Rect2(0, 64, 256, 176)), floor_tint(colors[kind]) if kind in ["floor","door","object"] else colors[kind])
 		# A false wall must look exactly like the placeholder wall around it.
 		if kind == "false_door": draw_rect(rect.grow(-3).intersection(Rect2(0, 64, 256, 176)), Color("394f36"), false, 1)
 
@@ -1318,7 +1350,7 @@ func enabled_keys(values: Dictionary) -> Array:
 	return keys
 
 func save_game() -> bool:
-	if transition != null or entry_walk_remaining > 0 or lift_remaining > 0 or rise_remaining > 0 or state.health <= 0 or not state.rupees_settled():
+	if transition != null or lighting.fading() or (cave_session!=null and cave_session.phase=="feeding") or entry_walk_remaining > 0 or lift_remaining > 0 or rise_remaining > 0 or state.health <= 0 or not state.rupees_settled():
 		show_status("WAIT UNTIL LINK IS READY TO SAVE")
 		return false
 	var result: Dictionary = save_store.write_snapshot(snapshot(), world_id)

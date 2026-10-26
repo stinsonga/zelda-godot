@@ -28,6 +28,13 @@ static func bomb(at: Vector2i, facing: Vector2i, fuse_ticks: Array[int] = BOMB_T
 	object.fuse = fuse_ticks
 	return object
 
+static func bait(at: Vector2i, lifetime: int = 765) -> RefCounted:
+	var object=new()
+	object.kind="bait"
+	object.position=at
+	object.timer=lifetime
+	return object
+
 static func fire(at: Vector2i, facing: Vector2i) -> RefCounted:
 	var object = new()
 	object.kind = "fire"
@@ -65,6 +72,9 @@ func spark() -> void:
 func tick() -> StringName:
 	if timer > 0:
 		timer -= 1
+	if kind == "bait":
+		if timer==0:active=false
+		return &""
 	if kind == "arrow":
 		if stage == 1: position += direction * speed
 		elif timer == 0: active = false
@@ -114,7 +124,7 @@ func center() -> Vector2i:
 ## Z_01 CheckMonsterBombOrFireCollision: midpoint distance below $18 or $0E;
 ## arrows and boomerangs use the shot thresholds.
 func hits(target: Vector2i) -> bool:
-	if not active or (kind == "bomb" and not detonating()) or (kind == "arrow" and stage != 1): return false
+	if kind=="bait" or not active or (kind == "bomb" and not detonating()) or (kind == "arrow" and stage != 1): return false
 	var limit := 0x18 if kind == "bomb" else 0x0E if kind == "fire" else 0x0C
 	var delta := (target + Vector2i(8, 8) - center()).abs()
 	return delta.x < limit and delta.y < limit

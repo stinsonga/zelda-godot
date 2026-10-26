@@ -2,10 +2,10 @@
 
 ## Finish the dungeons
 
-1. Candle-lit dark rooms (replacing the overlay in Ganon's room). Old men, the
-   bomb offer, the level 9 gate, statues, rupee stashes, carried room items, and
-   help drops (including Dodongo's bomb) are done.
-2. Remaining items: magical rod/book, bait (and the hungry Goriya it feeds), raft, ladder, magical-key edge cases,
+1. Candle-lit dark rooms and Ganon's palette fade are done; see docs/LIGHTING.md.
+   Old men, bomb offers, the level 9 gate, statues, rupee stashes, carried room
+   items, and help drops (including Dodongo's bomb) are also done.
+2. Remaining items: magical rod/book, raft, ladder, magical-key edge cases,
    clock, and fairies (also the clock and fairy drops).
 
 ## Expansion groundwork
@@ -25,7 +25,7 @@ timings. A visual room editor would help authors most.
 - Full object-slot scheduling, fuller APU synthesis/reference listening, door sound.
 - Improve visual content editing and asset-pack workflows.
 
-## Front end (later)
+## Front end (after remaining items; before fidelity comparisons)
 
 - Second-quest layouts, secrets, and enemies.
 - Title/waterfall, story scroll, three files, name entry, Continue/Save/Retry,
@@ -41,4 +41,8 @@ equipment and secrets, all nine dungeon foundations and 255 rooms, regular dunge
 families and Wizzrobes, Aquamentus, Dodongo, Gohma, Digdogger, Manhandla, Gleeok, Moldorm, Lanmola, Patra, Ganon, and Zelda's rescue.
 Bow/arrows, boomerang, recorder/whirlwind, and gradual paused potion refill work.
 Expansion groundwork: dungeon lab, authored doors, editable settings, guide.
+Dungeon dark palettes, standing-fire candle brightening, and Ganon intro palettes.
 See docs/ for behavior, validation, and remaining fidelity limits.
+
+Bait and the hungry Goriya are implemented; all 216 first-quest dungeon monster
+rooms are populated. See docs/BAIT.md and scenes/bait_lab.tscn.

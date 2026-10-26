@@ -17,6 +17,15 @@ func preview() -> void:
 			lab.overrides = lab.compute_overrides(lab.room)
 		lab.queue_redraw()
 		return
+	if args.has("bait_lab"):
+		var lab = preload("res://scenes/bait_lab.tscn").instantiate()
+		root.add_child(lab)
+		lab.set_physics_process(false)
+		for i in range(1000):
+			if lab.cave_session.phase == "waiting_bait": break
+			lab.simulate_tick(Vector2i.ZERO)
+		lab.queue_redraw()
+		return
 	var world = preload("res://scenes/main.tscn").instantiate()
 	root.add_child(world)
 	world.set_physics_process(false)
@@ -24,6 +33,33 @@ func preview() -> void:
 		push_error("Visual previews require a local ROM import")
 		quit(1)
 		return
+	if args.has("bait"):
+		world.enter_room(world.rooms[&"l7_28"], Vector2i(120,125), Vector2i.UP)
+		for i in range(1000):
+			if world.cave_session.phase == "waiting_bait": break
+			world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
+		return
+	if args.has("dark_room") or args.has("lit_room"):
+		for candidate in world.room_resources:
+			if not candidate.dark_room or candidate.dungeon_level!=4:continue
+			world.enter_room(candidate,candidate.spawn,Vector2i.UP,0,true)
+			if args.has("lit_room"):world.lighting.stage=0
+			world.queue_redraw()
+			return
+		push_error("Dark room preview missing")
+		quit(1)
+		return
+	if args.has("ganon_dark") or args.has("ganon_fade"):
+		for candidate in world.room_resources:
+			if not candidate.enemies.any(func(s:Resource)->bool:return s.enemy.behavior=="ganon"):continue
+			world.enter_room(candidate,candidate.spawn,Vector2i.UP)
+			if args.has("ganon_fade"):
+				var fight=world.combat.enemies.filter(func(a:RefCounted)->bool:return a.definition.behavior=="ganon")[0].family.ganon
+				fight.darkness=1
+			world.queue_redraw()
+			return
+
 	if args.has("ganon") or args.has("ganon_brown") or args.has("ganon_burst") or args.has("zelda"):
 		if args.has("zelda"):
 			world.enter_room(world.rooms[&"l9_32"], Vector2i(120, 125), Vector2i.UP)

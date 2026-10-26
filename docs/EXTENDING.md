@@ -167,3 +167,14 @@ timings, cave text speed, the dungeon map's size, and how many projectiles can
 be on screen (per world, `projectile_limit`). Wizzrobe, Like Like, and Wallmaster
 timings also remain constants in `scripts/overworld_enemy.gd`. Dark rooms,
 dungeon old men, and dialogue rooms inside dungeons are not built.
+
+## Dark rooms
+
+Set a room's `dark_room` flag and optionally `light_step_ticks`. Native unthemed
+rooms work without imported assets. For custom tile art, provide three progressively
+darker `dark_tile_atlases` with the base atlas's dimensions and cell order. Actor
+art and the HUD are unaffected. See [lighting behavior and verification](LIGHTING.md).
+
+The ROM-free `scenes/bait_lab.tscn` demonstrates bait and a persistent resident.
+See [BAIT.md](BAIT.md) for item lifetime, feeding timing, dialogue placement, and
+room attraction overrides.

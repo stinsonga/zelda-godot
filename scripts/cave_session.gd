@@ -82,7 +82,7 @@ func visible_text() -> String:
 
 ## State 4 skips drawing the person and wares every other frame.
 func flicker_hidden(frame: int) -> bool:
-	return phase == "hide" and frame % 2 != 0
+	return phase in ["hide","feeding"] and frame % 2 != 0
 
 func tick(world: Node) -> void:
 	timer = maxi(0, timer - 1)
@@ -92,12 +92,32 @@ func tick(world: Node) -> void:
 			phase = "text"
 		"text", "hint_text":
 			type_text(world)
+		"waiting_bait":
+			try_feed(world)
+		"feeding":
+			if timer==0:
+				world.item_objects=world.item_objects.filter(func(o:RefCounted)->bool:return o.kind!="bait")
+				world.state.slots[&"bait"]=0
+				world.ensure_selected_item()
+				phase="gone"
+				halting=false
 		"shop":
 			shop(world)
 		"wager":
 			resolve_money_game(world)
 		"hide":
 			if timer == 0: phase = "gone"
+
+func try_feed(world: Node) -> bool:
+	if phase!="waiting_bait" or not world.item_objects.any(func(o:RefCounted)->bool:return o.active and o.kind=="bait"):return false
+	world.state.collected[world.state.pickup_key(room_id,TAKEN)]=true
+	world.audio.play(&"secret")
+	phase="feeding"
+	timer=cave.feeding_ticks
+	text=""
+	shown=0
+	halting=true
+	return true
 
 func type_text(world: Node) -> void:
 	if timer > 0: return
@@ -109,7 +129,7 @@ func type_text(world: Node) -> void:
 	while shown < text.length() and text[shown] in [UNTIMED_SPACE, "\n"]: shown += 1
 	if shown >= text.length():
 		halting = false
-		phase = "shop" if phase == "text" else "idle"
+		phase = "waiting_bait" if cave.accepts_bait else "shop" if phase == "text" else "idle"
 
 func shop(world: Node) -> void:
 	var state: RefCounted = world.state

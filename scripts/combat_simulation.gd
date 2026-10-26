@@ -236,7 +236,15 @@ func tick(world: Node) -> void:
 		world.sword.beam_attempted = true
 		launched = launch_beam(world)
 	if not launched: tick_beam(world)
-	update_chase_target(world.player.pixel_position())
+	var food_target: Variant=null
+	var attracts:bool=world.room.bait_attraction=="enabled"
+	if world.room.bait_attraction=="source" and not world.room.enemies.is_empty():
+		var template:int=world.room.enemies[0].enemy.nes_type
+		attracts=(template>=3 and template<11) or template in [0x12,0x1B,0x1C]
+	if attracts:
+		for object in world.item_objects:
+			if object.active and object.kind=="bait":food_target=object.position;break
+	update_chase_target(world.player.pixel_position(),food_target)
 	update_edge_spawns(world)
 	ambush_timer = maxi(0,ambush_timer-1)
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
@@ -674,8 +682,9 @@ func advance_frame() -> void:
 		chase_timer = maxi(0, chase_timer - 1)
 		edge_timer = maxi(0, edge_timer - 1)
 
-func update_chase_target(player: Vector2i) -> void:
+func update_chase_target(player: Vector2i, food: Variant = null) -> void:
 	if not chase_other: chase_target = player
+	if food!=null:chase_target=food
 	if chase_timer != 0: return
 	chase_timer = source_random.at(1) & 7
 	chase_other = not chase_other

@@ -117,8 +117,9 @@ pixels left of its item position (`CreateRoomObjects`).
 
 ## Known gaps
 
-- Dark rooms are not implemented. The money-or-life man ($51) appears only in the
-  second quest and is not implemented. The hungry Goriya needs bait.
+- The money-or-life man ($51) appears only in the second quest and is not
+  implemented. Dark rooms and the hungry Goriya are implemented; see LIGHTING.md
+  and BAIT.md.
 - Only the sword provokes a resident; the original's `CheckMonsterCollisions`
   also counts other weapons.
 - False walls do not wait the original 24 frames. Doorway movement uses lanes
