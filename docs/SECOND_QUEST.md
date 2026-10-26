@@ -11,7 +11,7 @@ routines check the quest directly. Here a quest is a `WorldDefinition`:
 
 1. **Foundation (done).** A world per quest, chosen by the file; quest-wide
    monster rules; the file menu's marker.
-2. **Overworld.** Quest-only secrets (`IsQuestSecretMismatch`), the patched room
+2. **Overworld (done).** Quest-only secrets (`IsQuestSecretMismatch`), the patched room
    attributes (`LevelBlockAttrsBQ2Replacement*` and the A/D/F patches), the
    recorder secrets (`FluteRoomSecretsOW`), and the second quest's dungeon
    entrances.
@@ -41,8 +41,43 @@ routines check the quest directly. Here a quest is a `WorldDefinition`:
   flags and leaves three full hearts; the file keeps its deaths and next plays
   the second quest from the start.
 
-Until steps 2-4 land, the second quest's world has the first quest's places.
+## Overworld
 
-`tests/second_quest.gd` checks variants without a ROM, and the worlds, monster
-rules, and file switching with an import. `tests/test_second_quest.py` checks
-the importer's variants.
+The second quest shares the overworld's layouts and attribute block; the
+importer applies `UpdateMode2Load_Full`'s patches to a copy of the ROM
+(`import_rom.second_quest_prg`) and runs the same overworld import on it, into
+`imported/q2/rooms/`. The patches are:
+- the eight bytes of `LevelBlockAttrsBQ2Replacement*`: destinations, including
+  level 6's old two-square entrance, which becomes a two-square cave mouth;
+- seven immediates: new layouts (attribute D) for rooms $0B, $3C, and $74, and
+  their palettes and exits.
+
+Secrets follow `IsQuestSecretMismatch`: attribute F's top bits 1 and 2 keep a
+secret to the first or second quest. Every recorder pond drains to stairs at
+($60, $90) (`UpdateFluteSecret`). `FluteRoomSecretsOW`'s first room ($42, level
+7) is a pond in the first quest only; the other ten rooms are ponds in the
+second. Elsewhere the recorder summons the whirlwind, whose stops are the same
+table in both quests.
+
+The second quest's levels are reached by:
+- level 1, as before ($37);
+- level 2, a recorder pond ($3C);
+- level 3, an Armos ($34);
+- level 4, as before ($45);
+- level 5, a pushed rock ($1B);
+- level 6, a recorder pond ($30);
+- level 7, a bombed wall ($19);
+- level 8, a burned tree ($6C);
+- level 9, a bombed wall ($00).
+
+70 caves are reachable, against 63 in the first quest. The nine left out are the
+first quest's own secrets.
+
+Until step 3, these entrances lead into the first quest's levels, whose exits
+still return to the first quest's entrance rooms.
+
+`tests/second_quest.gd` checks the variant swap without a ROM. With an import, it
+also checks the worlds, monster rules, file switching, the patched rooms and
+quest secrets, and draining a pond. `tests/test_second_quest.py` checks the
+variants, the patch bytes, and that each quest has one entrance per level.
+`tests/visual_preview.gd -- q2_<room>` renders a second-quest room.

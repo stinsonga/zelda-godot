@@ -81,6 +81,28 @@ def square_tiles(prg, index):
     return list(range(first, first + 4))
 
 
+OW_ATTRS_RAM = 0x687E               # LevelBlockAttrsA in RAM; the ROM block at 99328 is copied there.
+Q2_ATTR_OFFSETS = 0x1815F           # Z_06 LevelBlockAttrsBQ2ReplacementOffsets, then the values.
+
+
+def second_quest_prg(prg):
+    """A PRG copy with Z_06 UpdateMode2Load_Full's second-quest overworld patches:
+    LevelBlockAttrsBQ2Replacement*, and the immediate LDA/STA pairs before them."""
+    patched = bytearray(prg)
+    table = Q2_ATTR_OFFSETS
+    assert prg[table - 1] == 0x60, 'Expected the patch routine to end just before its table'
+    for offset, value in zip(prg[table:table + 8], prg[table + 8:table + 16]):
+        patched[99328 + 128 + offset] = value
+    pairs, at = [], table - 6
+    while prg[at] == 0xA9 and prg[at + 2] == 0x8D:
+        pairs.append((prg[at + 1], prg[at + 3] | prg[at + 4] << 8))
+        at -= 5
+    assert len(pairs) == 7, 'Expected seven immediate patches'
+    for value, address in pairs:
+        patched[99328 + address - OW_ATTRS_RAM] = value
+    return patched
+
+
 def decode_room(prg, room_id):
     layout_id = prg[99328 + 3 * 128 + room_id] & 0x7F
     descriptors = prg[87064 + layout_id * 16:87064 + layout_id * 16 + 16]
@@ -622,7 +644,6 @@ def import_rom(prg, output):
         (output / 'caves' / f'{cave["id"]}.tres').write_text(cave_resource(cave), encoding='utf-8')
     entrances = overworld_entrances(prg, layouts, square_tiles)
     cellar = list(prg[103168 + 52:103168 + 56])
-    cave_rooms, cave_ids, unreachable = [], [], []
     # Each level's entrance: the first-quest room with an entrance square or secret,
     # else (level 7's recorder pond) the room whose secret is not second-quest only.
     level_entrances = {}
@@ -647,156 +668,170 @@ def import_rom(prg, output):
                                           {level: import_dungeons.level_info(prg, level) for level in range(1, 10)}, png, blit_tile)
     start_id = prg[103168 + 47]
     start_y = prg[103168 + 40] - 64
-    for room_id, layout in enumerate(layouts):
-        inner = prg[99328 + 128 + room_id] & 3
-        outer = prg[99328 + room_id] & 3
-        indices, collision = [], [0] * (32 * 22)
-        ladder_water = [0] * 704
-        coarse = []
-        for y, row in enumerate(layout):
-            line = ''
-            for x, index in enumerate(row):
-                palette = inner if 2 <= x < 14 and 2 <= y < 9 else outer
-                indices.append(palette * 64 + index)
-                parts = square_tiles(prg, index)
-                solid = []
-                for part, tile in enumerate(parts):
-                    blocked = int(tile >= 0x89 and tile not in WALKABLE)
-                    collision[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = blocked
-                    ladder_water[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(0x8D <= tile < 0x99)
-                    solid.append(blocked)
-                line += '#' if all(solid) else '.'
-            coarse.append(line)
-        exits = {}
-        for edge, delta, allowed in [('left', -1, room_id % 16 > 0), ('right', 1, room_id % 16 < 15),
-                                     ('up', -16, room_id >= 16), ('down', 16, room_id < 112)]:
-            if allowed:
-                exits[edge] = f'ow_{room_id + delta:02x}'
-        # Default spawns are only used by reset; choose a walkable square.
-        spawn = (120, start_y) if room_id == start_id else next(
-            ((x * 16, y * 16 - 3) for y in range(1, 10) for x in range(1, 15)
-             if all(collision[(y * 2 + dy) * 32 + x * 2 + dx] == 0 for dy in range(2) for dx in range(2))), (120, 77))
-        edge_cells = []
-        for y in range(11):
-            for x in range(16):
-                if (x in (0, 15) or y in (0, 10)) and square_tiles(prg, layout[y][x])[0] < 0x84:
-                    edge_cells.append((y + 4) * 16 + x)
-        entrance = entrances[room_id]
-        palette_for = lambda x, y: inner if 2 <= x < 14 and 2 <= y < 9 else outer
-        portal_lines_out, portal_ids, secret_lines = [], [], []
-        if entrance['secret']:
-            secret_lines = ['[sub_resource type="Resource" id="secret"]'] + secret_resource(
-                prg, entrance, layout, palette_for, square_tiles, WALKABLE)
-        # Z_05 HandleWarpOW: caves from attribute B $40 up; levels below are future work.
-        places = [(e['cell'], e['mouth'], False) for e in entrance['visible']]
-        if entrance['secret']:
-            places.append((entrance['secret']['reveal'], entrance['secret']['kind'] == 'wall', True))
-        # Statues and the Armos secret of this room.
-        armos_cells = [(x, y) for y, row in enumerate(layout) for x, index in enumerate(row) if 0xC0 <= square_tiles(prg, index)[0] <= 0xC3]
-        armos_secret = None
-        if room_id in SECRET_ARMOS and (SECRET_ARMOS[room_id] // 16, 4) in armos_cells:
-            armos_secret = (SECRET_ARMOS[room_id] // 16, 4)
-            item = room_id == BRACELET_ROOM
-            square = SQUARE_FLOOR if item else SQUARE_STAIRS
-            secret_lines = ['[sub_resource type="Resource" id="secret"]', 'script = ExtResource("secret")', 'trigger = "armos"',
-                            f'cell = Vector2i({armos_secret[0]}, {armos_secret[1]})', f'reveal_cell = Vector2i({armos_secret[0]}, {armos_secret[1]})',
-                            f'reveal_tile = {palette_for(*armos_secret) * 64 + square}', f'floor_tile = {palette_for(*armos_secret) * 64 + SQUARE_FLOOR}',
-                            f'reveal_kind = "{"item" if item else "entrance"}"', 'persistent = false']
-            if not item and entrance['destination'] >= FIRST_CAVE and not places:
-                places.append((armos_secret, False, True))
-            elif not item and 1 <= entrance['destination'] <= 9:
-                # A second, Armos-hidden way into the level.
-                portal_lines_out += ['[sub_resource type="Resource" id="armos_stairs"]'] + portal_lines(
-                    (armos_secret[0] * 16, armos_secret[1] * 16 - 3, 1, 1), level_starts[entrance['destination']], (120, 157), (0, -1), walk=16, requires_secret=True)
-                portal_ids.append('SubResource("armos_stairs")')
-        if 1 <= entrance['destination'] <= 9 and places:
-            # Level 6's entrance is two squares wide; CheckWarps then accepts X multiples of 8.
-            cells = sorted(place[0] for place in places)
-            cell, hidden = cells[0], places[0][2]
-            width = 1 + (cells[-1][0] - cells[0][0]) * 16
-            portal_lines_out += ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
-                (cell[0] * 16, cell[1] * 16 - 3, width, 1), level_starts[entrance['destination']], (120, 157), (0, -1), walk=16, requires_secret=hidden)
-            portal_ids.append('SubResource("entrance")')
-        if len(places) > 1 and entrance['destination'] >= FIRST_CAVE:
-            raise ValueError(f'Overworld room {room_id:02X} has {len(places)} cave entrances')
-        if entrance['destination'] >= FIRST_CAVE and not places:
-            # Second-quest, Armos, and recorder entrances are not imported yet.
-            unreachable.append(f'ow_{room_id:02x}')
-        elif entrance['destination'] >= FIRST_CAVE:
-            cell, mouth, hidden = places[0]
-            cave_ids.append(f'cave_{room_id:02x}')
-            cave_rooms.append(cave_room(room_id, entrance['destination'], dict(entrance, mouth=mouth), cellar, entrances, cave_layouts))
-            # CheckWarps: grid-aligned X, Y = 16n + $0D, standing on the entrance square.
-            portal_lines_out += ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
-                (cell[0] * 16, cell[1] * 16 - 3, 1, 1), f'cave_{room_id:02x}', (112, 157), (0, -1), walk=48, requires_secret=hidden)
-            portal_ids.append('SubResource("entrance")')
-        portal_resources = ''
-        if portal_lines_out or secret_lines:
-            portal_resources = '[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]\n'
-            portal_resources += '[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]\n'
-            portal_resources += '\n'.join(portal_lines_out + secret_lines) + '\n'
-        portal_field = ('portals = Array[Resource]([' + ', '.join(portal_ids) + '])\n') if portal_ids else ''
-        if secret_lines: portal_field += 'secret = SubResource("secret")\n'
-        enemy_ext, enemy_sub, enemy_field, enemy_count = enemy_resources(prg, room_id, collision, spawn)
-        portal_resources = enemy_ext + portal_resources + enemy_sub
-        if room_id in (0x3F, 0x55):
-            dock_x = 128 if room_id == 0x55 else 96
-            portal_resources = '[ext_resource type="Script" path="res://scripts/raft_route.gd" id="raft_route"]\n' + portal_resources
-            portal_resources += '\n'.join(['[sub_resource type="Resource" id="dock_route"]', 'script = ExtResource("raft_route")',
-                f'dock_position = Vector2i({dock_x}, 61)', f'edge_position = Vector2i({dock_x}, -3)',
-                f'landing_position = Vector2i({dock_x}, 63)']) + '\n'
-            portal_field += 'raft_route = SubResource("dock_route")\n'
-        # Z_04 CheckZora: attribute A bit 3.
-        zora = bool(prg[99328 + room_id] & 0x08)
-        if zora: portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/zora.tres" id="zora"]\n' + portal_resources
-        armos_field = ''
-        graves = [(x, y) for y, row in enumerate(layout) for x, index in enumerate(row) if 0xBC <= square_tiles(prg, index)[0] <= 0xBF]
-        if graves:
-            portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/flying_ghini.tres" id="ghost"]\n' + portal_resources
-            armos_field += 'ghost = ExtResource("ghost")\ngrave_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in graves) + ')\n'
-        if armos_cells:
-            portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/armos.tres" id="armos"]\n' + portal_resources
-            armos_field += ('armos = ExtResource("armos")\n' + 'armos_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in armos_cells) + ')\n'
-                           + 'armos_floor_tiles = PackedInt32Array(' + ', '.join(str(palette_for(x, y) * 64 + SQUARE_FLOOR) for x, y in armos_cells) + ')\n')
-        if room_id == BRACELET_ROOM and armos_secret:
-            portal_resources = ('[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup_script"]\n'
-                                '[ext_resource type="Resource" path="res://content/items/power_bracelet.tres" id="bracelet"]\n') + portal_resources
-            portal_resources += '\n'.join(['[sub_resource type="Resource" id="bracelet_pickup"]', 'script = ExtResource("pickup_script")', 'id = &"item"',
-                                            'item = ExtResource("bracelet")', f'position = Vector2i({SECRET_ARMOS[room_id]}, {0x80 - 64 - 3})',
-                                            'tolerance = Vector2i(8, 8)', 'lift_ticks = 0', 'requires_secret = true']) + '\n'
-            armos_field += 'pickups = Array[Resource]([SubResource("bracelet_pickup")])\n'
-        steps = 3 + portal_resources.count('[ext_resource') + portal_resources.count('[sub_resource')
-        text = f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]
-[ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
-[ext_resource type="Texture2D" path="res://imported/overworld_tiles.png" id="2"]
-{portal_resources}[resource]
-script = ExtResource("1")
-id = &"ow_{room_id:02x}"
-enemy_persistence = "overworld"
-source_spawn_lists = true
-source_edge_spawns = {str(bool(prg[99328 + 640 + room_id] & 8)).lower()}
-source_edge_cells = PackedByteArray({array(edge_cells)})
-title = "Overworld {room_id:02X}"
-map_room_id = {room_id}
-{portal_field}
-{enemy_field}
-tiles = {json.dumps(chr(10).join(coarse))}
-exits = Dictionary[String, String]({json.dumps(exits)})
-spawn = Vector2i({spawn[0]}, {spawn[1]})
-movement_bounds = Rect2i(0, -3, 241, 161)
-grid_origin = Vector2i(0, 5)
-tile_atlas = ExtResource("2")
-tile_indices = PackedInt32Array({array(indices)})
-collision_tiles = PackedByteArray({array(collision)})
-ladder_allowed = {str(room_id in (0x17, 0x18, 0x19, 0x27, 0x4F, 0x5F)).lower()}
-ladder_water = PackedByteArray({array(ladder_water)})
-{'zora = ExtResource("zora")' if zora else ''}
-{MAZES.get(room_id, '')}
-{armos_field}
-'''
-        (output / 'rooms' / f'ow_{room_id:02x}.tres').write_text(text)
-    for name, text in zip(cave_ids, cave_rooms):
-        (output / 'rooms' / f'{name}.tres').write_text(text)
+    def write_overworld(qprg, quest, rooms_dir):
+        """The overworld's rooms and caves for a quest: the second quest's ROM copy has its attribute patches."""
+        rooms_dir.mkdir(parents=True, exist_ok=True)
+        q_layouts = [decode_room(qprg, i) for i in range(128)]
+        q_entrances = overworld_entrances(qprg, q_layouts, square_tiles, quest)
+        cave_rooms, cave_ids, unreachable = [], [], []
+        for room_id, layout in enumerate(q_layouts):
+            inner = qprg[99328 + 128 + room_id] & 3
+            outer = qprg[99328 + room_id] & 3
+            indices, collision = [], [0] * (32 * 22)
+            ladder_water = [0] * 704
+            coarse = []
+            for y, row in enumerate(layout):
+                line = ''
+                for x, index in enumerate(row):
+                    palette = inner if 2 <= x < 14 and 2 <= y < 9 else outer
+                    indices.append(palette * 64 + index)
+                    parts = square_tiles(qprg, index)
+                    solid = []
+                    for part, tile in enumerate(parts):
+                        blocked = int(tile >= 0x89 and tile not in WALKABLE)
+                        collision[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = blocked
+                        ladder_water[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(0x8D <= tile < 0x99)
+                        solid.append(blocked)
+                    line += '#' if all(solid) else '.'
+                coarse.append(line)
+            exits = {}
+            for edge, delta, allowed in [('left', -1, room_id % 16 > 0), ('right', 1, room_id % 16 < 15),
+                                         ('up', -16, room_id >= 16), ('down', 16, room_id < 112)]:
+                if allowed:
+                    exits[edge] = f'ow_{room_id + delta:02x}'
+            # Default spawns are only used by reset; choose a walkable square.
+            spawn = (120, start_y) if room_id == start_id else next(
+                ((x * 16, y * 16 - 3) for y in range(1, 10) for x in range(1, 15)
+                 if all(collision[(y * 2 + dy) * 32 + x * 2 + dx] == 0 for dy in range(2) for dx in range(2))), (120, 77))
+            edge_cells = []
+            for y in range(11):
+                for x in range(16):
+                    if (x in (0, 15) or y in (0, 10)) and square_tiles(qprg, layout[y][x])[0] < 0x84:
+                        edge_cells.append((y + 4) * 16 + x)
+            entrance = q_entrances[room_id]
+            palette_for = lambda x, y: inner if 2 <= x < 14 and 2 <= y < 9 else outer
+            portal_lines_out, portal_ids, secret_lines = [], [], []
+            if entrance['secret']:
+                secret_lines = ['[sub_resource type="Resource" id="secret"]'] + secret_resource(
+                    qprg, entrance, layout, palette_for, square_tiles, WALKABLE)
+            # Z_05 HandleWarpOW: caves from attribute B $40 up; levels below are future work.
+            places = [(e['cell'], e['mouth'], False) for e in entrance['visible']]
+            if entrance['secret']:
+                places.append((entrance['secret']['reveal'], entrance['secret']['kind'] == 'wall', True))
+            # Statues and the Armos secret of this room.
+            armos_cells = [(x, y) for y, row in enumerate(layout) for x, index in enumerate(row) if 0xC0 <= square_tiles(qprg, index)[0] <= 0xC3]
+            armos_secret = None
+            if room_id in SECRET_ARMOS and (SECRET_ARMOS[room_id] // 16, 4) in armos_cells:
+                armos_secret = (SECRET_ARMOS[room_id] // 16, 4)
+                item = room_id == BRACELET_ROOM
+                square = SQUARE_FLOOR if item else SQUARE_STAIRS
+                secret_lines = ['[sub_resource type="Resource" id="secret"]', 'script = ExtResource("secret")', 'trigger = "armos"',
+                                f'cell = Vector2i({armos_secret[0]}, {armos_secret[1]})', f'reveal_cell = Vector2i({armos_secret[0]}, {armos_secret[1]})',
+                                f'reveal_tile = {palette_for(*armos_secret) * 64 + square}', f'floor_tile = {palette_for(*armos_secret) * 64 + SQUARE_FLOOR}',
+                                f'reveal_kind = "{"item" if item else "entrance"}"', 'persistent = false']
+                if not item and entrance['destination'] >= FIRST_CAVE and not places:
+                    places.append((armos_secret, False, True))
+                elif not item and 1 <= entrance['destination'] <= 9:
+                    # A second, Armos-hidden way into the level.
+                    portal_lines_out += ['[sub_resource type="Resource" id="armos_stairs"]'] + portal_lines(
+                        (armos_secret[0] * 16, armos_secret[1] * 16 - 3, 1, 1), level_starts[entrance['destination']], (120, 157), (0, -1), walk=16, requires_secret=True)
+                    portal_ids.append('SubResource("armos_stairs")')
+            if 1 <= entrance['destination'] <= 9 and places:
+                # Level 6's entrance is two squares wide; CheckWarps then accepts X multiples of 8.
+                cells = sorted(place[0] for place in places)
+                cell, hidden = cells[0], places[0][2]
+                width = 1 + (cells[-1][0] - cells[0][0]) * 16
+                portal_lines_out += ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
+                    (cell[0] * 16, cell[1] * 16 - 3, width, 1), level_starts[entrance['destination']], (120, 157), (0, -1), walk=16, requires_secret=hidden)
+                portal_ids.append('SubResource("entrance")')
+            # A wide mouth (the second quest's cave in level 6's old entrance) is one entrance.
+            if len(places) > 1 and entrance['destination'] >= FIRST_CAVE and (
+                    len({place[0][1] for place in places}) > 1 or any(place[2] for place in places)
+                    or max(p[0][0] for p in places) - min(p[0][0] for p in places) != len(places) - 1):
+                raise ValueError(f'Overworld room {room_id:02X} has {len(places)} cave entrances')
+            if entrance['destination'] >= FIRST_CAVE and not places:
+                # Second-quest, Armos, and recorder entrances are not imported yet.
+                unreachable.append(f'ow_{room_id:02x}')
+            elif entrance['destination'] >= FIRST_CAVE:
+                cell, mouth, hidden = sorted(places)[0]
+                width = 1 + (len(places) - 1) * 16
+                cave_ids.append(f'cave_{room_id:02x}')
+                cave_rooms.append(cave_room(room_id, entrance['destination'], dict(entrance, mouth=mouth), cellar, q_entrances, cave_layouts))
+                # CheckWarps: grid-aligned X, Y = 16n + $0D, standing on the entrance square.
+                portal_lines_out += ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
+                    (cell[0] * 16, cell[1] * 16 - 3, width, 1), f'cave_{room_id:02x}', (112, 157), (0, -1), walk=48, requires_secret=hidden)
+                portal_ids.append('SubResource("entrance")')
+            portal_resources = ''
+            if portal_lines_out or secret_lines:
+                portal_resources = '[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]\n'
+                portal_resources += '[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]\n'
+                portal_resources += '\n'.join(portal_lines_out + secret_lines) + '\n'
+            portal_field = ('portals = Array[Resource]([' + ', '.join(portal_ids) + '])\n') if portal_ids else ''
+            if secret_lines: portal_field += 'secret = SubResource("secret")\n'
+            enemy_ext, enemy_sub, enemy_field, enemy_count = enemy_resources(qprg, room_id, collision, spawn)
+            portal_resources = enemy_ext + portal_resources + enemy_sub
+            if room_id in (0x3F, 0x55):
+                dock_x = 128 if room_id == 0x55 else 96
+                portal_resources = '[ext_resource type="Script" path="res://scripts/raft_route.gd" id="raft_route"]\n' + portal_resources
+                portal_resources += '\n'.join(['[sub_resource type="Resource" id="dock_route"]', 'script = ExtResource("raft_route")',
+                    f'dock_position = Vector2i({dock_x}, 61)', f'edge_position = Vector2i({dock_x}, -3)',
+                    f'landing_position = Vector2i({dock_x}, 63)']) + '\n'
+                portal_field += 'raft_route = SubResource("dock_route")\n'
+            # Z_04 CheckZora: attribute A bit 3.
+            zora = bool(qprg[99328 + room_id] & 0x08)
+            if zora: portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/zora.tres" id="zora"]\n' + portal_resources
+            armos_field = ''
+            graves = [(x, y) for y, row in enumerate(layout) for x, index in enumerate(row) if 0xBC <= square_tiles(qprg, index)[0] <= 0xBF]
+            if graves:
+                portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/flying_ghini.tres" id="ghost"]\n' + portal_resources
+                armos_field += 'ghost = ExtResource("ghost")\ngrave_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in graves) + ')\n'
+            if armos_cells:
+                portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/armos.tres" id="armos"]\n' + portal_resources
+                armos_field += ('armos = ExtResource("armos")\n' + 'armos_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in armos_cells) + ')\n'
+                               + 'armos_floor_tiles = PackedInt32Array(' + ', '.join(str(palette_for(x, y) * 64 + SQUARE_FLOOR) for x, y in armos_cells) + ')\n')
+            if room_id == BRACELET_ROOM and armos_secret:
+                portal_resources = ('[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup_script"]\n'
+                                    '[ext_resource type="Resource" path="res://content/items/power_bracelet.tres" id="bracelet"]\n') + portal_resources
+                portal_resources += '\n'.join(['[sub_resource type="Resource" id="bracelet_pickup"]', 'script = ExtResource("pickup_script")', 'id = &"item"',
+                                                'item = ExtResource("bracelet")', f'position = Vector2i({SECRET_ARMOS[room_id]}, {0x80 - 64 - 3})',
+                                                'tolerance = Vector2i(8, 8)', 'lift_ticks = 0', 'requires_secret = true']) + '\n'
+                armos_field += 'pickups = Array[Resource]([SubResource("bracelet_pickup")])\n'
+            steps = 3 + portal_resources.count('[ext_resource') + portal_resources.count('[sub_resource')
+            text = f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]
+    [ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
+    [ext_resource type="Texture2D" path="res://imported/overworld_tiles.png" id="2"]
+    {portal_resources}[resource]
+    script = ExtResource("1")
+    id = &"ow_{room_id:02x}"
+    enemy_persistence = "overworld"
+    source_spawn_lists = true
+    source_edge_spawns = {str(bool(qprg[99328 + 640 + room_id] & 8)).lower()}
+    source_edge_cells = PackedByteArray({array(edge_cells)})
+    title = "Overworld {room_id:02X}"
+    map_room_id = {room_id}
+    {portal_field}
+    {enemy_field}
+    tiles = {json.dumps(chr(10).join(coarse))}
+    exits = Dictionary[String, String]({json.dumps(exits)})
+    spawn = Vector2i({spawn[0]}, {spawn[1]})
+    movement_bounds = Rect2i(0, -3, 241, 161)
+    grid_origin = Vector2i(0, 5)
+    tile_atlas = ExtResource("2")
+    tile_indices = PackedInt32Array({array(indices)})
+    collision_tiles = PackedByteArray({array(collision)})
+    ladder_allowed = {str(room_id in (0x17, 0x18, 0x19, 0x27, 0x4F, 0x5F)).lower()}
+    ladder_water = PackedByteArray({array(ladder_water)})
+    {'zora = ExtResource("zora")' if zora else ''}
+    {MAZES.get(room_id, '')}
+    {armos_field}
+    '''
+            (rooms_dir / f'ow_{room_id:02x}.tres').write_text(text)
+        for name, text in zip(cave_ids, cave_rooms):
+            (rooms_dir / f'{name}.tres').write_text(text)
+        return cave_ids, unreachable
+
+    cave_ids, unreachable = write_overworld(prg, 1, output / 'rooms')
+    q2_cave_ids, _ = write_overworld(second_quest_prg(prg), 2, output / 'q2' / 'rooms')
     # The single sword cave became cave_77; never leave a stale room behind.
     if (output / 'rooms' / 'sword_cave.tres').exists():
         (output / 'rooms' / 'sword_cave.tres').unlink()
@@ -812,44 +847,48 @@ ladder_water = PackedByteArray({array(ladder_water)})
     theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")', 'hud_hearts = ExtResource("hearts")',
               'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
     (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
-    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={141 + len(cave_ids) + len(level_room_ids)} format=3]',
-               '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
-               '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]',
-               '[ext_resource type="Resource" path="res://imported/submenu.tres" id="submenu"]']
-    for i in range(128):
-        catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/ow_{i:02x}.tres" id="r{i}"]')
-    for name in cave_ids + level_room_ids:
-        catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/{name}.tres" id="{name}"]')
-    catalog += [
-        '[ext_resource type="Script" path="res://scripts/loot_table.gd" id="loot_script"]',
-        '[ext_resource type="Resource" path="res://content/items/heart.tres" id="heart"]',
-        '[ext_resource type="Resource" path="res://content/items/rupee.tres" id="rupee"]',
-        '[ext_resource type="Resource" path="res://content/items/five_rupees.tres" id="five_rupees"]',
-        '[ext_resource type="Resource" path="res://content/items/bomb_drop.tres" id="bomb_drop"]',
-        '[ext_resource type="Resource" path="res://content/items/clock.tres" id="clock"]',
-        '[ext_resource type="Resource" path="res://content/items/fairy.tres" id="fairy"]']
-    # Original group rates and kill-cycle rows remain generated local data.
-    # All original drop IDs now have native behavior resources.
-    supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees', 0x00: 'bomb_drop', 0x21: 'clock', 0x23: 'fairy'}
-    for name, group in [(f'loot_{group}', group) for group in range(4)]:
-        row = prg[0x13042 + group * 10:0x13042 + group * 10 + 10]
-        entries = [f'ExtResource("{supported[value]}")' if value in supported else 'null' for value in row]
-        catalog += [f'[sub_resource type="Resource" id="{name}"]', 'script = ExtResource("loot_script")',
-                    f'chance = {prg[0x1303E + group]}', 'entries = Array[Resource]([' + ', '.join(entries) + '])']
-    catalog += ['[resource]', 'script = ExtResource("script")', 'id = &"original_quest_1"', 'submenu = ExtResource("submenu")', f'start_room = &"ow_{start_id:02x}"',
-                'visual_theme = ExtResource("theme")',
-                'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
-                'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in list(ENEMY_TYPES.items()) + list(MONSTERS.items())) + '})',
-                'legacy_ids = Dictionary[String, String]({"sword_cave": "cave_77", "sword_cave/sword_gift": "cave_77/taken"})',
-                'whirlwinds = [' + ', '.join(f'{{"room": "ow_{prg[WHIRLWIND_ROOMS + i] + 1:02x}", "y": {prg[TELEPORT_YS + i]}}}' for i in range(8)) + ']',
-                'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in cave_ids + level_room_ids]) + '])']
+    def world_catalog(world_id, rooms_path, caves):
+        catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={141 + len(caves) + len(level_room_ids)} format=3]',
+                   '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
+                   '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]',
+                   '[ext_resource type="Resource" path="res://imported/submenu.tres" id="submenu"]']
+        for i in range(128):
+            catalog.append(f'[ext_resource type="Resource" path="{rooms_path}/ow_{i:02x}.tres" id="r{i}"]')
+        for name in caves:
+            catalog.append(f'[ext_resource type="Resource" path="{rooms_path}/{name}.tres" id="{name}"]')
+        for name in level_room_ids:
+            catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/{name}.tres" id="{name}"]')
+        catalog += [
+            '[ext_resource type="Script" path="res://scripts/loot_table.gd" id="loot_script"]',
+            '[ext_resource type="Resource" path="res://content/items/heart.tres" id="heart"]',
+            '[ext_resource type="Resource" path="res://content/items/rupee.tres" id="rupee"]',
+            '[ext_resource type="Resource" path="res://content/items/five_rupees.tres" id="five_rupees"]',
+            '[ext_resource type="Resource" path="res://content/items/bomb_drop.tres" id="bomb_drop"]',
+            '[ext_resource type="Resource" path="res://content/items/clock.tres" id="clock"]',
+            '[ext_resource type="Resource" path="res://content/items/fairy.tres" id="fairy"]']
+        # Original group rates and kill-cycle rows remain generated local data.
+        # All original drop IDs now have native behavior resources.
+        supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees', 0x00: 'bomb_drop', 0x21: 'clock', 0x23: 'fairy'}
+        for name, group in [(f'loot_{group}', group) for group in range(4)]:
+            row = prg[0x13042 + group * 10:0x13042 + group * 10 + 10]
+            entries = [f'ExtResource("{supported[value]}")' if value in supported else 'null' for value in row]
+            catalog += [f'[sub_resource type="Resource" id="{name}"]', 'script = ExtResource("loot_script")',
+                        f'chance = {prg[0x1303E + group]}', 'entries = Array[Resource]([' + ', '.join(entries) + '])']
+        catalog += ['[resource]', 'script = ExtResource("script")', f'id = &"{world_id}"', 'submenu = ExtResource("submenu")', f'start_room = &"ow_{start_id:02x}"',
+                    'visual_theme = ExtResource("theme")',
+                    'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
+                    'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in list(ENEMY_TYPES.items()) + list(MONSTERS.items())) + '})',
+                    'legacy_ids = Dictionary[String, String]({"sword_cave": "cave_77", "sword_cave/sword_gift": "cave_77/taken"})',
+                    'whirlwinds = [' + ', '.join(f'{{"room": "ow_{prg[WHIRLWIND_ROOMS + i] + 1:02x}", "y": {prg[TELEPORT_YS + i]}}}' for i in range(8)) + ']',
+                    'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in caves + level_room_ids]) + '])']
+        return catalog
+    catalog = world_catalog('original_quest_1', 'res://imported/rooms', cave_ids)
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
-    # The second quest: so far the same places, with its quest-wide monster rules.
-    second = list(catalog)
+    # The second quest: its overworld, the first quest's levels for now, and its monster rules.
+    second = world_catalog('original_quest_2', 'res://imported/q2/rooms', q2_cave_ids)
     first_sub = next(i for i, line in enumerate(second) if line.startswith('[sub_resource'))
     second[first_sub:first_sub] = [f'[ext_resource type="Resource" path="res://imported/enemies/{name}_q2.tres" id="{name}_q2"]'
                                    for name in import_dungeons.SECOND_QUEST_VARIANTS]
-    second = [line.replace('id = &"original_quest_1"', 'id = &"original_quest_2"') for line in second]
     second += ['quest = 2', 'enemy_variants = Dictionary[StringName, Resource]({' +
                ', '.join(f'&"{name}": ExtResource("{name}_q2")' for name in import_dungeons.SECOND_QUEST_VARIANTS) + '})']
     (output / 'world_q2.tres').write_text('\n'.join(second) + '\n')

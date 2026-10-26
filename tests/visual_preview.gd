@@ -16,6 +16,17 @@ func preview() -> void:
 		title_front.world.audio.silence()
 		title_front.screen.queue_redraw()
 		return
+	# A room of the imported second quest: q2_<room id>, e.g. q2_ow_3c.
+	for arg in args:
+		if not arg.begins_with("q2_"): continue
+		var quest_world = preload("res://scenes/main.tscn").instantiate()
+		quest_world.world_definition = load("res://imported/world_q2.tres")
+		root.add_child(quest_world)
+		quest_world.set_physics_process(false)
+		var target: Resource = quest_world.rooms[StringName(arg.trim_prefix("q2_"))]
+		quest_world.enter_room(target, target.spawn, Vector2i.UP)
+		quest_world.queue_redraw()
+		return
 	# The imported ending, a number of frames after Zelda's rescue: ending_<frames>[_2] (second quest).
 	for arg in args:
 		if not arg.begins_with("ending_"): continue

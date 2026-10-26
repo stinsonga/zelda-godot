@@ -18,6 +18,7 @@ func run() -> void:
 	check_variants()
 	if ResourceLoader.exists("res://imported/world_q2.tres"):
 		check_imported_worlds()
+		check_overworld()
 		check_front_end()
 	print("Second quest checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
@@ -74,6 +75,39 @@ func check_imported_worlds() -> void:
 		if second_quest.state.health < 6: second_quest.state.health = 6
 	check(shot, "and do throw them")
 	second_quest.free()
+
+func portal_to(definition: Resource, prefix: String) -> Resource:
+	for portal in definition.portals:
+		if String(portal.target_room).begins_with(prefix): return portal
+	return null
+
+## Z_06 UpdateMode2Load_Full's patches and Z_04 IsQuestSecretMismatch.
+func check_overworld() -> void:
+	var one := world_for("")
+	var two := world_for("res://imported/world_q2.tres")
+	# Level 2: an open entrance in the first quest, a recorder pond in the second.
+	var first_two: Resource = one.rooms[&"ow_3c"]
+	var second_two: Resource = two.rooms[&"ow_3c"]
+	check(first_two.secret == null and portal_to(first_two, "l2_") != null and not portal_to(first_two, "l2_").requires_secret, "First quest: level 2 stands open")
+	check(second_two.secret != null and second_two.secret.trigger == "recorder" and portal_to(second_two, "l2_").requires_secret, "Second quest: a recorder pond hides it")
+	check(second_two.tile_indices != first_two.tile_indices, "and the room's layout is patched")
+	# The first quest's pond is only water in the second, so the recorder summons the whirlwind.
+	check(one.rooms[&"ow_42"].secret != null and two.rooms[&"ow_42"].secret == null, "Level 7's pond is first-quest only")
+	# Level 5 under a rock; level 6's old two-square entrance is now a cave.
+	check(two.rooms[&"ow_1b"].secret != null and two.rooms[&"ow_1b"].secret.trigger == "bracelet_push" and portal_to(two.rooms[&"ow_1b"], "l5_") != null, "Second quest: level 5 is under a rock")
+	var cave: Resource = portal_to(two.rooms[&"ow_22"], "cave_")
+	check(cave != null and cave.area.size.x == 17 and portal_to(one.rooms[&"ow_22"], "l6_") != null, "Level 6's wide entrance becomes a wide cave mouth")
+	# Second-quest-only secrets exist only there; first-quest-only ones only in the first.
+	check(two.rooms[&"ow_00"].secret != null and one.rooms[&"ow_00"].secret == null, "A second-quest wall to level 9")
+	check(one.rooms[&"ow_05"].secret != null and two.rooms[&"ow_05"].secret == null, "The first quest's level 9 wall is gone")
+	# Playing the recorder at the pond drains it to the stairs.
+	two.enter_room(two.rooms[&"ow_3c"], Vector2i(96, 120), Vector2i.UP)
+	two.state.take_item(load("res://content/items/recorder.tres"))
+	two.play_recorder()
+	for i in range(400): two.simulate_tick(Vector2i.ZERO)
+	check(two.secrets.revealed, "The recorder drains the second quest's pond")
+	one.free()
+	two.free()
 
 func check_front_end() -> void:
 	temporary = OS.get_temp_dir().path_join("zelda-second-quest-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()])

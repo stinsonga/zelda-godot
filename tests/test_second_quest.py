@@ -4,6 +4,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 import import_dungeons as dungeon
+import import_rom as rom
+import import_caves as caves
 
 
 class SecondQuestImportTests(unittest.TestCase):
@@ -12,6 +14,30 @@ class SecondQuestImportTests(unittest.TestCase):
         self.assertTrue(set(dungeon.SECOND_QUEST_VARIANTS) <= names)
         # InitRope: $40 HP is four of the importer's sixteen-point health units.
         self.assertEqual(dungeon.SECOND_QUEST_VARIANTS['rope']['health'], 0x40 // 0x10)
+
+    def local(self):
+        files = list((ROOT / 'reference-inputs').glob('*.nes'))
+        if not files: self.skipTest('No local ROM')
+        return rom.read_rom(files[0])
+
+    def test_overworld_patches(self):
+        prg = self.local()
+        patched = rom.second_quest_prg(prg)
+        changed = [i for i in range(99328, 99328 + 768) if prg[i] != patched[i]]
+        # Fifteen patched bytes (eight from the table, seven immediates); two already hold their values.
+        self.assertEqual(len(changed), 13)
+        self.assertEqual(prg[:99328], patched[:99328])
+        self.assertEqual(prg[99328 + 768:], patched[99328 + 768:])
+
+    def test_one_entrance_per_level(self):
+        prg = self.local()
+        for quest, data in ((1, prg), (2, rom.second_quest_prg(prg))):
+            layouts = [rom.decode_room(data, i) for i in range(128)]
+            entrances = caves.overworld_entrances(data, layouts, rom.square_tiles, quest)
+            for level in range(1, 10):
+                ways = [r for r, e in entrances.items() if e['destination'] == level
+                        and (e['visible'] or e['secret'] or (r in rom.SECRET_ARMOS and quest == 2 and level == 3))]
+                self.assertEqual(len(ways), 1, (quest, level, ways))
 
     def test_world(self):
         path = ROOT / 'imported/world_q2.tres'

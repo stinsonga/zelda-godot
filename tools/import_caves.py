@@ -228,7 +228,19 @@ def export_people(prg, patterns, palettes, output, png, blit_tile):
     return names, tiles
 
 
-def overworld_entrances(prg, layouts, square_tiles):
+# Z_04 SecretQuestNumbers: attribute F's top bits 1 and 2 hold a secret to the
+# first or second quest; any other value reads past the table and matches neither.
+SECRET_QUESTS = {0: (1, 2), 1: (1,), 2: (2,)}
+
+
+def flute_rooms(prg, quest):
+    """Z_07 WieldFlute: FluteRoomSecretsOW's first room drains in the first quest only,
+    the others in the second; elsewhere the recorder summons the whirlwind."""
+    rooms = prg[FLUTE_ROOMS:FLUTE_ROOMS + 11]
+    return [rooms[0]] if quest == 1 else list(rooms[1:])
+
+
+def overworld_entrances(prg, layouts, square_tiles, quest=1):
     """Per room: destination, visible entrances, the tile-object secret, and exit."""
     primary = prg[PRIMARY_SQUARES:PRIMARY_SQUARES + 56]
     positions = prg[LEVEL_INFO + 0x29:LEVEL_INFO + 0x2D]
@@ -243,8 +255,8 @@ def overworld_entrances(prg, layouts, square_tiles):
                 if tile in (0x24, 0x88) or 0x70 <= tile <= 0x73:
                     visible.append({'cell': (x, y), 'mouth': tile == 0x24})
                 kind = SECRET_KINDS.get(primary[square])
-                # IsQuestSecretMismatch: quest-secret value 2 is second quest only.
-                if kind and attr_f >> 6 != 2:
+                # IsQuestSecretMismatch: the secret must belong to this quest.
+                if kind and quest in SECRET_QUESTS.get(attr_f >> 6, ()):
                     secret = {'kind': kind, 'cell': (x, y), 'square': square}
         if secret and secret['kind'] in ('rock', 'grave'):
             position = positions[(attr_f >> 4) & 3]
@@ -255,8 +267,8 @@ def overworld_entrances(prg, layouts, square_tiles):
         elif secret:
             secret['reveal'] = secret['cell']
             secret['persistent'] = True
-        if room_id == prg[FLUTE_ROOMS] and secret is None:
-            # Z_07 WieldFlute: the first quest's pond drains to stairs at ($60, $90).
+        if room_id in flute_rooms(prg, quest) and secret is None:
+            # Z_07 UpdateFluteSecret: every recorder pond drains to stairs at ($60, $90).
             cell = (POND_STAIRS[0] // 16, (POND_STAIRS[1] - 64) // 16)
             secret = {'kind': 'pond', 'cell': cell, 'reveal': cell, 'persistent': True, 'square': layout[cell[1]][cell[0]]}
         rooms[room_id] = {'destination': destination, 'visible': visible, 'secret': secret,
