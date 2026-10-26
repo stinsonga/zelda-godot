@@ -15,7 +15,7 @@ routines check the quest directly. Here a quest is a `WorldDefinition`:
    attributes (`LevelBlockAttrsBQ2Replacement*` and the A/D/F patches), the
    recorder secrets (`FluteRoomSecretsOW`), and the second quest's dungeon
    entrances.
-3. **Dungeon layouts.** `LevelBlockUW1Q2` and `LevelBlockUW2Q2` for levels 1-9,
+3. **Dungeon layouts (done).** `LevelBlockUW1Q2` and `LevelBlockUW2Q2` for levels 1-9,
    with `LevelInfoUWQ2Replacements1-9` (start rooms, maps, shortcut and item
    positions).
 4. **Dungeon contents.** Monsters, items, doors, cellars, and old men, checked room
@@ -73,8 +73,45 @@ The second quest's levels are reached by:
 70 caves are reachable, against 63 in the first quest. The nine left out are the
 first quest's own secrets.
 
-Until step 3, these entrances lead into the first quest's levels, whose exits
-still return to the first quest's entrance rooms.
+## Dungeons
+
+`InitMode2_Sub0` loads a second-quest file's level blocks from
+`LevelBlockAddrsQ2`: levels 1-6 share the grid at $8D00, levels 7-9 the one at
+$9000. `UpdateMode2Load_Full` then replaces each level's info from offset $29
+with `LevelInfoUWQ2Replacements1-9`. That covers:
+- the item and shortcut positions;
+- the map rotation and mask;
+- the start room;
+- the cellar list.
+
+The copy is `Sizes + 1` bytes, as the original's loop counts down to 0.
+
+The palettes and fade cycles sit before and after that range, so the levels'
+atlases look the same in both quests.
+
+The importer puts these patches into the same second-quest ROM copy and runs the
+dungeon export on it, into `imported/q2/`:
+- the rooms and cellars, with their doors, monsters, items, stairs, and old men;
+- the level atlases;
+- `q2/submenu.tres`, for the maps.
+
+Monster definitions and sprites are shared, and every second-quest monster is
+supported. Each level's way out returns to its second-quest entrance.
+
+| Level | Start | Rooms | Cellars |
+|---|---|---|---|
+| 1 | $77 | 14 | 1 |
+| 2 | $75 | 11 | 1 |
+| 3 | $79 | 20 | 2 |
+| 4 | $72 | 18 | 3 |
+| 5 | $7D | 30 | 3 |
+| 6 | $74 | 22 | 3 |
+| 7 | $7F | 35 | 9 |
+| 8 | $79 | 27 | 6 |
+| 9 | $74 | 46 | 5 |
+
+The room counts are those reachable from the start through doors and cellars.
+Step 4 checks the contents room by room.
 
 `tests/second_quest.gd` checks the variant swap without a ROM. With an import, it
 also checks the worlds, monster rules, file switching, the patched rooms and

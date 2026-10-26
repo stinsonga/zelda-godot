@@ -45,6 +45,15 @@ func world_for(path: String) -> Node:
 	world.set_physics_process(false)
 	return world
 
+## The first dungeon room whose spawns include a monster.
+func room_with(world: Node, id: StringName) -> Resource:
+	var ids: Array = world.rooms.keys()
+	ids.sort()
+	for room_id in ids:
+		var definition: Resource = world.rooms[room_id]
+		if definition.dungeon_level > 0 and definition.enemies.any(func(spawn: Resource) -> bool: return spawn.enemy.id == id): return definition
+	return null
+
 func first(world: Node, id: StringName) -> RefCounted:
 	for actor in world.combat.enemies:
 		if actor.definition.id == id: return actor
@@ -59,11 +68,11 @@ func check_imported_worlds() -> void:
 	first_quest.free()
 	var second_quest := world_for("res://imported/world_q2.tres")
 	check(second_quest.quest == 2 and second_quest.world_id == "original_quest_2", "The second quest is its own world, saved apart")
-	second_quest.enter_room(second_quest.rooms[&"l2_2e"], Vector2i(120, 77), Vector2i.UP)
+	second_quest.enter_room(room_with(second_quest, &"rope"), Vector2i(120, 77), Vector2i.UP)
 	rope = first(second_quest, &"rope_q2")
 	check(rope != null and rope.health == 4 and rope.definition.sprite_palette_cycle, "Second-quest Ropes have $40 HP and cycle palettes")
-	check(second_quest.visual_theme.sprites.has(&"l2_rope_down_0_p3"), "Each palette has its sprites")
-	second_quest.enter_room(second_quest.rooms[&"l1_33"], Vector2i(120, 77), Vector2i.UP)
+	check(second_quest.visual_theme.sprites.has(StringName("l%d_rope_down_0_p3" % second_quest.room.dungeon_level)), "Each palette has its sprites")
+	second_quest.enter_room(room_with(second_quest, &"stalfos"), Vector2i(120, 77), Vector2i.UP)
 	var stalfos: RefCounted = first(second_quest, &"stalfos_q2")
 	check(stalfos != null and stalfos.definition.shooting_enabled and stalfos.definition.projectile_kind == "sword" and stalfos.definition.shooting_threshold == 0xF8,
 		"Second-quest Stalfos throw swords when Random >= $F8")
@@ -100,6 +109,17 @@ func check_overworld() -> void:
 	# Second-quest-only secrets exist only there; first-quest-only ones only in the first.
 	check(two.rooms[&"ow_00"].secret != null and one.rooms[&"ow_00"].secret == null, "A second-quest wall to level 9")
 	check(one.rooms[&"ow_05"].secret != null and two.rooms[&"ow_05"].secret == null, "The first quest's level 9 wall is gone")
+	# Z_06 LevelBlockAddrsQ2 and LevelInfoUWQ2Replacements: other rooms, starts, and maps.
+	var entrance: Resource = portal_to(two.rooms[&"ow_37"], "l1_")
+	check(entrance != null and entrance.target_room == &"l1_77" and portal_to(one.rooms[&"ow_37"], "l1_").target_room == &"l1_73", "Level 1 starts in room $77 rather than $73")
+	var start: Resource = two.rooms[&"l1_77"]
+	check(portal_to(start, "ow_") != null and portal_to(start, "ow_").target_room == &"ow_37", "and leads back out to its entrance")
+	check(portal_to(two.rooms[&"l2_75"], "ow_").target_room == &"ow_3c", "Level 2 leads out to its pond")
+	check(two.submenu_layout.map_masks != one.submenu_layout.map_masks, "The submenu maps are the second quest's")
+	var levels := {}
+	for definition in two.rooms.values():
+		if definition.dungeon_level > 0: levels[definition.dungeon_level] = true
+	check(levels.size() == 9, "All nine levels are there")
 	# Playing the recorder at the pond drains it to the stairs.
 	two.enter_room(two.rooms[&"ow_3c"], Vector2i(96, 120), Vector2i.UP)
 	two.state.take_item(load("res://content/items/recorder.tres"))

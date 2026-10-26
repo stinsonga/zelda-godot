@@ -125,7 +125,6 @@ def export(prg, output, ow_patterns, uw_patterns, ow_palettes, level_infos, png,
     render(prg, tiles, attrs, ow_patterns, ow_palettes, blit_tile, png, output / 'submenu_ow.png')
     tile_atlas(ow_patterns, ow_palettes[1], blit_tile, png, output / 'submenu_ow_tiles.png')
     names += ['submenu_ow', 'submenu_ow_tiles']
-    rotations, masks = [], []
     for level in range(1, 10):
         info = level_infos[level]
         palettes = [list(info[3 + p * 4:7 + p * 4]) for p in range(8)]
@@ -136,8 +135,6 @@ def export(prg, output, ow_patterns, uw_patterns, ow_palettes, level_infos, png,
         render(prg, tiles, attrs, uw_patterns, palettes, blit_tile, png, output / f'submenu_l{level}.png')
         tile_atlas(uw_patterns, palettes[1], blit_tile, png, output / f'submenu_l{level}_tiles.png')
         names += [f'submenu_l{level}', f'submenu_l{level}_tiles']
-        rotations.append(info[LEVEL_INFO_ROTATION])
-        masks.append(list(info[LEVEL_INFO_MASK:LEVEL_INFO_MASK + 16]))
     # UpdateSubmenuSelection: the cursor flashes between sprite rows 5 and 6;
     # the room marker is tile $3E in row 4.
     for index, palette in enumerate((5, 6)):
@@ -145,6 +142,16 @@ def export(prg, output, ow_patterns, uw_patterns, ow_palettes, level_infos, png,
         sprite(ow_patterns, CURSOR_TILE, ow_palettes[palette], blit_tile, png, output / f'submenu_cursor_{index}_right.png', flip_x=True)
     sprite(ow_patterns, MARKER_TILE, ow_palettes[4], blit_tile, png, output / 'submenu_marker.png')
     names += ['submenu_cursor_0', 'submenu_cursor_1', 'submenu_cursor_0_right', 'submenu_cursor_1_right', 'submenu_marker']
+    write_layout(prg, output / 'submenu.tres', level_infos)
+    return names
+
+
+def write_layout(prg, path, level_infos):
+    """The SubmenuLayout: Triforce slots, and each level's map rotation and mask.
+    The second quest writes its own, since its level info replaces the maps."""
+    slots = triforce_slots(prg)
+    rotations = [level_infos[level][LEVEL_INFO_ROTATION] for level in range(1, 10)]
+    masks = [list(level_infos[level][LEVEL_INFO_MASK:LEVEL_INFO_MASK + 16]) for level in range(1, 10)]
     lines = ['[gd_resource type="Resource" script_class="SubmenuLayout" load_steps=2 format=3]',
              '[ext_resource type="Script" path="res://scripts/submenu_layout.gd" id="1"]', '[resource]', 'script = ExtResource("1")',
              'triforce_positions = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y, _, _ in slots) + ')',
@@ -152,5 +159,4 @@ def export(prg, output, ow_patterns, uw_patterns, ow_palettes, level_infos, png,
              'triforce_full = PackedByteArray(' + ', '.join(str(f) for _, _, _, f in slots) + ')',
              'map_rotations = PackedByteArray(' + ', '.join(str(r) for r in rotations) + ')',
              'map_masks = PackedByteArray(' + ', '.join(str(b) for mask in masks for b in mask) + ')']
-    (output / 'submenu.tres').write_text('\n'.join(lines) + '\n')
-    return names
+    path.write_text('\n'.join(lines) + '\n')

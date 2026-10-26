@@ -26,8 +26,24 @@ class SecondQuestImportTests(unittest.TestCase):
         changed = [i for i in range(99328, 99328 + 768) if prg[i] != patched[i]]
         # Fifteen patched bytes (eight from the table, seven immediates); two already hold their values.
         self.assertEqual(len(changed), 13)
-        self.assertEqual(prg[:99328], patched[:99328])
-        self.assertEqual(prg[99328 + 768:], patched[99328 + 768:])
+        # Outside the overworld block, only the level blocks and level info change.
+        self.assertEqual(prg[:0x18000], patched[:0x18000])
+        self.assertEqual(prg[0x1A000:], patched[0x1A000:])
+
+    def test_level_patches(self):
+        prg = self.local()
+        patched = rom.second_quest_prg(prg)
+        for level in range(1, 10):
+            # The second quest's blocks replace the first quest's, and level info from $29 changes.
+            self.assertEqual(dungeon.level_block(patched, level), prg[0x18D00 if level <= 6 else 0x19000:][:768])
+            self.assertEqual(dungeon.level_info(patched, level)[:0x29], dungeon.level_info(prg, level)[:0x29])
+            self.assertNotEqual(dungeon.level_info(patched, level)[0x2F], None)
+        # Level 1 starts in room $77 (LevelInfoUWQ2Replacements1 at offset 6).
+        self.assertEqual(dungeon.level_info(patched, 1)[0x2F], 0x77)
+        self.assertEqual(dungeon.level_info(prg, 1)[0x2F], 0x73)
+        for level in range(1, 10):
+            start, rooms, cellars = dungeon.level_rooms(patched, level)
+            self.assertIn(start, rooms)
 
     def test_one_entrance_per_level(self):
         prg = self.local()

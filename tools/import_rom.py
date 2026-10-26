@@ -15,7 +15,7 @@ from import_dungeons import MONSTERS, export_levels, level_rooms
 import import_dungeons
 import import_submenu
 import import_title
-from import_caves import (TELEPORT_YS, WHIRLWIND_ROOMS, CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
+from import_caves import (SECRET_QUESTS, TELEPORT_YS, WHIRLWIND_ROOMS, CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
                           cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
                           secret_resource, SQUARE_FLOOR, SQUARE_STAIRS)
 
@@ -100,7 +100,23 @@ def second_quest_prg(prg):
     assert len(pairs) == 7, 'Expected seven immediate patches'
     for value, address in pairs:
         patched[99328 + address - OW_ATTRS_RAM] = value
+    import_dungeons.apply_second_quest_levels(prg, patched)
     return patched
+
+
+def level_entrance_map(prg, entrances, quest):
+    """Each level's entrance: the room with an entrance square or secret, else (an
+    Armos or the first quest's recorder pond) the room whose secret is this quest's."""
+    level_entrances = {}
+    for room_id in range(128):
+        entrance = entrances[room_id]
+        level = entrance['destination']
+        if not 1 <= level <= 9: continue
+        places = [e['mouth'] for e in entrance['visible']] + ([entrance['secret']['kind'] == 'wall'] if entrance['secret'] else [])
+        ours = quest in SECRET_QUESTS.get(prg[99328 + 640 + room_id] >> 6, ())
+        if places or (level not in level_entrances and ours):
+            level_entrances[level] = (f'ow_{room_id:02x}', entrance['exit'], 16 if places and places[0] else 0)
+    return level_entrances
 
 
 def decode_room(prg, room_id):
@@ -644,19 +660,14 @@ def import_rom(prg, output):
         (output / 'caves' / f'{cave["id"]}.tres').write_text(cave_resource(cave), encoding='utf-8')
     entrances = overworld_entrances(prg, layouts, square_tiles)
     cellar = list(prg[103168 + 52:103168 + 56])
-    # Each level's entrance: the first-quest room with an entrance square or secret,
-    # else (level 7's recorder pond) the room whose secret is not second-quest only.
-    level_entrances = {}
-    for room_id in range(128):
-        entrance = entrances[room_id]
-        level = entrance['destination']
-        if not 1 <= level <= 9: continue
-        places = [e['mouth'] for e in entrance['visible']] + ([entrance['secret']['kind'] == 'wall'] if entrance['secret'] else [])
-        second_quest = prg[99328 + 640 + room_id] >> 6 == 2
-        if places or (level not in level_entrances and not second_quest):
-            level_entrances[level] = (f'ow_{room_id:02x}', entrance['exit'], 16 if places and places[0] else 0)
+    level_entrances = level_entrance_map(prg, entrances, 1)
     level_room_ids, level_starts, dungeon_sprites, dungeon_coverage = export_levels(prg, output, png, blit_tile, level_entrances)
     combat_names += dungeon_sprites
+    # The second quest's levels, entered from its own overworld.
+    q2_prg = second_quest_prg(prg)
+    q2_entrances = overworld_entrances(q2_prg, [decode_room(q2_prg, i) for i in range(128)], square_tiles, 2)
+    q2_level_room_ids, q2_level_starts, q2_sprites, _ = export_levels(q2_prg, output, png, blit_tile, level_entrance_map(q2_prg, q2_entrances, 2), 'q2')
+    combat_names += [name for name in q2_sprites if name not in combat_names]
     combat_names += export_beam_sprites(prg, patterns, palettes, output)
     combat_names += export_source_enemies(prg, patterns, palettes, output)
     combat_names += export_overworld_enemies(prg, patterns, palettes, output)
@@ -668,7 +679,7 @@ def import_rom(prg, output):
                                           {level: import_dungeons.level_info(prg, level) for level in range(1, 10)}, png, blit_tile)
     start_id = prg[103168 + 47]
     start_y = prg[103168 + 40] - 64
-    def write_overworld(qprg, quest, rooms_dir):
+    def write_overworld(qprg, quest, rooms_dir, level_starts):
         """The overworld's rooms and caves for a quest: the second quest's ROM copy has its attribute patches."""
         rooms_dir.mkdir(parents=True, exist_ok=True)
         q_layouts = [decode_room(qprg, i) for i in range(128)]
@@ -830,8 +841,9 @@ def import_rom(prg, output):
             (rooms_dir / f'{name}.tres').write_text(text)
         return cave_ids, unreachable
 
-    cave_ids, unreachable = write_overworld(prg, 1, output / 'rooms')
-    q2_cave_ids, _ = write_overworld(second_quest_prg(prg), 2, output / 'q2' / 'rooms')
+    cave_ids, unreachable = write_overworld(prg, 1, output / 'rooms', level_starts)
+    q2_cave_ids, _ = write_overworld(q2_prg, 2, output / 'q2' / 'rooms', q2_level_starts)
+    import_submenu.write_layout(q2_prg, output / 'q2' / 'submenu.tres', {level: import_dungeons.level_info(q2_prg, level) for level in range(1, 10)})
     # The single sword cave became cave_77; never leave a stale room behind.
     if (output / 'rooms' / 'sword_cave.tres').exists():
         (output / 'rooms' / 'sword_cave.tres').unlink()
@@ -847,17 +859,17 @@ def import_rom(prg, output):
     theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")', 'hud_hearts = ExtResource("hearts")',
               'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
     (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
-    def world_catalog(world_id, rooms_path, caves):
-        catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={141 + len(caves) + len(level_room_ids)} format=3]',
+    def world_catalog(world_id, rooms_path, caves, levels, submenu_path):
+        catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={141 + len(caves) + len(levels)} format=3]',
                    '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
                    '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]',
-                   '[ext_resource type="Resource" path="res://imported/submenu.tres" id="submenu"]']
+                   f'[ext_resource type="Resource" path="{submenu_path}" id="submenu"]']
         for i in range(128):
             catalog.append(f'[ext_resource type="Resource" path="{rooms_path}/ow_{i:02x}.tres" id="r{i}"]')
         for name in caves:
             catalog.append(f'[ext_resource type="Resource" path="{rooms_path}/{name}.tres" id="{name}"]')
-        for name in level_room_ids:
-            catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/{name}.tres" id="{name}"]')
+        for name in levels:
+            catalog.append(f'[ext_resource type="Resource" path="{rooms_path}/{name}.tres" id="{name}"]')
         catalog += [
             '[ext_resource type="Script" path="res://scripts/loot_table.gd" id="loot_script"]',
             '[ext_resource type="Resource" path="res://content/items/heart.tres" id="heart"]',
@@ -880,12 +892,12 @@ def import_rom(prg, output):
                     'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in list(ENEMY_TYPES.items()) + list(MONSTERS.items())) + '})',
                     'legacy_ids = Dictionary[String, String]({"sword_cave": "cave_77", "sword_cave/sword_gift": "cave_77/taken"})',
                     'whirlwinds = [' + ', '.join(f'{{"room": "ow_{prg[WHIRLWIND_ROOMS + i] + 1:02x}", "y": {prg[TELEPORT_YS + i]}}}' for i in range(8)) + ']',
-                    'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in caves + level_room_ids]) + '])']
+                    'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in caves + levels]) + '])']
         return catalog
-    catalog = world_catalog('original_quest_1', 'res://imported/rooms', cave_ids)
+    catalog = world_catalog('original_quest_1', 'res://imported/rooms', cave_ids, level_room_ids, 'res://imported/submenu.tres')
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
-    # The second quest: its overworld, the first quest's levels for now, and its monster rules.
-    second = world_catalog('original_quest_2', 'res://imported/q2/rooms', q2_cave_ids)
+    # The second quest: its overworld and levels, and its monster rules.
+    second = world_catalog('original_quest_2', 'res://imported/q2/rooms', q2_cave_ids, q2_level_room_ids, 'res://imported/q2/submenu.tres')
     first_sub = next(i for i, line in enumerate(second) if line.startswith('[sub_resource'))
     second[first_sub:first_sub] = [f'[ext_resource type="Resource" path="res://imported/enemies/{name}_q2.tres" id="{name}_q2"]'
                                    for name in import_dungeons.SECOND_QUEST_VARIANTS]

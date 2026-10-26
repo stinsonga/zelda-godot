@@ -42,6 +42,24 @@ ITEMS = {0x00: 'bombs', 0x05: 'recorder', 0x07: 'red_candle', 0x09: 'silver_arro
          0x13: 'red_ring', 0x14: 'power_bracelet', 0x16: 'compass', 0x17: 'map', 0x19: 'key',
          0x1A: 'heart_container', 0x1B: 'triforce', 0x1D: 'boomerang', 0x1E: 'magical_boomerang'}
 NO_ITEM = 0x03
+# Z_06 LevelBlockAddrsQ2: levels 1-6 share $8D00, 7-9 share $9000 (bank 6).
+SECOND_QUEST_BLOCKS = {0x18700: 0x18D00, 0x18A00: 0x19000}
+Q2_INFO_ADDRS = 0x183A4                   # LevelInfoUWQ2ReplacementAddrs, then ...Sizes.
+Q2_INFO_SIZES = Q2_INFO_ADDRS + 18
+Q2_INFO_OFFSET = 0x29                     # LevelInfo_ShortcutOrItemPosArray.
+
+
+def apply_second_quest_levels(prg, patched):
+    """Z_06 InitMode2_Sub0's second-quest level blocks and UpdateMode2Load_Full's
+    level info replacements: size + 1 bytes from offset $29 (Y counts down to 0)."""
+    for target, source in SECOND_QUEST_BLOCKS.items():
+        patched[target:target + 768] = prg[source:source + 768]
+    for level in range(1, 10):
+        address = prg[Q2_INFO_ADDRS + (level - 1) * 2] | prg[Q2_INFO_ADDRS + (level - 1) * 2 + 1] << 8
+        source = address - 0x8000 + 0x18000
+        count = prg[Q2_INFO_SIZES + level - 1] + 1
+        target = LEVEL_INFO + LEVEL_INFO_STRIDE * level + Q2_INFO_OFFSET
+        patched[target:target + count] = prg[source:source + count]
 
 
 def level_info(prg, level):
@@ -236,16 +254,21 @@ def resource(lines):
     return '\n'.join([f'[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]'] + lines) + '\n'
 
 
-def export_levels(prg, output, png, blit_tile, entrances):
+def export_levels(prg, output, png, blit_tile, entrances, quest_dir=''):
     """Writes imported/levels/*.png and imported/rooms/l*.tres. Returns room IDs and per-level start rooms.
 
     entrances maps level number to the overworld room ID, exit position, and rise of its entrance.
+    A quest_dir ('q2') puts rooms, atlases, and residents under imported/<quest_dir>/;
+    monster definitions and sprites stay shared.
     """
+    quest_base = output / quest_dir if quest_dir else output
+    res = f'res://imported/{quest_dir}/' if quest_dir else 'res://imported/'
+    (quest_base / 'rooms').mkdir(parents=True, exist_ok=True)
     patterns = bytearray(8192)
     for source, length, target in [(34687, 1792, 0x1000), (36479, 224, 0x1F20), (49435, 0x820, 0x1700)]:
         patterns[target:target + length] = prg[source:source + length]
-    (output / 'levels').mkdir(exist_ok=True)
-    write_monsters(prg, output)
+    (quest_base / 'levels').mkdir(exist_ok=True)
+    if not quest_dir: write_monsters(prg, output)
     rooms_written, starts, missing_items, sprite_names, coverage = [], {}, set(), [], {'rooms': 0, 'populated': 0, 'unsupported': 0}
     for level in range(1, 10):
         layouts = Layouts(prg, level)
@@ -276,7 +299,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
                    '[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]',
                    '[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]',
                    '[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]',
-                   f'[ext_resource type="Texture2D" path="res://imported/levels/level_{level}.png" id="atlas"]']
+                   f'[ext_resource type="Texture2D" path="{res}levels/level_{level}.png" id="atlas"]']
             subs, doors, portals, exits, fields = [], [], [], {}, []
             base = collision(closed)
             for direction in DIRECTIONS:
@@ -344,9 +367,9 @@ def export_levels(prg, output, png, blit_tile, entrances):
                 fields.append(f'statues = PackedVector2Array({", ".join(f"{x}, {y}" for x, y in statues)})')
             if len(types) == 1 and (types[0] in PEOPLE or types[0]==0x36):
                 cave = person_cave(prg, level, room, types[0])
-                (output / 'caves').mkdir(exist_ok=True)
-                (output / 'caves' / f'{cave["id"]}.tres').write_text(cave['text'])
-                ext += [f'[ext_resource type="Resource" path="res://imported/caves/{cave["id"]}.tres" id="cave"]',
+                (quest_base / 'caves').mkdir(exist_ok=True)
+                (quest_base / 'caves' / f'{cave["id"]}.tres').write_text(cave['text'])
+                ext += [f'[ext_resource type="Resource" path="{res}caves/{cave["id"]}.tres" id="cave"]',
                         '[ext_resource type="Script" path="res://scripts/decoration_definition.gd" id="decoration"]']
                 for name, x in (('fire_left', 72), ('fire_right', 168)):
                     subs += [f'[sub_resource type="Resource" id="{name}"]', 'script = ExtResource("decoration")',
@@ -384,7 +407,7 @@ def export_levels(prg, output, png, blit_tile, entrances):
             ext = ['[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]',
                    '[ext_resource type="Script" path="res://scripts/portal_definition.gd" id="portal"]',
                    '[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]',
-                   f'[ext_resource type="Texture2D" path="res://imported/levels/level_{level}.png" id="atlas"]']
+                   f'[ext_resource type="Texture2D" path="{res}levels/level_{level}.png" id="atlas"]']
             subs, portals, fields = [], [], []
             # Z_05: leaving above Y $40, X < $80 uses attribute A, else B; arrive at attribute C.
             arrive = block[256 + cellar]
@@ -415,19 +438,19 @@ def export_levels(prg, output, png, blit_tile, entrances):
                 'movement_bounds = Rect2i(0, -3, 241, 161)', 'grid_origin = Vector2i(0, 5)', 'tile_atlas = ExtResource("atlas")',
                 f'tile_indices = PackedInt32Array({cell_lines(indices)})', f'collision_tiles = PackedByteArray({cell_lines(collision(tiles))})',
                 f'portals = Array[Resource]([{", ".join(portals)}])'] + fields)
-        atlas.write(output / 'levels' / f'level_{level}.png', patterns[0x1000:], palettes, png, blit_tile)
+        atlas.write(quest_base / 'levels' / f'level_{level}.png', patterns[0x1000:], palettes, png, blit_tile)
         for stage in range(1,4):
             faded=[row[:] for row in palettes]
             # LevelInfo_PaletteCycles at $6BFA, cycle $40: bottom background half only.
             cycle=info[0x7C+0x40+stage*8:0x7C+0x48+stage*8]
             faded[2],faded[3]=list(cycle[:4]),list(cycle[4:])
-            atlas.write(output/'levels'/f'level_{level}_dark_{stage}.png',patterns[0x1000:],faded,png,blit_tile)
+            atlas.write(quest_base/'levels'/f'level_{level}_dark_{stage}.png',patterns[0x1000:],faded,png,blit_tile)
         for name, text in texts.items():
-            extra='\n'.join(f'[ext_resource type="Texture2D" path="res://imported/levels/level_{level}_dark_{stage}.png" id="dark_{stage}"]' for stage in range(1,4))
+            extra='\n'.join(f'[ext_resource type="Texture2D" path="{res}levels/level_{level}_dark_{stage}.png" id="dark_{stage}"]' for stage in range(1,4))
             text=text.replace('\n','\n'+extra+'\n',1)
             text=text.replace('tile_atlas = ExtResource("atlas")','tile_atlas = ExtResource("atlas")\ndark_tile_atlases = Array[Texture2D]([ExtResource("dark_1"),ExtResource("dark_2"),ExtResource("dark_3")])',1)
             text=re.sub(r'load_steps=(\d+)',lambda m:'load_steps='+str(int(m[1])+3),text,count=1)
-            (output / 'rooms' / f'{name}.tres').write_text(text)
+            (quest_base / 'rooms' / f'{name}.tres').write_text(text)
             rooms_written.append(name)
     if missing_items:
         raise ValueError('Dungeons hold unsupported items: ' + ', '.join(f'${item:02X}' for item in sorted(missing_items)))
