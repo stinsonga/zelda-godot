@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://content/enemies/lab_rock.tres" id="rock"]
+[resource]
+script = ExtResource("1")
+id = &"lab_rock_slide"
+title = "Rock slide"
+behavior = "boulder_set"
+health = 1
+contact_damage = 0
+spawns = ExtResource("rock")
+spawn_limit = 3
+untouchable = true
+spawn_cloud = false
+counts_for_clear = false
+counts_for_persistence = false
+drops_rewards = false
+advances_kill_cycle = false
+sprite = &"lab_rock_slide"

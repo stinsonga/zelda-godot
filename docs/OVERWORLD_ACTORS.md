@@ -66,15 +66,36 @@ there. The stone stays.
 Both draw the back image when heading up and the front otherwise, mirrored toward
 the side they head (`sprite_style = "ghini"`).
 
+## Boulders (Z_04 UpdateBoulderSet, UpdateTektiteOrBoulder)
+
+Six rooms list boulder sets ($1F). They are invisible, untouchable generators
+(`behavior = "boulder_set"`), and they spawn boulders as follows:
+- Each starts like a Tektite, waiting its direction times four frames.
+- When its timer runs out it drops a boulder (`spawns`) at the top of the screen
+  (Y $40), at a random X in the chase target's half. The chase target is Link or,
+  at times, his mirror image.
+- It then waits (random + 8) AND $1F frames.
+- While three boulders are falling (`spawn_limit`), it adds a random byte to its
+  timer instead.
+
+A boulder is a jumper with `jump_wait_style = "boulder"`:
+- It turns toward the chase target but always heads down.
+- It lands $20 lower, starting at speed $FE with acceleration $60
+  (`JumperYAccelerations` from $16) and moving a pixel sideways a frame.
+- It jumps again at once on landing.
+- It reverses only at the room's sides and is destroyed at Y $F0.
+- It only touches Link (`untouchable`), and it never drops or counts.
+
 ## Verification
 
-`tests/overworld_actors.gd` covers all three with ROM-free fixtures
-(`content/enemies/lab_lurker.tres`, `lab_statue.tres`, `lab_ghost*.tres`): spawning on water, the cycle,
+`tests/overworld_actors.gd` covers all four with ROM-free fixtures
+(`content/enemies/lab_lurker.tres`, `lab_statue.tres`, `lab_ghost*.tres`, `lab_rock*.tres`): spawning on water, the cycle,
 the fireball, replacement, no return after a kill, the clock, waking, the fade,
 floor, speed, statues restored on re-entry, stairs and item secrets, ghosts from
-stones, their immunity, and their defeat with the Ghini. With an import it checks
-the room counts, the bracelet room, an Armos cave, and a graveyard.
+stones, their immunity, their defeat with the Ghini, and boulders: the limit of
+three, the starting half, the fall and removal, and immunity. With an import it checks
+the room counts, the bracelet room, an Armos cave, a graveyard, and the boulder rooms.
 
 ## Not yet
 
-Boulder rooms, pond fairies, and the Lost Woods and Lost Hills.
+Pond fairies, and the Lost Woods and Lost Hills.

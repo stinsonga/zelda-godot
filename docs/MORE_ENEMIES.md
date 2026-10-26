@@ -85,5 +85,5 @@ phase and terrain whitelist nuances, Peahat flight timing, and monster-arrow
 startup/spark timing need replay comparisons. Shared native audio mixes and the
 actor/projectile update grouping retain the limits documented in AUDIO.md and
 OCTOROK_FIDELITY.md. Native checkpoints rebuild encounters; mid-jump/flight/burrow
-state is intentionally transient. Zora, Armos, and Ghini are in (OVERWORLD_ACTORS.md); boulder generators and
-pond fairies remain future work.
+state is intentionally transient. Zora, Armos, Ghini, and boulders are in (OVERWORLD_ACTORS.md); pond fairies
+remain future work.

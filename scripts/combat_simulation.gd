@@ -261,7 +261,9 @@ func tick(world: Node) -> void:
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11)),
-		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at), "clock":world.state.clock_active}
+		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at),
+		"count":func(definition: Resource) -> int: return enemies.filter(func(a: RefCounted) -> bool: return a.definition == definition and a.health > 0).size(),
+		"spawn":func(definition: Resource, at: Vector2i) -> RefCounted: return wake_statue(definition, at), "clock":world.state.clock_active}
 	# Z_01 Person_CheckCollisions: striking a dungeon resident enables the fires' fireballs.
 	if world.room.dungeon_level > 0 and world.cave_session != null and world.cave_session.person_visible() and world.sword.hits(world.player.pixel_position(), PERSON_POSITION):
 		person_provoked = true

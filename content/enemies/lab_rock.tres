@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_rock"
+title = "Falling rock"
+behavior = "jumper"
+health = 1
+contact_damage = 1
+shooting_enabled = false
+speed_subpixels = 256
+jump_velocity_subpixels = -512
+jump_up_acceleration = 96
+jump_down_acceleration = 96
+jump_horizontal_acceleration = 96
+jump_target_offset = 32
+jump_wait_style = "boulder"
+untouchable = true
+spawn_cloud = false
+counts_for_persistence = false
+drops_rewards = false
+advances_kill_cycle = false
+sprite_style = "frames"
+animation_frame_ticks = 6
+sprite = &"lab_rock"
+fallback_color = Color(0.55, 0.4, 0.3, 1)

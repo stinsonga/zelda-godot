@@ -59,7 +59,8 @@ var walk_left := 0
 
 func initialize(actor: RefCounted) -> void:
 	initialized = true
-	if actor.definition.behavior == "jumper":
+	if actor.definition.behavior in ["jumper", "boulder_set"]:
+		# InitTektite (also boulders and their sets): one of four directions, timer = direction * 4.
 		var index: int = actor.source_next_random & 3
 		jump_direction = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(1,1), Vector2i(-1,-1)][index]
 		timer = [4,8,20,40][index]
@@ -83,6 +84,7 @@ func visible(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "ganon": return ganon == null or ganon.visible(actor.animation_ticks)
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_active(actor)
 	if actor.definition.behavior == "zora": return phase != 0
+	if actor.definition.behavior == "boulder_set": return false
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase != 0
@@ -92,7 +94,7 @@ func vulnerable(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.sword_vulnerable()
-	if actor.definition.behavior in ["zelda", "rupee_stash"]: return false
+	if actor.definition.behavior in ["zelda", "rupee_stash", "boulder_set"]: return false
 	# Burrower_AnimateDrawAndCheckCollisions: a Zora collides in states 2-4.
 	if actor.definition.behavior == "zora": return phase in [2, 3, 4]
 	# UpdatePatra checks monster collisions only once every child is gone.
@@ -112,7 +114,7 @@ func contact_enabled(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.touches_link()
-	if actor.definition.behavior in ["zelda", "rupee_stash"]: return false
+	if actor.definition.behavior in ["zelda", "rupee_stash", "boulder_set"]: return false
 	if actor.definition.behavior == "zora": return phase in [2, 3, 4]
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
@@ -144,6 +146,32 @@ func bound(actor: RefCounted) -> bool:
 		actor.facing = -actor.facing
 		return false
 	return true
+
+func bound_sides(actor: RefCounted) -> bool:
+	var at: Vector2i = actor.position()
+	if (at.x < area.position.x and actor.facing.x < 0) or (at.x >= area.end.x and actor.facing.x > 0):
+		actor.facing = Vector2i(-actor.facing.x, actor.facing.y)
+		return false
+	return true
+
+## Z_04 UpdateBoulderSet: when its timer runs out, drop a boulder at the top
+## of the screen in the half the chase target is in, unless spawn_limit are
+## falling; then wait (random + 8) AND $1F frames. At the limit, add a random
+## byte to the timer instead.
+func tick_boulder_set(actor: RefCounted, context: Dictionary) -> void:
+	if not initialized: return
+	if timer > 0: return
+	var definition: Resource = actor.definition
+	if definition.spawns == null: return
+	var count: Callable = context.get("count", Callable())
+	var spawn: Callable = context.get("spawn", Callable())
+	if count.is_valid() and count.call(definition.spawns) >= definition.spawn_limit:
+		timer = (timer + actor.source_next_random) & 0xFF
+		return
+	var chase: Vector2i = context.get("chase_target", Vector2i.ZERO)
+	var x: int = (actor.source_next_random & 0x7F) if chase.x < 0x80 else (actor.source_next_random | 0x80)
+	if spawn.is_valid() and spawn.call(definition.spawns, Vector2i(x, 0x40 - 64)) != null:
+		timer = (0x08 + actor.source_next_random) & 0x1F
 
 ## Returns true when the monster fires a shot this tick.
 func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Dictionary) -> bool:
@@ -178,6 +206,9 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	# UpdateGuardFire only animates and collides.
 	if actor.definition.behavior == "guard_fire": return false
 	if actor.definition.behavior == "rupee_stash": return false
+	if actor.definition.behavior == "boulder_set":
+		tick_boulder_set(actor, context)
+		return false
 	if actor.definition.behavior == "zora": return tick_zora(actor, context)
 	if actor.shove_remaining > 0:
 		actor.source.shove(actor, probe)
@@ -202,7 +233,10 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 
 func begin_jump(actor: RefCounted) -> void:
 	var definition: Resource = actor.definition
-	target_y = clampi(actor.position().y + jump_direction.y * definition.jump_target_offset, 13, 141)
+	# Jumper_PointBoulderDownward: a boulder always heads down.
+	if definition.jump_wait_style == "boulder": jump_direction.y = 1
+	target_y = actor.position().y + jump_direction.y * definition.jump_target_offset
+	if definition.jump_wait_style != "boulder": target_y = clampi(target_y, 13, 141)
 	velocity_y = definition.jump_velocity_subpixels
 	phase = 1
 	actor.facing = jump_direction
@@ -216,7 +250,9 @@ func tick_jump(actor: RefCounted, target: Vector2i) -> void:
 		begin_jump(actor)
 		return
 	actor.facing = jump_direction
-	if not bound(actor):
+	var boulder: bool = definition.jump_wait_style == "boulder"
+	# BoundFlyer skips the vertical bounds for boulders.
+	if not (bound_sides(actor) if boulder else bound(actor)):
 		jump_direction = actor.facing
 		begin_jump(actor)
 		return
@@ -225,8 +261,17 @@ func tick_jump(actor: RefCounted, target: Vector2i) -> void:
 	var acceleration: int = definition.jump_horizontal_acceleration if jump_direction.y == 0 else definition.jump_up_acceleration if jump_direction.y < 0 else definition.jump_down_acceleration
 	velocity_y = mini(512, velocity_y + acceleration)
 	actor.subposition.x += jump_direction.x * definition.speed_subpixels
+	if boulder and actor.position().y >= 0xF0 - 64:
+		# Near the bottom of the screen a boulder is destroyed.
+		actor.health = 0
+		actor.death_remaining = 0
+		actor.drop_resolved = true
+		return
 	if velocity_y >= 0 and absi(actor.position().y-target_y) < 3:
 		phase = 0
+		if boulder:
+			timer = 0
+			return
 		var random_byte: int = actor.source_next_random
 		timer = (random_byte + 16) & 255
 		if timer < 32: timer = (timer - 64) & 255

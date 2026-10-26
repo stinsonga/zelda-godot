@@ -32,6 +32,7 @@ func run() -> void:
 	check_zora()
 	check_armos()
 	check_ghini()
+	check_boulders()
 	world.free()
 	check_imported()
 	print("Overworld actor checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
@@ -213,6 +214,52 @@ func check_ghini() -> void:
 	tick(2)
 	check(world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.id == &"lab_ghost").all(func(a: RefCounted) -> bool: return a.health == 0), "Defeating the Ghini takes every ghost with it")
 
+func check_boulders() -> void:
+	var room: Resource = lake_room()
+	room.id = &"slope_fixture"
+	room.zora = null
+	var rows: PackedStringArray = []
+	for y in range(11): rows.append("#" + ".".repeat(14) + "#")
+	room.tiles = "\n".join(rows)
+	room.enemy_persistence = "reset"
+	var spawns: Array = []
+	for i in range(2):
+		var spawn = preload("res://scripts/enemy_spawn.gd").new()
+		spawn.id = StringName("slide_%d" % i)
+		spawn.enemy = load("res://content/enemies/lab_rock_slide.tres")
+		spawn.position = Vector2i(32 + i * 16, 29)
+		spawn.spawn_ticks = 0
+		spawns.append(spawn)
+	room.enemies.assign(spawns)
+	world.rooms[room.id] = room
+	world.enter_room(room, Vector2i(48, 125), Vector2i.UP)
+	var slides: Array = world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.behavior == "boulder_set")
+	check(slides.size() == 2 and slides.all(func(a: RefCounted) -> bool: return not a.body_visible() and not a.targetable() and not a.can_touch_player()), "Boulder sets are invisible and untouchable")
+	var most := 0
+	var first_spot := Vector2i(-1, -1)
+	var chase_half := -1
+	var reached_bottom := false
+	var tracked: RefCounted = null
+	var lowest := -1
+	for i in range(600):
+		tick()
+		var rocks: Array = world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.id == &"lab_rock" and a.health > 0)
+		most = maxi(most, rocks.size())
+		if tracked == null and not rocks.is_empty():
+			tracked = rocks[0]
+			first_spot = tracked.position()
+			chase_half = 1 if world.combat.chase_target.x >= 0x80 else 0
+		if tracked != null:
+			if tracked.health > 0: lowest = maxi(lowest, tracked.position().y)
+			elif lowest >= 0xF0 - 64 - 4: reached_bottom = true
+	check(most == 3, "At most three boulders fall at once (%d)" % most)
+	# The chase target is Link or, at times, his mirror image (update_chase_target).
+	check(first_spot.y == 0 and (1 if first_spot.x >= 0x80 else 0) == chase_half, "A boulder starts at the top, in the chase target's half (%s)" % first_spot)
+	check(reached_bottom, "Boulders fall to the bottom and vanish (lowest %d)" % lowest)
+	var falling: Array = world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.id == &"lab_rock" and a.health > 0)
+	check(not falling.is_empty() and falling.all(func(a: RefCounted) -> bool: return not a.targetable() and a.can_touch_player()), "Boulders hurt but cannot be struck")
+	check(falling.all(func(a: RefCounted) -> bool: return a.position().x >= 0 and a.position().x <= 240), "Boulders stay within the sides")
+
 func check_imported() -> void:
 	if not ResourceLoader.exists("res://imported/enemies/zora.tres"): return
 	world = preload("res://scenes/main.tscn").instantiate()
@@ -236,5 +283,7 @@ func check_imported() -> void:
 	var cave_room: Resource = world.rooms[&"ow_1c"]
 	check(cave_room.portals.any(func(p: Resource) -> bool: return p.target_room == &"cave_1c" and p.requires_secret), "Room $1C's Armos hides a cave")
 	var graveyard: Resource = world.rooms[&"ow_21"]
+	var slopes: Array = world.room_resources.filter(func(r: Resource) -> bool: return r.enemies.any(func(e: Resource) -> bool: return e.enemy.behavior == "boulder_set"))
+	check(slopes.size() == 6 and slopes[0].enemies[0].enemy.spawns.id == &"boulder", "Six rooms drop boulders")
 	check(graveyard.grave_cells.size() == 12 and graveyard.ghost.untouchable and graveyard.enemies.any(func(s: Resource) -> bool: return s.enemy.defeat_takes == &"flying_ghini"), "Graveyards hold the Ghini and twelve stones of ghosts")
 	world.free()

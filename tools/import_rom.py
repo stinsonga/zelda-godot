@@ -336,6 +336,9 @@ ENEMY_TYPES = {
     0x21: ('ghini','walker'),
     # Raised from gravestones by Z_01 CheckPassiveTileObjects.
     0x22: ('flying_ghini','flyer'),
+    # Z_04 UpdateBoulderSet drops boulders ($20) while fewer than three fall.
+    0x1F: ('boulder_set','boulder_set'),
+    0x20: ('boulder','jumper'),
 }
 # Z_04 InitArmosOrFlyingGhini: rooms whose Armos at ($X, $80) hides stairs, or in
 # room $24 the power bracelet.
@@ -449,7 +452,22 @@ def export_overworld_enemies(prg, patterns, palettes, output):
                 fields.update(wake_ticks=0x3F, untouchable='true', flight_initial_speed=0x1F, flight_max_speed=0xA0,
                               flight_chase_threshold=0xA0, flight_rest_threshold=8, flight_vulnerable_resting_only='false',
                               counts_for_persistence='false', sprite_style='"ghini"')
-            if behavior == 'jumper':
+            if kind == 0x20:
+                # UpdateTektiteOrBoulder with the boulder set: start speed $FE, acceleration
+                # $60, a pixel sideways a frame, landing $20 lower. It only touches Link.
+                # JumperYAccelerations ($108D5): the boulder set starts at $16; down-right is
+                # direction 5. JumperStartSpeedsHi follows the 29-byte table; boulders are third.
+                acceleration = prg[0x108D5 + 0x16 + 5]
+                fields.update(speed_subpixels=256, jump_velocity_subpixels=(prg[0x108D5 + 29 + 2] - 256) * 256,
+                              jump_up_acceleration=acceleration, jump_down_acceleration=acceleration,
+                              jump_horizontal_acceleration=acceleration, jump_target_offset=32,
+                              jump_wait_style='"boulder"', untouchable='true', spawn_cloud='false', counts_for_persistence='false',
+                              drops_rewards='false', advances_kill_cycle='false', sprite_style='"frames"', animation_frame_ticks=6)
+            elif kind == 0x1F:
+                fields.update(spawns='ExtResource("boulder")', spawn_limit=3, untouchable='true', contact_damage=0,
+                              spawn_cloud='false', counts_for_clear='false', counts_for_persistence='false', drops_rewards='false',
+                              advances_kill_cycle='false')
+            elif behavior == 'jumper':
                 red = kind == 14
                 fields.update(speed_subpixels=256,jump_velocity_subpixels=-1024 if red else -768,
                               jump_horizontal_acceleration=prg[0x108D5 + (11 if red else 0)+1],
@@ -474,10 +492,16 @@ def export_overworld_enemies(prg, patterns, palettes, output):
                     values = [v*scale for v in prg[base+offset:base+offset+6]]
                     fields[field] = 'PackedInt32Array('+array(values)+')'
                 fields['turn_chance'] = 160
-        text = '[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]\n[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]\n[resource]\nscript = ExtResource("1")\n'
+        boulder_ext = '[ext_resource type="Resource" path="res://imported/enemies/boulder.tres" id="boulder"]\n' if kind == 0x1F else ''
+        text = f'[gd_resource type="Resource" script_class="EnemyDefinition" load_steps={3 if boulder_ext else 2} format=3]\n[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]\n{boulder_ext}[resource]\nscript = ExtResource("1")\n'
         (output/'enemies'/(name+'.tres')).write_text(text+'\n'.join(f'{key} = {value}' for key,value in fields.items())+'\n')
         if behavior == 'nes_octorok': continue
         base = prg[0x6E04 + kind + 1]
+        if kind == 0x1F: continue
+        if kind == 0x20:
+            # Jumper_AnimateAndCheckCollisions: two unmirrored images, six frames each.
+            for frame in range(2): render(f'{name}_{frame}', base + frame)
+            continue
         if kind in (0x21, 0x22):
             # DrawGhiniAndCheckCollisions: image 0 back, 1 front, flipped toward its side.
             for view, offset in (('back', 0), ('front', 1)):
@@ -809,7 +833,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
             'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['First-quest terrain; boulders, pond fairies, and the Lost Woods/Hills remain unimplemented.',
+        'limitations': ['First-quest terrain; pond fairies and the Lost Woods/Hills remain unimplemented.',
                         'First-quest dungeon encounters are imported; Zora and Armos are in.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio

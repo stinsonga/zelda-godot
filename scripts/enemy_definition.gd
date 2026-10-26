@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora", "boulder_set") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -45,7 +45,9 @@ extends Resource
 @export var jump_down_acceleration: int = 128
 @export var jump_horizontal_acceleration: int = 128
 @export var jump_target_offset: int = 32
-@export_enum("red", "blue") var jump_wait_style: String = "red"
+## "boulder": always heading down, bounded only at the sides, jumping again on
+## landing, and gone below the screen (Z_04 UpdateTektiteOrBoulder).
+@export_enum("red", "blue", "boulder") var jump_wait_style: String = "red"
 ## Burrow cycle: hidden, mound, emerging, exposed, sinking, mound.
 @export_enum("roam", "ambush") var burrow_style: String = "roam"
 @export var burrow_times: PackedInt32Array = PackedInt32Array([90, 24, 12, 180, 12, 48])
@@ -152,6 +154,10 @@ extends Resource
 ## When this monster dies, every monster with this definition ID dies too
 ## (Z_04 UpdateGhini kills the flying Ghini).
 @export var defeat_takes: StringName
+## "boulder_set" (Z_04 UpdateBoulderSet): drops `spawns` at the top of the
+## screen while fewer than spawn_limit of them exist.
+@export var spawns: Resource
+@export var spawn_limit: int = 3
 @export var collision_size: Vector2i = Vector2i.ZERO
 @export var collision_offset: Vector2i = Vector2i.ZERO
 ## Fireball2 ($56) cannot be blocked, even with the magical shield.
@@ -160,7 +166,7 @@ extends Resource
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
 	if clock_response not in ["source", "freeze", "immune"]: errors.append("Unknown clock response")
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora", "boulder_set"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")
