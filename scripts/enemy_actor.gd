@@ -70,6 +70,9 @@ func size() -> Vector2i:
 	if definition.wide_when_horizontal and facing.x != 0: return Vector2i(32, 16)
 	return definition.size
 
+## Sound cues an actor raises this tick, played by the combat simulation.
+var cues: Array[StringName] = []
+
 ## Several shots fired in one tick (Aquamentus): {kind, position, spread}.
 var pending_shots: Array[Dictionary] = []
 

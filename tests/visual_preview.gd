@@ -65,6 +65,16 @@ func preview() -> void:
 		lab.queue_redraw()
 		return
 	var world = preload("res://scenes/main.tscn").instantiate()
+	if args.has("pond"):
+		root.add_child(world)
+		world.set_physics_process(false)
+		world.enter_room(world.rooms[&"ow_39"], Vector2i(0x78, 0xAD - 64), Vector2i.UP)
+		world.state.health_units = world.state.HEALTH_UNITS
+		for tick in range(40): world.simulate_tick(Vector2i.ZERO)
+		world.player.place(Vector2i(0x78, 0xAD - 64))
+		for tick in range(70): world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
+		return
 	if args.has("submenu_ow") or args.has("submenu_uw"):
 		root.add_child(world)
 		world.set_physics_process(false)

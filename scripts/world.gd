@@ -1420,9 +1420,19 @@ func draw_ganon_remains(actor: RefCounted) -> void:
 		if visual_theme.sprites.has(ray): draw_named_sprite(ray, Vector2(fight.rays[i]))
 		else: draw_rect(Rect2(Vector2(fight.rays[i]) + Vector2(2, HUD_HEIGHT + 4), Vector2(4, 8)), Color("f8d878"))
 
+## PondFairy_MoveHearts draws full hearts in the red palette row (the red
+## frame of the flashing drop heart).
+func draw_pond_hearts(actor: RefCounted) -> void:
+	for heart in actor.family.hearts:
+		if heart[0] == 0: continue
+		var at := Vector2(floori(heart[2].x / 256.0), floori(heart[2].y / 256.0))
+		if visual_theme.sprites.has(&"heart_1"): draw_named_sprite(&"heart_1", at)
+		else: draw_circle(at + Vector2(8, HUD_HEIGHT + 8), 3, Color("e04040"))
+
 func draw_combat() -> void:
 	for actor in combat.enemies:
 		if actor.definition.behavior == "ganon": draw_ganon_remains(actor)
+		if actor.definition.behavior == "pond_fairy": draw_pond_hearts(actor)
 	# Gleeok's fixed body and necks sit behind the attached/detached head sprites.
 	for actor in combat.enemies:
 		if actor.health <= 0 or actor.definition.behavior != "gleeok" or actor.family.gleeok == null: continue

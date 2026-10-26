@@ -33,6 +33,7 @@ func run() -> void:
 	check_armos()
 	check_ghini()
 	check_boulders()
+	check_pond_fairy()
 	world.free()
 	check_imported()
 	print("Overworld actor checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
@@ -260,6 +261,55 @@ func check_boulders() -> void:
 	check(not falling.is_empty() and falling.all(func(a: RefCounted) -> bool: return not a.targetable() and a.can_touch_player()), "Boulders hurt but cannot be struck")
 	check(falling.all(func(a: RefCounted) -> bool: return a.position().x >= 0 and a.position().x <= 240), "Boulders stay within the sides")
 
+func check_pond_fairy() -> void:
+	var room: Resource = lake_room()
+	room.id = &"pond_fixture"
+	room.zora = null
+	var spawn = preload("res://scripts/enemy_spawn.gd").new()
+	spawn.id = &"fairy"
+	spawn.enemy = load("res://content/enemies/lab_pond_spirit.tres")
+	spawn.position = Vector2i(0x78, 0x7D - 64)
+	spawn.spawn_ticks = 0
+	room.enemies.assign([spawn])
+	room.enemy_persistence = "reset"
+	var rows: PackedStringArray = []
+	for y in range(11): rows.append("#" + ".".repeat(14) + "#")
+	room.tiles = "\n".join(rows)
+	world.rooms[room.id] = room
+	world.enter_room(room, Vector2i(48, 125), Vector2i.UP)
+	var fairy: RefCounted = world.combat.enemies[0]
+	world.state.health_units = world.state.HEALTH_UNITS
+	tick(10)
+	check(fairy.family.pond_phase == 0 and not fairy.targetable() and not fairy.can_touch_player(), "The fairy waits, neither struck nor harmful")
+	world.player.place(Vector2i(0x78, 0xAD - 64))
+	var before: int = world.state.health_units
+	world.simulate_tick(Vector2i.ZERO)
+	world.simulate_tick(Vector2i.LEFT)
+	check(fairy.family.pond_phase == 1 and world.combat.holds_player() and world.player.pixel_position() == Vector2i(0x78, 0xAD - 64), "At the pond's edge Link is held")
+	check(world.state.health_units == before + 6, "Hearts refill six units a frame (%d)" % (world.state.health_units - before))
+	var most := 0
+	var frames := 0
+	while fairy.family.pond_phase == 1 and frames < 2000:
+		world.simulate_tick(Vector2i.ZERO)
+		frames += 1
+		most = maxi(most, fairy.family.hearts.filter(func(h: Array) -> bool: return h[0] == 1).size())
+	check(world.state.health_units == world.state.max_health * world.state.HEALTH_UNITS, "Every heart is restored")
+	check(most == 8, "Eight hearts circle the fairy (%d)" % most)
+	var first: Array = fairy.family.hearts[0]
+	var gap := Vector2(floori(first[2].x / 256.0), floori(first[2].y / 256.0)) - Vector2(fairy.position())
+	# They start $1C above her; a $60 step with six bits draws a ring about 54
+	# pixels in radius that is centred below her, toward Link.
+	check(gap.length() > 8 and gap.length() < 100, "They circle near her (%.1f)" % gap.length())
+	var linger := 0
+	while world.combat.holds_player() and linger < 200:
+		world.simulate_tick(Vector2i.ZERO)
+		linger += 1
+	check(linger >= 0x4F and linger <= 0x51, "Link stays $50 frames more (%d)" % linger)
+	world.state.health_units = world.state.HEALTH_UNITS
+	world.player.place(Vector2i(0x78, 0xAD - 64))
+	tick(5)
+	check(world.state.health_units == world.state.HEALTH_UNITS and fairy.family.pond_phase == 3, "She helps once a visit")
+
 func check_imported() -> void:
 	if not ResourceLoader.exists("res://imported/enemies/zora.tres"): return
 	world = preload("res://scenes/main.tscn").instantiate()
@@ -284,6 +334,9 @@ func check_imported() -> void:
 	check(cave_room.portals.any(func(p: Resource) -> bool: return p.target_room == &"cave_1c" and p.requires_secret), "Room $1C's Armos hides a cave")
 	var graveyard: Resource = world.rooms[&"ow_21"]
 	var slopes: Array = world.room_resources.filter(func(r: Resource) -> bool: return r.enemies.any(func(e: Resource) -> bool: return e.enemy.behavior == "boulder_set"))
+	var ponds: Array = world.room_resources.filter(func(r: Resource) -> bool: return r.enemies.any(func(e: Resource) -> bool: return e.enemy.behavior == "pond_fairy"))
+	check(ponds.size() == 2 and ponds.all(func(r: Resource) -> bool: return r.enemies[0].position == Vector2i(0x78, 0x7D - 64)), "Two ponds hold a fairy at ($78, $7D)")
+	check(ponds.all(func(r: Resource) -> bool: return not r.is_pixel_solid(Vector2i(0x78, 0xAD - 64 + 11))), "Link can reach each pond's edge")
 	check(slopes.size() == 6 and slopes[0].enemies[0].enemy.spawns.id == &"boulder", "Six rooms drop boulders")
 	check(graveyard.grave_cells.size() == 12 and graveyard.ghost.untouchable and graveyard.enemies.any(func(s: Resource) -> bool: return s.enemy.defeat_takes == &"flying_ghini"), "Graveyards hold the Ghini and twelve stones of ghosts")
 	world.free()

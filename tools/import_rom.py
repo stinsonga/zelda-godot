@@ -339,6 +339,8 @@ ENEMY_TYPES = {
     # Z_04 UpdateBoulderSet drops boulders ($20) while fewer than three fall.
     0x1F: ('boulder_set','boulder_set'),
     0x20: ('boulder','jumper'),
+    # Z_04 InitPondFairy and UpdatePondFairy.
+    0x2F: ('pond_fairy','pond_fairy'),
 }
 # Z_04 InitArmosOrFlyingGhini: rooms whose Armos at ($X, $80) hides stairs, or in
 # room $24 the power bracelet.
@@ -376,7 +378,7 @@ def enemy_resources(prg, room_id, collision, spawn):
 script = ExtResource("enemy_spawn")
 id = &"slot_{i}"
 enemy = ExtResource("enemy_def_{kind}")
-position = Vector2i({spawn[0]}, {spawn[1]})
+position = Vector2i({0x78 if kind == 0x2F else spawn[0]}, {0x7D - 64 if kind == 0x2F else spawn[1]})
 facing = Vector2i(0, 0)
 seed_value = {room_id * 31 + i + 1}
 spawn_ticks = {delay}
@@ -463,6 +465,11 @@ def export_overworld_enemies(prg, patterns, palettes, output):
                               jump_horizontal_acceleration=acceleration, jump_target_offset=32,
                               jump_wait_style='"boulder"', untouchable='true', spawn_cloud='false', counts_for_persistence='false',
                               drops_rewards='false', advances_kill_cycle='false', sprite_style='"frames"', animation_frame_ticks=6)
+            elif kind == 0x2F:
+                # The fairy only watches for Link at the pond's edge; she animates every 4 frames.
+                fields.update(untouchable='true', contact_damage=0, counts_for_clear='false', counts_for_persistence='false',
+                              drops_rewards='false', advances_kill_cycle='false', sprite='&"fairy"', sprite_style='"frames"',
+                              animation_frame_ticks=4)
             elif kind == 0x1F:
                 fields.update(spawns='ExtResource("boulder")', spawn_limit=3, untouchable='true', contact_damage=0,
                               spawn_cloud='false', counts_for_clear='false', counts_for_persistence='false', drops_rewards='false',
@@ -497,7 +504,8 @@ def export_overworld_enemies(prg, patterns, palettes, output):
         (output/'enemies'/(name+'.tres')).write_text(text+'\n'.join(f'{key} = {value}' for key,value in fields.items())+'\n')
         if behavior == 'nes_octorok': continue
         base = prg[0x6E04 + kind + 1]
-        if kind == 0x1F: continue
+        # Boulder sets are invisible; the pond fairy uses the fairy item sprites.
+        if kind in (0x1F, 0x2F): continue
         if kind == 0x20:
             # Jumper_AnimateAndCheckCollisions: two unmirrored images, six frames each.
             for frame in range(2): render(f'{name}_{frame}', base + frame)
@@ -833,7 +841,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
             'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['First-quest terrain; pond fairies and the Lost Woods/Hills remain unimplemented.',
+        'limitations': ['First-quest terrain; the Lost Woods/Hills remain unimplemented.',
                         'First-quest dungeon encounters are imported; Zora and Armos are in.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio

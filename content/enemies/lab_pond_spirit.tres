@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_pond_spirit"
+title = "Pond spirit"
+behavior = "pond_fairy"
+health = 1
+contact_damage = 0
+untouchable = true
+spawn_cloud = false
+counts_for_clear = false
+counts_for_persistence = false
+drops_rewards = false
+advances_kill_cycle = false
+sprite_style = "frames"
+animation_frame_ticks = 4
+sprite = &"lab_pond_spirit"
+fallback_color = Color(1, 0.6, 0.85, 1)

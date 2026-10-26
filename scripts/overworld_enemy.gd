@@ -23,6 +23,10 @@ var zelda_state := 0
 ## set when its cycle ends, so the room can raise another.
 var zora_back := false
 var zora_gone := false
+## Pond fairy (Z_04 UpdatePondFairy): 0 waiting, 1 refilling, 2 lingering, 3
+## done; its eight hearts are [state, angle, subposition].
+var pond_phase := 0
+var hearts: Array = []
 var patra_index := 0
 var patra_state := 0
 ## ObjAngleWhole and ObjAngleFrac as one 13-bit value: 32 whole steps a circle.
@@ -94,7 +98,7 @@ func vulnerable(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.sword_vulnerable()
-	if actor.definition.behavior in ["zelda", "rupee_stash", "boulder_set"]: return false
+	if actor.definition.behavior in ["zelda", "rupee_stash", "boulder_set", "pond_fairy"]: return false
 	# Burrower_AnimateDrawAndCheckCollisions: a Zora collides in states 2-4.
 	if actor.definition.behavior == "zora": return phase in [2, 3, 4]
 	# UpdatePatra checks monster collisions only once every child is gone.
@@ -114,7 +118,7 @@ func contact_enabled(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "moldorm_segment": return actor.facing != Vector2i.ZERO
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.touches_link()
-	if actor.definition.behavior in ["zelda", "rupee_stash", "boulder_set"]: return false
+	if actor.definition.behavior in ["zelda", "rupee_stash", "boulder_set", "pond_fairy"]: return false
 	if actor.definition.behavior == "zora": return phase in [2, 3, 4]
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
@@ -208,6 +212,9 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	if actor.definition.behavior == "rupee_stash": return false
 	if actor.definition.behavior == "boulder_set":
 		tick_boulder_set(actor, context)
+		return false
+	if actor.definition.behavior == "pond_fairy":
+		tick_pond_fairy(actor, context)
 		return false
 	if actor.definition.behavior == "zora": return tick_zora(actor, context)
 	if actor.shove_remaining > 0:
@@ -865,3 +872,43 @@ func tick_zora(actor: RefCounted, context: Dictionary) -> bool:
 func zora_frame() -> int:
 	if phase in [2, 3, 4]: return 3 if zora_back else 2
 	return (8 if phase == 5 else 0) + pose
+
+## Z_04 UpdatePondFairy: when Link stands at the pond's edge (Y $AD, X from $70
+## below $81) he is held while his hearts refill (World_FillHearts: six units a
+## frame), and for $50 frames more; then he is free and the fairy is spent.
+## Eight hearts circle her meanwhile (PondFairy_MoveHearts).
+const POND_HEART_START_ANGLES := [0x14, 0x10, 0x0C, 0x08, 0x04, 0x00, 0x1C]
+func tick_pond_fairy(actor: RefCounted, context: Dictionary) -> void:
+	var player: Vector2i = context.get("player", Vector2i.ZERO)
+	var state: RefCounted = context.get("state")
+	match pond_phase:
+		0:
+			if player.y != 0xAD - 64 or player.x < 0x70 or player.x >= 0x81: return
+			pond_phase = 1
+			hearts.clear()
+			for i in range(8): hearts.append([0, 0, Vector2i.ZERO])
+		1:
+			if state != null and state.health_units < state.max_health * state.HEALTH_UNITS:
+				state.health_units = mini(state.max_health * state.HEALTH_UNITS, state.health_units + 6)
+				if context.get("frame", 0) % 8 == 0: actor.cues.append(&"heart")
+			else:
+				pond_phase = 2
+				timer = 0x50
+		2:
+			if timer == 0: pond_phase = 3
+	if pond_phase in [1, 2]: move_pond_hearts(actor)
+
+func move_pond_hearts(actor: RefCounted) -> void:
+	for i in range(hearts.size()):
+		var heart: Array = hearts[i]
+		if heart[0] == 0:
+			# Later hearts appear as the first one passes their start angles.
+			if i > 0 and (hearts[0][0] == 0 or hearts[0][1] >> 8 != POND_HEART_START_ANGLES[i - 1]): continue
+			heart[0] = 1
+			heart[1] = 0x18 << 8
+			heart[2] = (actor.position() - Vector2i(0, 0x1C)) * 256
+		heart[1] = (heart[1] - 0x60) & 0x1FFF
+		heart[2] += PatraGroup.orbit_step(heart[1] >> 8, 6, 6)
+
+func holds_player() -> bool:
+	return pond_phase in [1, 2]

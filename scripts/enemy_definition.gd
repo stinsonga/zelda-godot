@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora", "boulder_set") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora", "boulder_set", "pond_fairy") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -166,7 +166,7 @@ extends Resource
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
 	if clock_response not in ["source", "freeze", "immune"]: errors.append("Unknown clock response")
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora", "boulder_set"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora", "boulder_set", "pond_fairy"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")

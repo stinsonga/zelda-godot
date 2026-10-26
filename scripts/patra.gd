@@ -77,14 +77,14 @@ func tick_child(actor: RefCounted) -> void:
 		return
 	actor.subposition += offset * 256
 	family.patra_angle = (family.patra_angle - actor.definition.orbit_angle_step) & 0x1FFF
-	var bits_x: int = actor.definition.orbit_x_bits[maneuver]
-	var bits_y: int = actor.definition.orbit_y_bits[maneuver]
-	var whole: int = family.patra_angle >> 8
-	# RotateObjectLocation: add or subtract q-speed times the top bits of the sine.
+	actor.subposition += orbit_step(family.patra_angle >> 8, actor.definition.orbit_x_bits[maneuver], actor.definition.orbit_y_bits[maneuver])
+
+## Z_04 RotateObjectLocation: the subpixel change for one frame at an angle
+## (whole part, 32 steps a circle): q-speed times the top bits of the sine.
+static func orbit_step(whole: int, bits_x: int, bits_y: int) -> Vector2i:
 	var step_x: int = Q_SPEED * (SINES[whole & 0x0F] >> (8 - bits_x))
 	var step_y: int = Q_SPEED * (SINES[(whole + 8) & 0x0F] >> (8 - bits_y))
-	actor.subposition.x += -step_x if (whole & 0x18) >= 0x10 else step_x
-	actor.subposition.y += -step_y if ((whole - 8) & 0x18) >= 0x10 else step_y
+	return Vector2i(-step_x if (whole & 0x18) >= 0x10 else step_x, -step_y if ((whole - 8) & 0x18) >= 0x10 else step_y)
 
 func child_active(actor: RefCounted) -> bool:
 	return actor.family.patra_state == 1

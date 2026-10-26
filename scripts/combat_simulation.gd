@@ -261,7 +261,7 @@ func tick(world: Node) -> void:
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11)),
-		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at),
+		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at), "state":world.state,
 		"count":func(definition: Resource) -> int: return enemies.filter(func(a: RefCounted) -> bool: return a.definition == definition and a.health > 0).size(),
 		"spawn":func(definition: Resource, at: Vector2i) -> RefCounted: return wake_statue(definition, at), "clock":world.state.clock_active}
 	# Z_01 Person_CheckCollisions: striking a dungeon resident enables the fires' fireballs.
@@ -316,6 +316,8 @@ func tick(world: Node) -> void:
 			world.audio.play(&"enemy_die")
 			actor.family.moldorm.death_cues=0
 		if actor.definition.behavior == "ganon" and actor.family.ganon != null: apply_ganon_cues(world, actor)
+		for cue in actor.cues: world.audio.play(cue)
+		actor.cues.clear()
 		if actor.definition.behavior == "zelda" and actor.family.zelda_state > 0: rescue_zelda(world, actor)
 		for shot in actor.pending_shots:
 			if rocks.size() >= projectile_limit: break
@@ -539,6 +541,7 @@ func holds_player() -> bool:
 	for actor in enemies:
 		if actor.definition.behavior == "ganon" and actor.health > 0 and actor.family.ganon != null and actor.family.ganon.holds_player(): return true
 		if actor.definition.behavior == "zelda" and actor.family.zelda_state > 0: return true
+		if actor.definition.behavior == "pond_fairy" and actor.family.holds_player(): return true
 	return false
 
 ## Ganon's room starts dark and brightens in four steps during his intro.
@@ -824,7 +827,7 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
-	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm", "patra", "zelda", "guard_fire", "rupee_stash"])
+	var original: Array = enemies.filter(func(actor: RefCounted) -> bool: return actor.definition.behavior not in ["native", "trap", "wallmaster", "aquamentus", "gohma", "gleeok", "moldorm", "patra", "zelda", "guard_fire", "rupee_stash", "pond_fairy"])
 	if original.is_empty() or spawn_lists.size() != 4: return
 	var list_index := 0
 	if direction == Vector2i.LEFT: list_index = 1

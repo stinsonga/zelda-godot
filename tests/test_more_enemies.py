@@ -38,7 +38,7 @@ class EnemyImportTests(unittest.TestCase):
             self.assertIn(f'behavior = "{behavior}"',text)
             raw = data[0x72ba+kind]
             # The boulder set is an invisible generator that never touches Link.
-            expected = 0 if kind == 0x1F else (raw&15)*2+bool(raw&240)
+            expected = 0 if kind in (0x1F, 0x2F) else (raw&15)*2+bool(raw&240)
             self.assertIn(f'contact_damage = {expected}\n',text)
         supported = mixed = 0
         for i in range(128):
@@ -50,8 +50,8 @@ class EnemyImportTests(unittest.TestCase):
                 self.assertIn(f'enemy = ExtResource("enemy_def_{kind}")',text)
             supported += 1
             mixed += len(set(types))>1
-        # 100 common encounters, six graveyard Ghini rooms, and six boulder rooms.
-        self.assertEqual((supported,mixed),(112,32))
+        # 100 common encounters, six Ghini rooms, six boulder rooms, and two fairy ponds.
+        self.assertEqual((supported,mixed),(114,32))
 
     def test_local_enemy_pose_pixels(self):
         data = self.local()
@@ -65,7 +65,7 @@ class EnemyImportTests(unittest.TestCase):
             if behavior == 'nes_octorok': continue
             base = data[0x6e04+kind+1]
             frames = []
-            if kind == 0x1F: continue
+            if kind in (0x1F, 0x2F): continue
             if kind == 0x20:
                 frames = [(f'{name}_{i}',base+i,False,False) for i in range(2)]
             elif kind in (0x21, 0x22):

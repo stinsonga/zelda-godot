@@ -86,16 +86,33 @@ A boulder is a jumper with `jump_wait_style = "boulder"`:
 - It reverses only at the room's sides and is destroyed at Y $F0.
 - It only touches Link (`untouchable`), and it never drops or counts.
 
+## Pond fairies (Z_04 InitPondFairy, UpdatePondFairy)
+
+Rooms $39 and $43 list a pond fairy ($2F). She stays at ($78, $7D), alternating her
+two images every four frames, and neither hurts nor can be hurt.
+- When Link stands at the pond's edge (Y $AD, X from $70 below $81), he is held and
+  his hearts refill six units a frame, with the heart sound every eight frames.
+  The fairy does this herself, since the project's potion refill pauses everything.
+- Eight hearts circle meanwhile (`PondFairy_MoveHearts`). The first starts $1C above
+  her at angle $18, and each later one appears as the first passes its start angle.
+  They move by angle steps of $60 with six-bit sines (`PatraGroup.orbit_step`), a
+  ring about 54 pixels in radius centred below her.
+- Once Link is full, the hearts keep circling for $50 frames. Then he is free, and
+  the fairy is spent for the visit.
+
 ## Verification
 
-`tests/overworld_actors.gd` covers all four with ROM-free fixtures
-(`content/enemies/lab_lurker.tres`, `lab_statue.tres`, `lab_ghost*.tres`, `lab_rock*.tres`): spawning on water, the cycle,
+`tests/overworld_actors.gd` covers all five with ROM-free fixtures
+(`content/enemies/lab_lurker.tres`, `lab_statue.tres`, `lab_ghost*.tres`, `lab_rock*.tres`,
+`lab_pond_spirit.tres`): spawning on water, the cycle,
 the fireball, replacement, no return after a kill, the clock, waking, the fade,
 floor, speed, statues restored on re-entry, stairs and item secrets, ghosts from
 stones, their immunity, their defeat with the Ghini, and boulders: the limit of
-three, the starting half, the fall and removal, and immunity. With an import it checks
-the room counts, the bracelet room, an Armos cave, a graveyard, and the boulder rooms.
+three, the starting half, the fall and removal, and immunity; and the fairy's
+hold, refill rate, hearts, linger, and single use. With an import it checks
+the room counts, the bracelet room, an Armos cave, a graveyard, the boulder rooms, and the two ponds.
+`tests/visual_preview.gd -- pond` renders a refill.
 
 ## Not yet
 
-Pond fairies, and the Lost Woods and Lost Hills.
+The Lost Woods and Lost Hills.
