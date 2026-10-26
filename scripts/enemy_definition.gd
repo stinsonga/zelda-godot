@@ -17,7 +17,9 @@ extends Resource
 ## "directional" sprites are name_direction_pose; "frames" are name_frame, flipped by the renderer.
 ## "front_back": front or back image (back when facing up), alternating two
 ## sets every six frames, as Armos draw (DrawArmosAndCheckCollisions).
-@export_enum("directional", "frames", "front_back") var sprite_style: String = "directional"
+## "ghini": back when moving up, else front, mirrored toward the side it heads
+## (DrawGhiniAndCheckCollisions).
+@export_enum("directional", "frames", "front_back", "ghini") var sprite_style: String = "directional"
 @export var animation_frame_ticks: int = 6
 @export var tint: Color = Color.WHITE
 @export var fallback_color: Color = Color("d94b3d")
@@ -61,6 +63,9 @@ extends Resource
 @export var flight_vulnerable_resting_only: bool = true
 @export_range(0, 255) var flight_chase_threshold: int = 176
 @export var flight_initial_speed: int = 31
+## The deciding random byte below the chase threshold wanders at or above
+## this value and slows to rest below it (Keese $20, flying Ghini $08).
+@export_range(0, 255) var flight_rest_threshold: int = 32
 @export var flight_random_start: bool = false
 ## Gel and Zol pause at each square for one of four delays (Z_04 ZolGelDelays).
 @export var hop_delays: PackedInt32Array = PackedInt32Array([8, 24, 40, 56])
@@ -142,6 +147,11 @@ extends Resource
 ## then move at one of wake_speeds chosen by a random byte (< $80: first).
 @export var wake_ticks: int = 0
 @export var wake_speeds: PackedInt32Array = PackedInt32Array()
+## Never checks weapon collisions (Z_04 UpdateFlyingGhini): only touches Link.
+@export var untouchable: bool = false
+## When this monster dies, every monster with this definition ID dies too
+## (Z_04 UpdateGhini kills the flying Ghini).
+@export var defeat_takes: StringName
 @export var collision_size: Vector2i = Vector2i.ZERO
 @export var collision_offset: Vector2i = Vector2i.ZERO
 ## Fireball2 ($56) cannot be blocked, even with the magical shield.

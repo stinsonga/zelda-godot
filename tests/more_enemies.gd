@@ -155,7 +155,7 @@ func run() -> void:
 				world.simulate_tick(Vector2i.ZERO)
 			check(world.combat.rocks.size() <= 4, "Imported encounter must respect projectile limit")
 			rooms_checked += 1
-		check(seen.size() == 13 and mixed > 0 and rooms_checked > 80, "Import must populate all thirteen common enemy types and mixed encounters")
+		check(seen.size() == 14 and mixed > 0 and rooms_checked > 80, "Import must populate the thirteen common enemy types, the Ghini, and mixed encounters (%d)" % seen.size())
 		print("Imported encounters simulated: ",rooms_checked,"; mixed: ",mixed,"; types: ",seen.size())
 		world.free()
 	print("More enemy checks: ","PASS" if failures == 0 else "FAIL (%d)" % failures)

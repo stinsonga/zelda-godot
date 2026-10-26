@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_ghost"
+title = "Ghost"
+behavior = "flyer"
+health = 1
+contact_damage = 1
+shooting_enabled = false
+spawn_cloud = false
+counts_for_persistence = false
+wake_ticks = 63
+untouchable = true
+flight_initial_speed = 31
+flight_max_speed = 160
+flight_chase_threshold = 160
+flight_rest_threshold = 8
+flight_vulnerable_resting_only = false
+sprite_style = "ghini"
+sprite = &"lab_ghost"
+fallback_color = Color(0.85, 0.85, 1, 1)

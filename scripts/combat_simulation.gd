@@ -285,6 +285,9 @@ func tick(world: Node) -> void:
 					world.audio.play(&"enemy_die")
 					record_permanent_kill(world, actor)
 			elif actor.parried_hit: world.audio.play(&"parry")
+		if actor.health == 0 and not actor.defeat_applied:
+			actor.defeat_applied = true
+			if actor.definition.defeat_takes != &"": take_down(actor.definition.defeat_takes)
 		var was_alive: bool = actor.health > 0
 		var original: bool = actor.definition.behavior != "native"
 		var target: Vector2i = chase_target if original else world.player.pixel_position()
@@ -427,6 +430,13 @@ func tick_rupee_stash(world: Node) -> void:
 		actor.death_remaining = 0
 		actor.drop_resolved = true
 		encounter_kills = encounter_total
+
+## Z_04 UpdateGhini: its death sets every flying Ghini dying (metastate $11).
+func take_down(definition_id: StringName) -> void:
+	for other in enemies:
+		if other.definition.id == definition_id and other.health > 0:
+			other.health = 0
+			other.death_remaining = 19
 
 ## Z_01 CheckPassiveTileObjects: a statue wakes on its own square, unless the
 ## object slots are full or something already stands there.

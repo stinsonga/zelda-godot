@@ -1,7 +1,8 @@
 extends SceneTree
 ## Overworld actors outside the encounter lists: Zora (Z_04 CheckZora,
 ## UpdateZora) and Armos (Z_01 CheckPassiveTileObjects, Z_04
-## InitArmosOrFlyingGhini, UpdateArmos). The fixtures need no ROM; the imported checks run with a
+## InitArmosOrFlyingGhini, UpdateArmos), and Ghini (UpdateGhini,
+## UpdateFlyingGhini). The fixtures need no ROM; the imported checks run with a
 ## local import.
 var failures := 0
 var world: Node
@@ -30,6 +31,7 @@ func run() -> void:
 	world.set_physics_process(false)
 	check_zora()
 	check_armos()
+	check_ghini()
 	world.free()
 	check_imported()
 	print("Overworld actor checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
@@ -177,6 +179,40 @@ func check_armos() -> void:
 	tick()
 	check(world.state.item_value(&"bracelet") == 1, "Once it wakes, the item can be taken")
 
+func check_ghini() -> void:
+	var room: Resource = statue_room("")
+	room.id = &"graveyard_fixture"
+	room.armos = null
+	room.armos_cells = PackedVector2Array()
+	room.ghost = load("res://content/enemies/lab_ghost.tres")
+	room.grave_cells = PackedVector2Array([Vector2(3, 4), Vector2(9, 4)])
+	var spawn = preload("res://scripts/enemy_spawn.gd").new()
+	spawn.id = &"keeper"
+	spawn.enemy = load("res://content/enemies/lab_ghost_keeper.tres")
+	spawn.position = Vector2i(192, 125)
+	spawn.spawn_ticks = 0
+	room.enemies.assign([spawn])
+	room.enemy_persistence = "reset"
+	world.rooms[room.id] = room
+	world.enter_room(room, Vector2i(48, 93), Vector2i.UP)
+	for i in range(20): world.simulate_tick(Vector2i.UP)
+	var ghosts: Array = world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.id == &"lab_ghost")
+	check(ghosts.size() == 1 and ghosts[0].position() == Vector2i(48, 64), "Pressing into a gravestone raises a ghost on it")
+	check(world.is_blocked(Vector2i(48, 72)), "The gravestone stays")
+	var ghost: RefCounted = ghosts[0]
+	tick(80)
+	check(ghost.position() != Vector2i(48, 64) and ghost.alive(), "The ghost flies off once faded in")
+	check(not ghost.targetable() and ghost.can_touch_player(), "It cannot be struck, only touched")
+	check(not ghost.receive_hit(9, Vector2i.UP, "sword"), "Weapons pass through it")
+	world.player.place(Vector2i(48, 77))
+	for i in range(12): world.simulate_tick(Vector2i.UP)
+	check(world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.id == &"lab_ghost").size() == 2, "Touching the stone again raises another")
+	var keeper: RefCounted = world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.id == &"lab_ghost_keeper")[0]
+	keeper.invulnerability = 0
+	keeper.receive_hit(keeper.health, Vector2i.UP, "sword")
+	tick(2)
+	check(world.combat.enemies.filter(func(a: RefCounted) -> bool: return a.definition.id == &"lab_ghost").all(func(a: RefCounted) -> bool: return a.health == 0), "Defeating the Ghini takes every ghost with it")
+
 func check_imported() -> void:
 	if not ResourceLoader.exists("res://imported/enemies/zora.tres"): return
 	world = preload("res://scenes/main.tscn").instantiate()
@@ -199,4 +235,6 @@ func check_imported() -> void:
 	check(bracelet_room.secret.trigger == "armos" and bracelet_room.pickups[0].item.id == &"power_bracelet", "Room $24 hides the power bracelet under an Armos")
 	var cave_room: Resource = world.rooms[&"ow_1c"]
 	check(cave_room.portals.any(func(p: Resource) -> bool: return p.target_room == &"cave_1c" and p.requires_secret), "Room $1C's Armos hides a cave")
+	var graveyard: Resource = world.rooms[&"ow_21"]
+	check(graveyard.grave_cells.size() == 12 and graveyard.ghost.untouchable and graveyard.enemies.any(func(s: Resource) -> bool: return s.enemy.defeat_takes == &"flying_ghini"), "Graveyards hold the Ghini and twelve stones of ghosts")
 	world.free()

@@ -36,6 +36,8 @@ var died_from := ""
 ## Frames left fading in after waking from the scenery; just_woke is set on
 ## the frame the fade ends, for the world to replace the statue's square.
 var wake_remaining := 0
+## Set once this monster's death has taken its linked monsters down.
+var defeat_applied := false
 var just_woke := false
 
 func setup(spawn: Resource) -> void:
@@ -223,7 +225,7 @@ func finish_waking() -> void:
 		source.move_speed = definition.wake_speeds[0 if source_next_random < 0x80 or definition.wake_speeds.size() == 1 else 1]
 
 func targetable() -> bool:
-	return alive() and wake_remaining == 0 and family.vulnerable(self)
+	return alive() and wake_remaining == 0 and not definition.untouchable and family.vulnerable(self)
 
 func can_touch_player() -> bool:
 	return alive() and family.contact_enabled(self)
@@ -261,6 +263,10 @@ func sprite_name() -> StringName:
 		# Shrinking after the recorder flickers big and little every eight frames.
 		var little: bool = definition.size.x == 16 or (family.shrink > 0 and (family.shrink / 8) % 2 == 1)
 		return StringName("%s_%d" % [&"little_digdogger" if little else definition.sprite, (animation_ticks / 6) % 2])
+	if definition.sprite_style == "ghini":
+		var back := facing.y < 0
+		var mirrored := facing.x < 0 if back else facing.x > 0
+		return StringName("%s_%s%s" % [definition.sprite, "back" if back else "front", "_mirrored" if mirrored else ""])
 	if definition.sprite_style == "front_back":
 		# UpdateArmos: sets 0/1 and 2/3 alternate every six frames; up shows the back.
 		return StringName("%s_%d" % [definition.sprite, ((animation_ticks / 6) % 2) * 2 + (1 if facing == Vector2i.UP else 0)])

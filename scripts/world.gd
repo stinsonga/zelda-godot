@@ -463,7 +463,7 @@ func try_pickups() -> void:
 ## The touched square is the one ahead of Link's feet; when he straddles two,
 ## either may wake.
 func try_wake_statue(direction: Vector2i) -> void:
-	if room.armos == null or room.armos_cells.is_empty(): return
+	if (room.armos == null or room.armos_cells.is_empty()) and (room.ghost == null or room.grave_cells.is_empty()): return
 	var at: Vector2i = player.pixel_position()
 	var points: Array[Vector2i] = []
 	match direction:
@@ -473,8 +473,9 @@ func try_wake_statue(direction: Vector2i) -> void:
 		_: points = [at + Vector2i(16, 11)]
 	for point in points:
 		var cell := Vector2(point.x / 16, point.y / 16)
-		if cell not in room.armos_cells or woken_statues.has(cell): continue
-		if combat.wake_statue(room.armos, Vector2i(cell) * 16) != null: return
+		var definition: Resource = room.armos if cell in room.armos_cells and not woken_statues.has(cell) else room.ghost if cell in room.grave_cells else null
+		if definition == null: continue
+		if combat.wake_statue(definition, Vector2i(cell) * 16) != null: return
 
 ## A woken statue's square turns to floor, or reveals the room's Armos secret.
 func settle_woken_statues() -> void:

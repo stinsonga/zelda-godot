@@ -59,6 +59,10 @@ extends Resource
 @export var armos: Resource
 @export var armos_cells: PackedVector2Array = PackedVector2Array()
 @export var armos_floor_tiles: PackedInt32Array = PackedInt32Array()
+## Gravestone squares (tiles $BC-$BF): pressing into one raises `ghost`, a
+## flying Ghini; the stone stays.
+@export var ghost: Resource
+@export var grave_cells: PackedVector2Array = PackedVector2Array()
 @export var grid_origin: Vector2i = Vector2i.ZERO
 @export var tile_atlas: Texture2D
 @export var atlas_cell_size: Vector2i = Vector2i(16, 16)

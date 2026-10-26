@@ -21,7 +21,7 @@ class EnemyImportTests(unittest.TestCase):
         self.assertIn('blue_moblin.tres',ext)
         self.assertIn('red_octorok.tres',ext)
         self.assertIn('peahat.tres',ext)
-        data[0x15001] = 0x22  # Unknown native actor: do not substitute another monster.
+        data[0x15001] = 0x4B  # An unsupported type here: do not substitute another monster.
         self.assertEqual(rom.enemy_resources(data,0,[],(80,77)),('','','',0))
 
     def local(self):
@@ -48,7 +48,8 @@ class EnemyImportTests(unittest.TestCase):
                 self.assertIn(f'enemy = ExtResource("enemy_def_{kind}")',text)
             supported += 1
             mixed += len(set(types))>1
-        self.assertEqual((supported,mixed),(100,32))
+        # 100 common encounters plus the six graveyard Ghini rooms.
+        self.assertEqual((supported,mixed),(106,32))
 
     def test_local_enemy_pose_pixels(self):
         data = self.local()
@@ -62,7 +63,10 @@ class EnemyImportTests(unittest.TestCase):
             if behavior == 'nes_octorok': continue
             base = data[0x6e04+kind+1]
             frames = []
-            if kind == 0x1E:
+            if kind in (0x21, 0x22):
+                # DrawGhiniAndCheckCollisions: back (0) and front (1), each also flipped.
+                frames = [(f'{name}_{view}{suffix}',base+offset,False,suffix != '') for view,offset in (('back',0),('front',1)) for suffix in ('','_mirrored')]
+            elif kind == 0x1E:
                 # DrawArmosAndCheckCollisions: four unmirrored front/back frames.
                 frames = [(f'{name}_{i}',base+i,False,False) for i in range(4)]
             elif behavior == 'walker':

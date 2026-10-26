@@ -46,15 +46,35 @@ kill cycle, no room kill. Statues return when the room is entered again.
 These are `SecretDefinition`s with `trigger = "armos"`. They are not remembered: the
 stairs appear only after waking the Armos again.
 
+## Ghini (Z_04 UpdateGhini, UpdateFlyingGhini)
+
+The six graveyard rooms hold a Ghini from their encounter lists. It spends
+(slot + 1) * $10 frames in its spawn cloud. It wanders at q-speed $20, turning as
+often as it can (turn rate $FF), and never shoots.
+
+Gravestone squares (tiles $BC-$BF, `RoomDefinition.grave_cells`) raise a flying
+Ghini (`ghost`) when Link presses into one, unless something already stands
+there. The stone stays.
+- The ghost fades in for $3F frames, like an Armos.
+- It then flies on the shared flyer states: speed $1F rising to $A0. It chases on
+  random >= $A0, wanders at >= $08 (`flight_rest_threshold`), and otherwise slows
+  to rest.
+- `UpdateFlyingGhini` never checks weapons, so it is `untouchable`: it can only
+  touch Link.
+- When the Ghini dies, every flying Ghini dies with it (`defeat_takes`).
+
+Both draw the back image when heading up and the front otherwise, mirrored toward
+the side they head (`sprite_style = "ghini"`).
+
 ## Verification
 
-`tests/overworld_actors.gd` covers both with ROM-free fixtures
-(`content/enemies/lab_lurker.tres`, `lab_statue.tres`): spawning on water, the cycle,
+`tests/overworld_actors.gd` covers all three with ROM-free fixtures
+(`content/enemies/lab_lurker.tres`, `lab_statue.tres`, `lab_ghost*.tres`): spawning on water, the cycle,
 the fireball, replacement, no return after a kill, the clock, waking, the fade,
-floor, speed, statues restored on re-entry, and stairs and item secrets. With an
-import it checks the room counts, the bracelet room, and an Armos cave.
+floor, speed, statues restored on re-entry, stairs and item secrets, ghosts from
+stones, their immunity, and their defeat with the Ghini. With an import it checks
+the room counts, the bracelet room, an Armos cave, and a graveyard.
 
 ## Not yet
 
-Ghini and flying Ghini from gravestones, boulder rooms, pond fairies, and the
-Lost Woods and Lost Hills.
+Boulder rooms, pond fairies, and the Lost Woods and Lost Hills.

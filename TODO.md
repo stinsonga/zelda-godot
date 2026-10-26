@@ -19,8 +19,8 @@ timings. A visual room editor would help authors most.
 
 ## Overworld and fidelity
 
-- Ghini and flying Ghini, boulders, pond fairies, Lost Woods/Hills. Armos (with their
-  caves and the power bracelet) and Zora are done; see docs/OVERWORLD_ACTORS.md.
+- Boulders, pond fairies, Lost Woods/Hills. Armos (with their caves and the power
+  bracelet), Zora, and Ghini are done; see docs/OVERWORLD_ACTORS.md.
 - Trace item-use timing against the original.
 - Emulator replay comparisons, starting with Octoroks and bosses. Resolve provisional
   push/item poses, Pols Voice jumps, Wizzrobe/pond graphics, and whirlwind flight.

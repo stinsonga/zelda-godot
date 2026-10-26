@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_ghost_keeper"
+title = "Ghost keeper"
+behavior = "walker"
+health = 2
+contact_damage = 1
+speed_subpixels = 128
+turn_chance = 255
+shooting_enabled = false
+sprite_style = "ghini"
+defeat_takes = &"lab_ghost"
+sprite = &"lab_ghost_keeper"
+fallback_color = Color(0.7, 0.7, 0.95, 1)

@@ -64,8 +64,8 @@ func initialize(actor: RefCounted) -> void:
 		jump_direction = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(1,1), Vector2i(-1,-1)][index]
 		timer = [4,8,20,40][index]
 	elif actor.definition.behavior in ["flyer", "patra"]:
-		# InitPatra: facing up at flying speed $1F.
-		actor.facing = Vector2i.UP
+		# InitPatra: facing up at flying speed $1F. Woken flyers keep facing down.
+		if actor.definition.wake_ticks == 0: actor.facing = Vector2i.UP
 		flight_speed = actor.definition.flight_initial_speed
 		# Z_04 InitBlueKeese: one of eight random directions.
 		if actor.definition.flight_random_start: actor.facing = DIRS[actor.source_random & 7]
@@ -293,7 +293,7 @@ func tick_flight(actor: RefCounted, target: Vector2i) -> void:
 			if definition.behavior == "gleeok_head": phase = 2 if actor.source_next_random < 208 else 3
 			# Flyer_PatraDecideState: chase or wander, never slowing down.
 			elif definition.behavior == "patra": phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3
-			else: phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3 if actor.source_random >= 32 else 4
+			else: phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3 if actor.source_random >= definition.flight_rest_threshold else 4
 			turns = definition.flight_turn_count
 		2,3:
 			if timer == 0:

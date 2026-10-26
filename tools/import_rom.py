@@ -333,6 +333,9 @@ ENEMY_TYPES = {
     0x11: ('zora','zora'),
     # Woken from statue squares by Z_01 CheckPassiveTileObjects.
     0x1E: ('armos','walker'),
+    0x21: ('ghini','walker'),
+    # Raised from gravestones by Z_01 CheckPassiveTileObjects.
+    0x22: ('flying_ghini','flyer'),
 }
 # Z_04 InitArmosOrFlyingGhini: rooms whose Armos at ($X, $80) hides stairs, or in
 # room $24 the power bracelet.
@@ -364,7 +367,8 @@ def enemy_resources(prg, room_id, collision, spawn):
         ext += f'[ext_resource type="Resource" path="res://imported/enemies/{name}.tres" id="enemy_def_{kind}"]\n'
     sub = ''
     for i,kind in enumerate(types):
-        delay = 32 + i * 16 if kind in (7,8,9,10) else i + 1
+        # InitSlowOctorockOrGhini: (slot + 1) * $10 frames in the spawn cloud.
+        delay = 32 + i * 16 if kind in (7,8,9,10,0x21) else i + 1
         sub += f'''[sub_resource type="Resource" id="enemy_{i}"]
 script = ExtResource("enemy_spawn")
 id = &"slot_{i}"
@@ -416,6 +420,11 @@ def export_overworld_enemies(prg, patterns, palettes, output):
         if behavior == 'nes_octorok':
             fields.update(sprite=f'&"{"blue_octorok" if kind >= 9 else "red_octorok"}"',
                           speed_subpixels=256 if kind in (8,10) else 128,turn_chance=160 if kind>=9 else 112)
+        elif kind == 0x21:
+            # UpdateGhini: a wanderer turning as often as it can ($FF) at q-speed $20;
+            # its death sets every flying Ghini dying.
+            fields.update(speed_subpixels=128, turn_chance=0xFF, shooting_enabled='false', sprite_style='"ghini"',
+                          defeat_takes='&"flying_ghini"')
         elif kind == 0x1E:
             # UpdateArmos runs UpdateGoriya; it fades in $3F frames, then moves at
             # q-speed $20 or $60. It dies as the dead dummy: no drop, no kill count.
@@ -433,6 +442,13 @@ def export_overworld_enemies(prg, patterns, palettes, output):
             fields['shooting_enabled'] = 'false'
             # Z_04 InitPeahat: no spawn cloud.
             if behavior == 'flyer': fields['spawn_cloud'] = 'false'
+            if kind == 0x22:
+                # InitArmosOrFlyingGhini fades it in, then EndInitFlyer: speed $1F to $A0;
+                # Flyer_GhiniDecideState chases at $A0, rests below $08. UpdateFlyingGhini
+                # never checks weapons.
+                fields.update(wake_ticks=0x3F, untouchable='true', flight_initial_speed=0x1F, flight_max_speed=0xA0,
+                              flight_chase_threshold=0xA0, flight_rest_threshold=8, flight_vulnerable_resting_only='false',
+                              counts_for_persistence='false', sprite_style='"ghini"')
             if behavior == 'jumper':
                 red = kind == 14
                 fields.update(speed_subpixels=256,jump_velocity_subpixels=-1024 if red else -768,
@@ -462,6 +478,12 @@ def export_overworld_enemies(prg, patterns, palettes, output):
         (output/'enemies'/(name+'.tres')).write_text(text+'\n'.join(f'{key} = {value}' for key,value in fields.items())+'\n')
         if behavior == 'nes_octorok': continue
         base = prg[0x6E04 + kind + 1]
+        if kind in (0x21, 0x22):
+            # DrawGhiniAndCheckCollisions: image 0 back, 1 front, flipped toward its side.
+            for view, offset in (('back', 0), ('front', 1)):
+                render(f'{name}_{view}', base + offset)
+                render(f'{name}_{view}_mirrored', base + offset, flip_x=True)
+            continue
         if kind == 0x1E:
             # DrawArmosAndCheckCollisions: front and back, two animation sets.
             for frame in range(4): render(f'{name}_{frame}', base + frame)
@@ -686,9 +708,13 @@ def import_rom(prg, output):
         zora = bool(prg[99328 + room_id] & 0x08)
         if zora: portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/zora.tres" id="zora"]\n' + portal_resources
         armos_field = ''
+        graves = [(x, y) for y, row in enumerate(layout) for x, index in enumerate(row) if 0xBC <= square_tiles(prg, index)[0] <= 0xBF]
+        if graves:
+            portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/flying_ghini.tres" id="ghost"]\n' + portal_resources
+            armos_field += 'ghost = ExtResource("ghost")\ngrave_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in graves) + ')\n'
         if armos_cells:
             portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/armos.tres" id="armos"]\n' + portal_resources
-            armos_field = ('armos = ExtResource("armos")\n' + 'armos_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in armos_cells) + ')\n'
+            armos_field += ('armos = ExtResource("armos")\n' + 'armos_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in armos_cells) + ')\n'
                            + 'armos_floor_tiles = PackedInt32Array(' + ', '.join(str(palette_for(x, y) * 64 + SQUARE_FLOOR) for x, y in armos_cells) + ')\n')
         if room_id == BRACELET_ROOM and armos_secret:
             portal_resources = ('[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup_script"]\n'
@@ -783,7 +809,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
             'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['First-quest terrain; Ghini, boulders, pond fairies, and the Lost Woods/Hills remain unimplemented.',
+        'limitations': ['First-quest terrain; boulders, pond fairies, and the Lost Woods/Hills remain unimplemented.',
                         'First-quest dungeon encounters are imported; Zora and Armos are in.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio
