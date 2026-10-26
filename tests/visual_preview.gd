@@ -5,6 +5,34 @@ func _initialize() -> void:
 
 func preview() -> void:
 	var args := OS.get_cmdline_user_args()
+	# The front end with three temporary files: files, register, eliminate, continue.
+	if args.has("front_files") or args.has("front_register") or args.has("front_eliminate") or args.has("front_continue"):
+		var front = preload("res://scenes/front_end.tscn").instantiate()
+		front.files_directory = OS.get_temp_dir().path_join("zelda-preview-files-%d" % OS.get_process_id())
+		root.add_child(front)
+		front.set_physics_process(false)
+		front.files.create(0, [0x15, 0x12, 0x17, 0x14, 0x24, 0x24, 0x24, 0x24])
+		front.files.create(2, [0x23, 0x0E, 0x15, 0x0D, 0x0A, 0x24, 0x24, 0x24])
+		front.files.meta[2].max_health = 22
+		front.files.meta[2].health = 15
+		front.files.meta[2].ring = 2
+		front.files.meta[2].deaths = 17
+		front.show_files()
+		if args.has("front_register"):
+			front.tick(Vector2i.ZERO, false, true)
+			front.tick(Vector2i.ZERO, false, true)
+			front.tick(Vector2i.ZERO, true, false)
+			for code in [0, 3]:
+				front.tick(Vector2i.RIGHT, false, false)
+			front.tick(Vector2i.ZERO, false, false, true)
+		if args.has("front_eliminate"):
+			for i in range(3): front.tick(Vector2i.ZERO, false, true)
+			front.tick(Vector2i.ZERO, true, false)
+		if args.has("front_continue"):
+			front.play(0)
+			front.world.open_continue_menu()
+		front.queue_redraw()
+		return
 	# The ROM-free dungeon lab: dungeon_lab [entry|hall|block|cellar|treasure].
 	if args.has("dungeon_lab"):
 		var lab = preload("res://scenes/dungeon_lab.tscn").instantiate()

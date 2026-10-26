@@ -1,6 +1,7 @@
 # Save and load
 
-- **F5** saves the current game.
+- **F5** saves the current game. These native checkpoints are separate from the
+  original's three save files (FRONT_END.md).
 - **F9** loads the saved game for the currently running world.
 
 On Macs configured to use function keys for system features, hold Fn as needed.

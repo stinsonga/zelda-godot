@@ -37,6 +37,22 @@ var sword = preload("res://scripts/sword_action.gd").new()
 var attack_requested := false
 var item_requested := false
 var start_requested := false
+var select_requested := false
+## Set by the front end: death leads to Game Over and Continue/Save/Retry, and
+## the menu can be called up during play (controller 2 Up+A in the original).
+var menus_enabled := false
+## "play", "dying" (Z_05 mode $11), or "continue" (mode 8).
+var game_phase := "play"
+var phase_step := ""
+var phase_ticks := 0
+var spin_turns := 0
+var continue_choice := 0
+var continue_flash := 0
+var start_room: Resource
+## The front end saves the file ("save") or returns to the file menu ("retry").
+signal menu_choice(choice: String)
+## Z_05 UpdateMode11Death_SubC adds a death to the file.
+signal died
 var submenu = preload("res://scripts/submenu.gd").new()
 ## Original submenu layout from the world; null draws placeholders.
 var submenu_layout: Resource
@@ -136,10 +152,12 @@ func _ready() -> void:
 		if definition.cave != null:
 			for ware in definition.cave.wares:
 				if ware != null and ware.item != null and "slot" in ware.item: register_item(ware.item)
+	start_room = first_room
 	enter_room(first_room, first_room.spawn, Vector2i.UP)
 
 func _input(event: InputEvent) -> void:
-	if not event is InputEventKey or event.echo:
+	# Behind the front end's menus the world is hidden and takes no input.
+	if not event is InputEventKey or event.echo or not is_visible_in_tree():
 		return
 	var direction := Vector2i.ZERO
 	match event.physical_keycode:
@@ -155,8 +173,13 @@ func _input(event: InputEvent) -> void:
 			if event.pressed: save_game()
 		KEY_F9:
 			if event.pressed: load_game()
+		KEY_ESCAPE:
+			# Controller 2 Up+A: the Continue/Save/Retry menu, without dying.
+			if event.pressed and menus_enabled and game_phase == "play" and state.health > 0: open_continue_menu()
+		KEY_TAB:
+			if event.pressed: select_requested = true
 		KEY_ENTER:
-			if event.pressed and state.health == 0:
+			if event.pressed and state.health == 0 and not menus_enabled:
 				state.health = state.max_health
 				combat.player_invulnerability = 48
 				enter_room(room, room.spawn, Vector2i.UP)
@@ -192,7 +215,8 @@ func _notification(what: int) -> void:
 func _physics_process(_delta: float) -> void:
 	status_ticks = maxi(0, status_ticks - 1)
 	var direction: Vector2i = Vector2i.ZERO if held.is_empty() else held.back()
-	simulate_tick(direction, attack_requested, item_requested, start_requested)
+	simulate_tick(direction, attack_requested, item_requested, start_requested, select_requested)
+	select_requested = false
 	attack_requested = false
 	item_requested = false
 	start_requested = false
@@ -257,13 +281,17 @@ func dialogue_visible() -> bool:
 		return cave_session.visible_text() != "" or cave_session.phase in ["prices", "text"]
 	return not room.dialogue.is_empty() and (room.dialogue_until_pickup.is_empty() or not state.has_collected(room.id, room.dialogue_until_pickup))
 
-func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_pressed: bool = false, start_pressed: bool = false) -> void:
+func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_pressed: bool = false, start_pressed: bool = false, select_pressed: bool = false) -> void:
 	simulation_tick += 1
+	if game_phase == "continue":
+		tick_continue_menu(start_pressed, select_pressed)
+		return
 	combat.advance_frame()
 	if state.tick_rupees(simulation_tick):
 		audio.play(&"heart")
 	state.sword_block_ticks = maxi(0, state.sword_block_ticks - 1)
 	if state.health <= 0:
+		if menus_enabled: tick_death()
 		return
 	if lighting.fading():
 		lighting.tick()
@@ -982,6 +1010,9 @@ func _draw() -> void:
 	if room == null:
 		return
 	draw_rect(Rect2(0, 0, 256, 240), Color("171c20"))
+	if game_phase == "continue":
+		draw_continue_menu()
+		return
 	# The open submenu pushes the status bar and play area down.
 	if submenu.offset > 0: draw_set_transform(Vector2(0, submenu.offset))
 	if visual_theme.hud_tiles:
@@ -1007,8 +1038,10 @@ func _draw() -> void:
 	draw_ladder()
 	draw_raft()
 	draw_room_objects()
-	draw_item_objects()
-	draw_combat()
+	# InitMode11 hides every sprite but Link.
+	if game_phase != "dying":
+		draw_item_objects()
+		draw_combat()
 	if rise_remaining > 0:
 		draw_rising_player()
 	elif state.clock_active or combat.player_invulnerability == 0 or simulation_tick % 4 < 2:
@@ -1048,7 +1081,9 @@ func _draw() -> void:
 		if sword.visible():
 			draw_named_sprite(sword_sprite(sword.weapon, sword.direction), Vector2(player.pixel_position() + sword.offset()))
 
-	if state.health == 0:
+	if state.health == 0 and menus_enabled:
+		draw_death()
+	elif state.health == 0:
 		draw_rect(Rect2(0, 64, 256, 176), Color(0, 0, 0, 0.75))
 		if visual_theme.hud_tiles:
 			draw_hud_text("GAME OVER", Vector2(88, 112))
@@ -1439,6 +1474,41 @@ func draw_ganon_remains(actor: RefCounted) -> void:
 		if visual_theme.sprites.has(ray): draw_named_sprite(ray, Vector2(fight.rays[i]))
 		else: draw_rect(Rect2(Vector2(fight.rays[i]) + Vector2(2, HUD_HEIGHT + 4), Vector2(4, 8)), Color("f8d878"))
 
+## Z_05 mode $11 over the play area: the red death palette, fading, then the
+## grey Link, his spark, and "GAME OVER" on black (GameOverTransferBuf, row 18
+## column 12).
+func draw_death() -> void:
+	var play := Rect2(0, HUD_HEIGHT, 256, 176)
+	if phase_step in ["spin", "fade"]:
+		var fade := 0.0 if phase_step == "spin" else phase_ticks / 40.0
+		draw_rect(play, Color(0.6, 0.05, 0.0, 0.45 + 0.5 * fade))
+	elif phase_step in ["grey", "spark", "gone", "game_over"]:
+		draw_rect(play, Color.BLACK)
+	var at: Vector2 = Vector2(player.pixel_position())
+	if phase_step == "grey":
+		draw_rect(Rect2(at + Vector2(3, HUD_HEIGHT + 2), Vector2(10, 13)), Color("a0a0a0"))
+	elif phase_step == "spark":
+		var sprite := StringName("death_spark_%d" % (0 if phase_ticks < 0x0F - 6 else 1))
+		if visual_theme.sprites.has(sprite): draw_named_sprite(sprite, at)
+		else: draw_circle(at + Vector2(8, HUD_HEIGHT + 8), 3 if phase_ticks < 9 else 6, Color.WHITE)
+	elif phase_step == "game_over":
+		if visual_theme.hud_tiles: draw_hud_text("GAME OVER", Vector2(12 * 8, 18 * 8))
+		else: draw_string(font, Vector2(96, 152), "GAME OVER", HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
+
+## Z_06 Mode8TextTileBuffer: CONTINUE, SAVE, and RETRY at column 10, rows 10,
+## 13, and 16; the heart cursor at X $40. A chosen line flashes every four frames.
+func draw_continue_menu() -> void:
+	draw_rect(Rect2(0, 0, 256, 240), Color.BLACK)
+	var labels := ["CONTINUE", "SAVE", "RETRY"]
+	for i in range(3):
+		var dim: bool = continue_flash > 0 and i == continue_choice and (continue_flash & 4) != 0
+		var color := Color("5c94fc") if dim else Color.WHITE
+		if visual_theme.hud_tiles: draw_hud_text(labels[i], Vector2(80, (10 + i * 3) * 8), color)
+		else: draw_string(font, Vector2(80, (10 + i * 3) * 8 + 8), labels[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, color)
+	var cursor := Vector2(0x40, (10 + continue_choice * 3) * 8)
+	if visual_theme.hud_hearts: draw_texture_rect_region(visual_theme.hud_hearts, Rect2(cursor, Vector2(8, 8)), Rect2(0, 0, 8, 8))
+	else: draw_rect(Rect2(cursor + Vector2(1, 1), Vector2(6, 6)), Color("d82800"))
+
 ## PondFairy_MoveHearts draws full hearts in the red palette row (the red
 ## frame of the flashing drop heart).
 func draw_pond_hearts(actor: RefCounted) -> void:
@@ -1699,22 +1769,118 @@ func saved_position_walkable(definition: Resource, at: Vector2i, saved_state: Re
 			if decoration.blocking_area.has_point(pixel): return false
 	return true
 
-func load_game() -> bool:
-	var result: Dictionary = save_store.read_snapshot(world_id)
-	if not result.ok:
-		show_status("LOAD FAILED: " + result.error)
-		return false
-	var data: Dictionary = result.data
-	var id := StringName(legacy_ids.get(data.room_id, data.room_id))
-	if not rooms.has(id):
-		show_status("LOAD FAILED: ROOM IS UNAVAILABLE")
-		return false
+## Z_05 UpdateMode11Death: Link flashes $21 frames, turns four full circles
+## (one quarter every five frames), the world fades, he greys, a spark shows for
+## $0F frames after $17, then after $2D more "GAME OVER" stays $5F frames
+## before Continue/Save/Retry, and the file's death count rises.
+func tick_death() -> void:
+	if phase_step == "":
+		phase_step = "flash"
+		phase_ticks = 0
+		game_phase = "dying"
+		audio.silence()
+	phase_ticks += 1
+	match phase_step:
+		"flash":
+			if phase_ticks >= 0x21:
+				next_death_step("spin")
+				spin_turns = 4
+				player.facing = Vector2i.DOWN
+		"spin":
+			if phase_ticks % 5 != 0: return
+			if spin_turns == 0:
+				next_death_step("fade")
+				return
+			# Down, right, up, left, then down again: one turn.
+			match player.facing:
+				Vector2i.LEFT:
+					spin_turns -= 1
+					player.facing = Vector2i.DOWN
+				Vector2i.RIGHT: player.facing = Vector2i.UP
+				Vector2i.DOWN: player.facing = Vector2i.RIGHT
+				_: player.facing = Vector2i.LEFT
+		"fade":
+			# AnimateWorldFading: four steps ten frames apart.
+			if phase_ticks >= 40: next_death_step("grey")
+		"grey":
+			if phase_ticks >= 0x17: next_death_step("spark")
+		"spark":
+			if phase_ticks >= 0x0F:
+				audio.play(&"heart")
+				next_death_step("gone")
+		"gone":
+			if phase_ticks >= 0x2D: next_death_step("game_over")
+		"game_over":
+			if phase_ticks >= 0x5F:
+				died.emit()
+				open_continue_menu()
+
+func next_death_step(step: String) -> void:
+	phase_step = step
+	phase_ticks = 0
+
+func open_continue_menu() -> void:
+	game_phase = "continue"
+	phase_step = ""
+	continue_choice = 0
+	continue_flash = 0
+	held.clear()
+
+## Z_05 UpdateMode8ContinueQuestion: Select steps through the three choices,
+## Start flashes the chosen one for $40 frames, then acts on it. Every choice
+## leaves Link with three full hearts.
+func tick_continue_menu(start_pressed: bool, select_pressed: bool) -> void:
+	if continue_flash > 0:
+		continue_flash -= 1
+		if continue_flash > 0: return
+		state.health = mini(state.max_health, 6)
+		game_phase = "play"
+		match continue_choice:
+			0: continue_game()
+			1: menu_choice.emit("save")
+			2: menu_choice.emit("retry")
+		return
+	if start_pressed:
+		continue_flash = 0x40
+	elif select_pressed:
+		continue_choice = (continue_choice + 1) % 3
+		audio.play(&"rupee")
+
+## Continue: back to the level's entrance, or the overworld's start, with the
+## room history cleared.
+func continue_game() -> void:
+	state.room_history.clear()
+	state.history_cursor = 0
+	combat.player_invulnerability = 0
+	if room.dungeon_level > 0:
+		restart_level()
+	else:
+		enter_room(start_room, start_room.spawn, Vector2i.UP)
+	audio.set_music(room.music)
+
+## A save file's game: its state (or a fresh one), starting at the overworld.
+func begin_file(data: Dictionary) -> bool:
+	var restored: RefCounted = preload("res://scripts/game_state.gd").new() if data.is_empty() else restore_state(data)
+	if restored == null: return false
+	state = restored
+	if not data.is_empty(): state.room_history.clear()
+	game_phase = "play"
+	phase_step = ""
+	lift_remaining = 0
+	lifted_item = null
+	held.clear()
+	enter_room(start_room, start_room.spawn, Vector2i.UP)
+	return true
+
+## The game state of a checked snapshot, or null (with a status) if its
+## content is unavailable. Shared by checkpoints and save files.
+func restore_state(data: Dictionary) -> RefCounted:
 	var restored = preload("res://scripts/game_state.gd").new()
 	for item_id in data.inventory:
 		var item := StringName(item_id)
 		if not item_catalog.has(item):
 			show_status("LOAD FAILED: ITEM IS UNAVAILABLE")
-			return false
+			return null
 		restored.inventory[item] = item_catalog[item]
 	if not data.equipped.is_empty(): restored.equipped_weapon = item_catalog[StringName(data.equipped)]
 	restored.max_health = int(data.max_health)
@@ -1737,6 +1903,20 @@ func load_game() -> bool:
 	restored.history_cursor = int(data.history_cursor)
 	for key in data.room_records:
 		restored.room_records[key] = {"kills": int(data.room_records[key].kills), "cleared": data.room_records[key].cleared}
+	return restored
+
+func load_game() -> bool:
+	var result: Dictionary = save_store.read_snapshot(world_id)
+	if not result.ok:
+		show_status("LOAD FAILED: " + result.error)
+		return false
+	var data: Dictionary = result.data
+	var id := StringName(legacy_ids.get(data.room_id, data.room_id))
+	if not rooms.has(id):
+		show_status("LOAD FAILED: ROOM IS UNAVAILABLE")
+		return false
+	var restored = restore_state(data)
+	if restored == null: return false
 	var target: Resource = rooms[id]
 	var position := Vector2i(int(data.position[0]), int(data.position[1]))
 	var at := Vector2i(floori(position.x / 256.0), floori(position.y / 256.0))

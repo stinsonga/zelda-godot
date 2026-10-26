@@ -30,10 +30,11 @@ timings. A visual room editor would help authors most.
 ## Front end (after remaining items; before fidelity comparisons)
 
 - Second-quest layouts, secrets, and enemies.
-- Title/waterfall, story scroll, three files, name entry, Continue/Save/Retry,
-  ending (after `combat.ending`), and attract demo. Boss roars and the Triforce,
-  Ganon, and Zelda tunes. Decide how menus expose native checkpoints versus
-  original restart rules.
+- Done: three files, registration, elimination, death, and Continue/Save/Retry
+  (docs/FRONT_END.md). The files follow the original's restart rules; F5/F9 stay
+  as separate native checkpoints.
+- Next: title/waterfall, story scroll, and attract demo; the mode 3 curtain; the
+  ending (after `combat.ending`). Boss roars and the Triforce, Ganon, and Zelda tunes.
 
 ## Completed milestones
 

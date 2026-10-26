@@ -2,7 +2,7 @@ config_version=5
 
 [application]
 config/name="Zelda · Reproduction Lab"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/front_end.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [display]
