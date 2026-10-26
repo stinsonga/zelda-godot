@@ -56,6 +56,7 @@ var held_direction := Vector2i.ZERO
 ## A Like Like or Wallmaster holding Link.
 var captor: RefCounted
 const DIRECTION_NAMES := {Vector2i.UP: "up", Vector2i.DOWN: "down", Vector2i.LEFT: "left", Vector2i.RIGHT: "right"}
+var raft = preload("res://scripts/raft.gd").new()
 var rod = preload("res://scripts/rod_action.gd").new()
 var ladder = preload("res://scripts/ladder.gd").new()
 var lighting = preload("res://scripts/room_lighting.gd").new()
@@ -183,6 +184,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	transition = null
 	room = target
 	ladder.reset()
+	raft.reset()
 	player.grid_origin = room.grid_origin
 	player.place(at + Vector2i(0, rise))
 	player.facing = facing
@@ -215,6 +217,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	combat.enter_room(room, state, restoring, at, facing)
 	for spawn in room.reward_spawns: combat.spawn_reward(self, spawn.definition, spawn.position)
 	lighting.enter(room,previous!=null and previous.dungeon_level==room.dungeon_level,previous_light,restoring,ganon_intro())
+	if raft.can_arrive(room, player.pixel_position(), state): raft.try_start(self)
 	state.visit_room(room)
 	audio.set_music(room.music)
 
@@ -263,6 +266,13 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	# Zelda's rescue ends play; the ending scenes belong to the front end.
 	if combat.ending: return
 	if combat.holds_player():
+		combat.tick(self)
+		return
+	if raft.active:
+		raft.tick(self)
+		if transition == null: combat.tick(self)
+		return
+	if entry_walk_remaining == 0 and lift_remaining == 0 and rise_remaining == 0 and raft.try_start(self):
 		combat.tick(self)
 		return
 	# Link updates before objects: a lift started by the resident counts from
@@ -340,6 +350,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	if transition != null:
 		return
 	try_pickups()
+	if lift_remaining == 0: raft.try_start(self)
 	if lift_remaining == 0:
 		combat.tick(self)
 
@@ -838,7 +849,7 @@ func try_exit(direction: Vector2i) -> void:
 		"right": destination.x = target.movement_bounds.position.x
 		"up": destination.y = target.movement_bounds.end.y - 1
 		"down": destination.y = target.movement_bounds.position.y
-	if not occupiable_in(target, destination): return
+	if not occupiable_in(target, destination) and not raft.can_arrive(target, destination, state): return
 	if not scroll_transitions:
 		enter_room(target, destination, direction)
 		return
@@ -876,6 +887,7 @@ func _draw() -> void:
 	draw_terrain(room, Vector2.ZERO)
 	draw_pushed_object()
 	draw_ladder()
+	draw_raft()
 	draw_room_objects()
 	draw_item_objects()
 	draw_combat()
@@ -1047,6 +1059,16 @@ func draw_cave() -> void:
 		var lines: PackedStringArray = session.visible_text().split("\n")
 		for i in range(lines.size()):
 			draw_hud_text(lines[i], Vector2(32, 104 + (i+session.cave.text_line_offset) * 8))
+
+func draw_raft() -> void:
+	if not raft.active: return
+	var at := Vector2(player.pixel_position() + raft.route.sprite_offset)
+	if visual_theme.sprites.has(&"deployed_raft"):
+		draw_named_sprite(&"deployed_raft", at)
+	else:
+		at.y += HUD_HEIGHT
+		for x in range(0, 16, 4):
+			draw_rect(Rect2(at + Vector2(x, 0), Vector2(3, 16)).intersection(Rect2(0, HUD_HEIGHT, 256, 176)), Color("ad783c"))
 
 func draw_ladder() -> void:
 	if not ladder.active: return
@@ -1420,7 +1442,7 @@ func enabled_keys(values: Dictionary) -> Array:
 	return keys
 
 func save_game() -> bool:
-	if transition != null or ladder.active or lighting.fading() or (cave_session!=null and cave_session.phase=="feeding") or entry_walk_remaining > 0 or lift_remaining > 0 or rise_remaining > 0 or state.health <= 0 or not state.rupees_settled():
+	if transition != null or raft.active or ladder.active or lighting.fading() or (cave_session!=null and cave_session.phase=="feeding") or entry_walk_remaining > 0 or lift_remaining > 0 or rise_remaining > 0 or state.health <= 0 or not state.rupees_settled():
 		show_status("WAIT UNTIL LINK IS READY TO SAVE")
 		return false
 	var result: Dictionary = save_store.write_snapshot(snapshot(), world_id)

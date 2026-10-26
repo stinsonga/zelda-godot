@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=7 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/raft_route.gd" id="route"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/raft.tres" id="raft"]
+[sub_resource type="Resource" id="route"]
+script = ExtResource("route")
+[sub_resource type="Resource" id="raft_pickup"]
+script = ExtResource("pickup")
+id = &"raft_pickup"
+item = ExtResource("raft")
+position = Vector2i(96, 93)
+lift_ticks = 0
+[resource]
+script = ExtResource("room")
+id = &"raft_lab_dock"
+title = "Island crossing"
+spawn = Vector2i(96, 93)
+grid_origin = Vector2i(0, 5)
+movement_bounds = Rect2i(0, -3, 241, 161)
+raft_route = SubResource("route")
+pickups = Array[Resource]([SubResource("raft_pickup")])
+exits = Dictionary[String, String]({"up":"raft_lab_island"})
+tiles = "######~#########\n#~~~~~~~~~~~~~~#\n#~~~~~~~~~~~~~~#\n#~~~~~~~~~~~~~~#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n################"

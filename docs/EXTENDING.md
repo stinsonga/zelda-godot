@@ -191,3 +191,7 @@ editable; see [CLOCK_AND_FAIRIES.md](CLOCK_AND_FAIRIES.md).
 `scenes/rod_lab.tscn` demonstrates rod melee, magic waves, and book fire without
 a ROM. Rod damage, flight speed, swing phases/offsets, and book fire lifetime
 are editable; see [ROD_AND_BOOK.md](ROD_AND_BOOK.md).
+
+`scenes/raft_lab.tscn` demonstrates automatic dock travel and an island round trip.
+Assign a `RaftRoute` to a mainland room and connect its exit to the island; dock,
+edge, landing, speed, and sprite offset are editable. See [RAFT.md](RAFT.md).

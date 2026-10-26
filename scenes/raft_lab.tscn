@@ -1,0 +1,8 @@
+[gd_scene load_steps=4 format=3]
+[ext_resource type="Script" path="res://scripts/world.gd" id="world"]
+[ext_resource type="Resource" path="res://content/rooms/raft_lab_dock.tres" id="dock"]
+[ext_resource type="Resource" path="res://content/rooms/raft_lab_island.tres" id="island"]
+[node name="RaftLab" type="Node2D"]
+script = ExtResource("world")
+use_imported_world = false
+room_resources = Array[Resource]([ExtResource("dock"), ExtResource("island")])

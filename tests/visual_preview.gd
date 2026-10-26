@@ -17,6 +17,15 @@ func preview() -> void:
 			lab.overrides = lab.compute_overrides(lab.room)
 		lab.queue_redraw()
 		return
+	if args.has("raft_lab"):
+		var lab = preload("res://scenes/raft_lab.tscn").instantiate()
+		root.add_child(lab)
+		lab.set_physics_process(false)
+		lab.state.take_item(preload("res://content/items/raft.tres"))
+		lab.player.place(Vector2i(96,61))
+		for i in range(22): lab.simulate_tick(Vector2i.ZERO)
+		lab.queue_redraw()
+		return
 	if args.has("rod_lab"):
 		var lab = preload("res://scenes/rod_lab.tscn").instantiate()
 		root.add_child(lab)
@@ -61,6 +70,13 @@ func preview() -> void:
 	if not world.rooms.has(&"cave_77"):
 		push_error("Visual previews require a local ROM import")
 		quit(1)
+		return
+	if args.has("raft"):
+		world.state.take_item(preload("res://content/items/raft.tres"))
+		world.enter_room(world.rooms[&"ow_55"],Vector2i(128,61),Vector2i.UP)
+		world.combat.enemies.clear()
+		for i in range(24): world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
 		return
 	if args.has("rod"):
 		world.combat.enemies.clear()

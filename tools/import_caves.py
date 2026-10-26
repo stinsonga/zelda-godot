@@ -176,6 +176,8 @@ def export_item_sprites(prg, patterns, palettes, output, png, blit_tile):
     for item_id, name in ITEMS.items():
         if name in ANIMATED_ITEMS or name == 'wooden_sword': continue
         write(name, *item_tile(prg, item_id))
+    # Z_04 UpdateDock draws raft item slot $09 with palette attribute zero.
+    write('deployed_raft', prg[ITEM_FRAME_TILES + prg[ITEM_FRAME_OFFSETS + 9]], 0)
     # Z_05 CheckLadder draws static item slot $0C with palette attribute zero.
     write('deployed_ladder', prg[ITEM_FRAME_TILES + prg[ITEM_FRAME_OFFSETS + 0x0C]], 0)
     write('clock', *item_tile(prg, 0x21))

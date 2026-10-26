@@ -333,7 +333,7 @@ func tick(world: Node) -> void:
 					spawn_reward(world, item, actor.position(), actor.slot)
 		var reach: Vector2i = actor.collision_size() / 2 + Vector2i.ONE
 		var gap: Vector2i = (actor.position() + actor.definition.collision_offset + actor.collision_size() / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
-		if not world.state.clock_active and actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
+		if not world.state.clock_active and not world.raft.active and actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
 			touch_player(world, actor)
 	tick_rupee_stash(world)
 	tick_statues(world)
@@ -360,7 +360,7 @@ func tick(world: Node) -> void:
 				rock.alive = false
 			elif world.room.is_pixel_solid(at + Vector2i(8, 8)):
 				rock.alive = false
-			elif not world.state.clock_active and rock.hurtbox().intersects(player_box(world)):
+			elif not world.state.clock_active and not world.raft.active and rock.hurtbox().intersects(player_box(world)):
 				# The basic shield blocks rocks arriving from the facing direction,
 				# while Link is free to defend (not using the sword).
 				if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
@@ -490,7 +490,7 @@ func shield_blocks(world: Node, rock: RefCounted) -> bool:
 ## Contact effects: damage, capture (Like Like, Wallmaster), or a Bubble's
 ## effect on the sword (Z_04 UpdateBubble).
 func touch_player(world: Node, actor: RefCounted) -> void:
-	if world.state.clock_active: return
+	if world.state.clock_active or world.raft.active: return
 	match actor.definition.contact_effect:
 		"block_sword":
 			world.state.sword_block_ticks = 0xA0
@@ -589,7 +589,7 @@ func tick_fireball(world: Node, rock: RefCounted) -> void:
 		if not bounds.grow(8).has_point(rock.position()):
 			rock.alive = false
 			return
-	if not world.state.clock_active and player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
+	if not world.state.clock_active and not world.raft.active and player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
 		if shield_blocks(world, rock) and world.player.facing.dot(rock.direction) < 0 and not world.sword.active():
 			world.audio.play(&"parry")
 		else:
@@ -616,7 +616,7 @@ func tick_boomerang(world: Node, rock: RefCounted) -> void:
 			owner.shot_out = false
 			return
 		rock.subposition += Vector2i(signi(delta.x), signi(delta.y)) * 640
-	if not world.state.clock_active and player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
+	if not world.state.clock_active and not world.raft.active and player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
 		if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
 			world.audio.play(&"parry")
 			rock.returning = true
@@ -840,7 +840,7 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 	rock.subposition += rock.direction * rock.speed_subpixels
 	var center: Vector2i = rock.position() + (Vector2i(4,8) if rock.kind == "rock" else Vector2i(8,8))
 	var player_center: Vector2i = world.player.pixel_position() + Vector2i(8, 8)
-	if not world.state.clock_active and player_invulnerability == 0 and source_contact(center, player_center):
+	if not world.state.clock_active and not world.raft.active and player_invulnerability == 0 and source_contact(center, player_center):
 		if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
 			world.audio.play(&"parry")
 			rock.bounce_direction = world.player.facing

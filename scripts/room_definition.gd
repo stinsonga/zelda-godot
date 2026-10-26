@@ -25,6 +25,8 @@ extends Resource
 @export var cave: Resource
 ## At most one overworld tile object per room, as in the original.
 @export var secret: Resource
+## Automatic mainland dock route; island rooms use their normal exits.
+@export var raft_route: Resource
 ## Underworld doorways (DoorDefinition) and the room's original secret trigger
 ## (Z_05 CheckSecretTrigger: 1 and 7 all dead, 3 boss, 4 push block, 5 block stairs).
 @export var doors: Array[Resource] = []
@@ -107,6 +109,14 @@ func validation_errors() -> PackedStringArray:
 		errors.append("Ladder water requires 704 eight-pixel cells")
 	if dialogue_character_ticks < 1:
 		errors.append("Dialogue character interval must be positive")
+	if raft_route != null:
+		errors.append_array(raft_route.validation_errors())
+		for at in [raft_route.dock_position, raft_route.edge_position, raft_route.landing_position]:
+			if not movement_bounds.has_point(at): errors.append("Raft route point is outside movement bounds")
+		var direction: Vector2i = raft_route.direction()
+		var edge: Vector2i = raft_route.edge_position
+		if (direction == Vector2i.UP and edge.y != movement_bounds.position.y) or (direction == Vector2i.DOWN and edge.y != movement_bounds.end.y - 1) or (direction == Vector2i.LEFT and edge.x != movement_bounds.position.x) or (direction == Vector2i.RIGHT and edge.x != movement_bounds.end.x - 1): errors.append("Raft edge must meet the screen boundary")
+		if not exits.has(raft_route.exit_name()): errors.append("Raft route needs a matching room exit")
 	var enemy_ids: Dictionary = {}
 	for spawn in enemies:
 		if spawn.id.is_empty() or enemy_ids.has(spawn.id):

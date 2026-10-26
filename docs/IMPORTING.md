@@ -95,8 +95,8 @@ choice.
 The import covers the first-quest overworld, its reachable caves, and all nine
 levels. See [caves and secrets](CAVES_AND_SECRETS.md), [dungeons](DUNGEONS.md), and
 [dungeon monsters](DUNGEON_MONSTERS.md) for what each part covers. Armos, the
-raft, maze rules, some room effects, the second quest, and special overworld
-monsters remain unfinished. Recorder, stepladder, and first-quest bosses are
+maze rules, some room effects, the second quest, and special overworld
+monsters remain unfinished. Recorder, stepladder, raft, and first-quest bosses are
 implemented; see [stepladder](LADDER.md) for water masks and crossing rules. Collision now follows the original direction-dependent hotspot probes at grid
 boundaries. Full frame-by-frame fidelity, multi-button input priorities, and
 special collision rules for doorways and room effects still need implementation.

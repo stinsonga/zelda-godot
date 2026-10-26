@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/heart_container.tres" id="heart"]
+[sub_resource type="Resource" id="treasure"]
+script = ExtResource("pickup")
+id = &"island_treasure"
+item = ExtResource("heart")
+position = Vector2i(96, 109)
+lift_ticks = 0
+[resource]
+script = ExtResource("room")
+id = &"raft_lab_island"
+title = "Island treasure"
+spawn = Vector2i(96, 141)
+grid_origin = Vector2i(0, 5)
+movement_bounds = Rect2i(0, -3, 241, 161)
+pickups = Array[Resource]([SubResource("treasure")])
+exits = Dictionary[String, String]({"down":"raft_lab_dock"})
+tiles = "################\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n######.#########"

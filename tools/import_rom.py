@@ -623,6 +623,13 @@ def import_rom(prg, output):
         if secret_lines: portal_field += 'secret = SubResource("secret")\n'
         enemy_ext, enemy_sub, enemy_field, enemy_count = enemy_resources(prg, room_id, collision, spawn)
         portal_resources = enemy_ext + portal_resources + enemy_sub
+        if room_id in (0x3F, 0x55):
+            dock_x = 128 if room_id == 0x55 else 96
+            portal_resources = '[ext_resource type="Script" path="res://scripts/raft_route.gd" id="raft_route"]\n' + portal_resources
+            portal_resources += '\n'.join(['[sub_resource type="Resource" id="dock_route"]', 'script = ExtResource("raft_route")',
+                f'dock_position = Vector2i({dock_x}, 61)', f'edge_position = Vector2i({dock_x}, -3)',
+                f'landing_position = Vector2i({dock_x}, 63)']) + '\n'
+            portal_field += 'raft_route = SubResource("dock_route")\n'
         steps = 3 + portal_resources.count('[ext_resource') + portal_resources.count('[sub_resource')
         text = f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]
 [ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
@@ -706,7 +713,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
             'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['First-quest terrain; Armos and raft interactions and some room effects remain unimplemented.',
+        'limitations': ['First-quest terrain; Armos interactions and some room effects remain unimplemented.',
                         'First-quest dungeon encounters are imported; Zora, Armos, Ghini, and boulders are unimplemented.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio

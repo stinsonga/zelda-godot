@@ -5,7 +5,7 @@
 1. Candle-lit dark rooms and Ganon's palette fade are done; see docs/LIGHTING.md.
    Old men, bomb offers, the level 9 gate, statues, rupee stashes, carried room
    items, and help drops (including Dodongo's bomb) are also done.
-2. Remaining items: raft, magical-key edge cases.
+2. Remaining items: magical-key edge cases.
 
 ## Expansion groundwork
 
@@ -54,3 +54,6 @@ and their refill sequence remain an overworld follow-up.
 
 Magical rod melee/waves and the book of magic are implemented; see docs/ROD_AND_BOOK.md
 and scenes/rod_lab.tscn.
+
+Raft travel, both original island routes, and an editable ROM-free island lab
+are implemented; see docs/RAFT.md and scenes/raft_lab.tscn.
