@@ -41,7 +41,7 @@ var select_requested := false
 ## Set by the front end: death leads to Game Over and Continue/Save/Retry, and
 ## the menu can be called up during play (controller 2 Up+A in the original).
 var menus_enabled := false
-## "play", "dying" (Z_05 mode $11), or "continue" (mode 8).
+## "play", "dying" (Z_05 mode $11), "continue" (mode 8), or "ending" (Z_02 mode $13).
 var game_phase := "play"
 var phase_step := ""
 var phase_ticks := 0
@@ -49,6 +49,19 @@ var spin_turns := 0
 var continue_choice := 0
 var continue_flash := 0
 var start_room: Resource
+## Z_07 mode 3 (UpdateWorldCurtainEffect): with the menus, a game, a Continue,
+## a Wallmaster's return, and each move between overworld and dungeon open the
+## play area from the middle, a tile column each side every CURTAIN_STEP frames.
+## The column pairs shown so far, or -1 when no curtain is up.
+const CURTAIN_STEP := 5
+const CURTAIN_COLUMNS := 16
+var curtain := -1
+var curtain_timer := 0
+## The file being played, for the credits: quest, name tile codes, deaths.
+var file_info := {"quest": 1, "name": [], "deaths": 0}
+## Mode $13 after Zelda's rescue, when the ending is imported.
+var ending: RefCounted
+var ending_screen: NesScreen
 ## The front end saves the file ("save") or returns to the file menu ("retry").
 signal menu_choice(choice: String)
 ## Z_05 UpdateMode11Death_SubC adds a death to the file.
@@ -226,6 +239,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	var previous: Resource=room
 	var previous_light: int=lighting_stage() if room!=null else 0
 	if not restoring: combat.commit_room(state)
+	curtain = -1
 	transition = null
 	room = target
 	ladder.reset()
@@ -269,10 +283,61 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	if raft.can_arrive(room, player.pixel_position(), state): raft.try_start(self)
 	state.visit_room(room)
 	audio.set_music(room.music)
+	if not restoring and (previous == null or previous.dungeon_level != room.dungeon_level): start_curtain()
+
+## Mode $13 begins $80 frames into Zelda's fanfare.
+func begin_ending() -> void:
+	var data: Dictionary = EndingSequence.load_data()
+	var title_data: Dictionary = TitleDemo.load_data()
+	if data.is_empty() or title_data.is_empty(): return
+	if ending_screen == null:
+		ending_screen = NesScreen.new()
+		ending_screen.show_behind_parent = true
+		add_child(ending_screen)
+	ending = EndingSequence.new(data, title_data.colors, ending_screen, 0x80)
+	ending.quest = int(file_info.get("quest", 1))
+	ending.file_name = file_info.get("name", [])
+	ending.deaths = int(file_info.get("deaths", 0))
+	game_phase = "ending"
+
+func tick_ending(start_pressed: bool) -> void:
+	ending.tick(start_pressed)
+	if ending.song_request != null:
+		if ending.song_request == &"": audio.silence()
+		else: audio.set_music(ending.song_request)
+	for cue in ending.sounds: audio.play(cue)
+	ending_screen.visible = ending.on_screen()
+	ending_screen.queue_redraw()
+	if not ending.finished: return
+	# SwitchProfileToSecondQuest: no items or world flags, three full hearts;
+	# then mode $D saves the file.
+	state = preload("res://scripts/game_state.gd").new()
+	game_phase = "play"
+	ending = null
+	ending_screen.visible = false
+	combat.ending = false
+	menu_choice.emit("second_quest")
+
+func start_curtain() -> void:
+	if not menus_enabled: return
+	curtain = 0
+	curtain_timer = 0
+	audio.silence()
+
+## The level's song starts once the curtain is fully open (GoToNextModePlayLevelSong).
+func tick_curtain() -> void:
+	if curtain_timer == 0:
+		curtain += 1
+		curtain_timer = CURTAIN_STEP
+		if curtain == CURTAIN_COLUMNS:
+			curtain = -1
+			audio.set_music(room.music)
+			return
+	curtain_timer -= 1
 
 ## Start opens the submenu only while Link is free to act.
 func can_open_submenu() -> bool:
-	return state.health > 0 and transition == null and entry_walk_remaining == 0 and lift_remaining == 0 and rise_remaining == 0 \
+	return state.health > 0 and curtain < 0 and transition == null and entry_walk_remaining == 0 and lift_remaining == 0 and rise_remaining == 0 \
 		and level_exit_remaining == 0 and not filling_hearts and recorder_ticks == 0 and captor == null and not combat.ending \
 		and not combat.holds_player() and (cave_session == null or not cave_session.blocks_player())
 
@@ -285,6 +350,12 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	simulation_tick += 1
 	if game_phase == "continue":
 		tick_continue_menu(start_pressed, select_pressed)
+		return
+	if curtain >= 0:
+		tick_curtain()
+		return
+	if game_phase == "ending":
+		tick_ending(start_pressed)
 		return
 	combat.advance_frame()
 	if state.tick_rupees(simulation_tick):
@@ -331,8 +402,10 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	tick_door_openings()
 	tick_captor()
 	overrides = compute_overrides(room)
-	# Zelda's rescue ends play; the ending scenes belong to the front end.
-	if combat.ending: return
+	# Zelda's rescue ends play; with the menus the ending follows.
+	if combat.ending:
+		if menus_enabled and game_phase == "play": begin_ending()
+		return
 	if combat.holds_player():
 		combat.tick(self)
 		return
@@ -660,6 +733,7 @@ func restart_level() -> void:
 		for portal in definition.portals:
 			if rooms.has(portal.target_room) and rooms[portal.target_room].dungeon_level == 0:
 				enter_room(definition, Vector2i(120, 157), Vector2i.UP, 16)
+				start_curtain()
 				return
 
 ## The whirlwind sets Link down in the chosen level's entrance room (Z_01
@@ -1009,6 +1083,9 @@ func try_exit(direction: Vector2i) -> void:
 func _draw() -> void:
 	if room == null:
 		return
+	if game_phase == "ending" and ending.on_screen():
+		draw_ending()
+		return
 	draw_rect(Rect2(0, 0, 256, 240), Color("171c20"))
 	if game_phase == "continue":
 		draw_continue_menu()
@@ -1029,6 +1106,14 @@ func _draw() -> void:
 		draw_scrolling_rooms()
 		return
 	draw_terrain(room, Vector2.ZERO)
+	if curtain >= 0:
+		draw_curtain()
+		return
+	if game_phase == "ending":
+		# The furl erases columns from both edges; the sprites stay.
+		var width: int = ending.furled() * 8
+		draw_rect(Rect2(0, HUD_HEIGHT, width, 176), Color.BLACK)
+		draw_rect(Rect2(256 - width, HUD_HEIGHT, width, 176), Color.BLACK)
 	# UpdateMenuCommon1 hides every sprite while the submenu is up.
 	if submenu.is_open():
 		draw_set_transform(Vector2.ZERO)
@@ -1091,6 +1176,41 @@ func _draw() -> void:
 		else:
 			draw_string(font, Vector2(60, 120), "GAME OVER", HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
 			draw_string(font, Vector2(50, 144), "ENTER TO RETRY", HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
+
+## The NesScreen draws the play area and credits behind this: the status bar
+## scrolls with NT0 until the credits overwrite it, without its sprites.
+func draw_ending() -> void:
+	var top: int = ending.status_bar_top()
+	if visual_theme.hud_tiles and not ending.status_bar_overwritten and top > -HUD_HEIGHT and top < 240:
+		draw_set_transform(Vector2(0, top))
+		draw_original_hud(false, ending_screen.colors[ending_screen.palette[0]])
+		draw_set_transform(Vector2.ZERO)
+	var zelda: RefCounted = null
+	for actor in combat.enemies:
+		if actor.definition.behavior == "zelda": zelda = actor
+	var prefix := "l%d_" % room.dungeon_level
+	var link := Vector2(player.pixel_position())
+	if ending.shows_people() or ending.shows_triforces():
+		if ending.shows_triforces():
+			draw_named_sprite(&"lift", link)
+			draw_named_sprite(item_sprite(TRIFORCE), link - Vector2(0, 16))
+		elif visual_theme.player_sheet:
+			var sheet: Texture2D = visual_theme.player_sheet
+			draw_texture_rect_region(sheet, Rect2(link + Vector2(0, HUD_HEIGHT + 2), Vector2(16, 16)), Rect2(2 * sheet.get_width() / 8.0, 0, sheet.get_width() / 8.0, sheet.get_height()))
+		if zelda != null:
+			draw_named_sprite(StringName(prefix + String(zelda.sprite_name())), Vector2(zelda.position()))
+			if ending.shows_triforces(): draw_named_sprite(item_sprite(TRIFORCE), Vector2(zelda.position()) - Vector2(0, 16))
+	if ending.shows_final():
+		# UpdateMode13WinGame_Sub4: the Triforce of Power and the ash pile at ($78, $88).
+		var at := Vector2(0x78, 0x88 - HUD_HEIGHT)
+		draw_named_sprite(StringName(prefix + "ganon_ashes"), at)
+		draw_named_sprite(&"triforce_of_power", at)
+
+## The columns not yet copied show the cleared nametable; sprites stay hidden.
+func draw_curtain() -> void:
+	var left := (CURTAIN_COLUMNS - curtain) * 8
+	draw_rect(Rect2(0, HUD_HEIGHT, left, 176), Color.BLACK)
+	draw_rect(Rect2(256 - left, HUD_HEIGHT, left, 176), Color.BLACK)
 
 func sword_sprite(weapon: Resource, direction: Vector2i) -> StringName:
 	var prefix: String = String(weapon.sprite_prefix) if "sprite_prefix" in weapon and not weapon.sprite_prefix.is_empty() else "sword"
@@ -1161,7 +1281,8 @@ func draw_room_objects() -> void:
 			draw_hud_text(lines[i], Vector2(32, 104 + i * 8))
 
 ## Dungeon HUD: the map shows rooms once held; the compass flashes the triforce room.
-func draw_level_map() -> void:
+## The position markers are sprites: the ending hides them.
+func draw_level_map(markers: bool = true) -> void:
 	var level: int = room.dungeon_level
 	draw_hud_text("LEVEL-%d" % level, Vector2(16, 8))
 	var cells: Array[int] = []
@@ -1177,6 +1298,7 @@ func draw_level_map() -> void:
 	if state.has_level_item(&"map", level):
 		for id in cells:
 			draw_rect(Rect2(origin + Vector2((id % 16 - left) * 8, (id / 16) * 4), Vector2(7, 3)), Color("2038ec"))
+	if not markers: return
 	if triforce_room >= 0 and state.has_level_item(&"compass", level) and not state.has_level_item(&"triforce", level) and simulation_tick % 32 < 16:
 		draw_rect(Rect2(origin + Vector2((triforce_room % 16 - left) * 8 + 2, (triforce_room / 16) * 4), Vector2(3, 3)), Color("d82800"))
 	var here: int = room.map_room_id
@@ -1399,15 +1521,15 @@ func draw_hud_text(text: String, at: Vector2, color: Color = Color.WHITE) -> voi
 		if tile >= 0:
 			draw_texture_rect_region(visual_theme.hud_tiles, Rect2(at + Vector2(i * 8, 0), Vector2(8, 8)), Rect2((tile % 16) * 8, (tile / 16) * 8, 8, 8), color)
 
-func draw_original_hud() -> void:
+func draw_original_hud(sprites: bool = true, backdrop: Color = Color.BLACK) -> void:
 	# Sword ownership, health, and currency are live; the map is a scaffold.
-	draw_rect(Rect2(0, 0, 256, 64), Color.BLACK)
+	draw_rect(Rect2(0, 0, 256, 64), backdrop)
 	if room.dungeon_level > 0:
-		draw_level_map()
+		draw_level_map(sprites)
 	else:
 		draw_rect(Rect2(16, 16, 64, 32), Color("666666"))
 		var room_number: int = room.map_room_id if room.map_room_id >= 0 else 0
-		draw_rect(Rect2(16 + room_number % 16 * 4, 16 + (room_number / 16) * 4, 4, 4), Color("80d010"))
+		if sprites: draw_rect(Rect2(16 + room_number % 16 * 4, 16 + (room_number / 16) * 4, 4, 4), Color("80d010"))
 	draw_hud_text("X%d" % state.rupees, Vector2(96, 16))
 	# Z_01: with the magical key the count shows "XA".
 	draw_hud_text(key_count_text(), Vector2(96, 32))
@@ -1433,6 +1555,7 @@ func draw_original_hud() -> void:
 						var filled := frame == 0 or (frame == 1 and x < 4)
 						draw_rect(Rect2(at + Vector2(x, y), Vector2.ONE), Color("e85050") if filled else Color("d0c8bd"))
 
+	if not sprites: return
 	if state.equipped_weapon != null and visual_theme.sprites.has(state.equipped_weapon.id):
 		draw_texture_rect(visual_theme.sprites[state.equipped_weapon.id], Rect2(150, 28, 16, 16), false)
 	var selected: Resource = item_for_slot(state.selected_item) if not state.selected_item.is_empty() and state.item_value(state.selected_item) > 0 else null
@@ -1857,6 +1980,7 @@ func continue_game() -> void:
 	else:
 		enter_room(start_room, start_room.spawn, Vector2i.UP)
 	audio.set_music(room.music)
+	start_curtain()
 
 ## A save file's game: its state (or a fresh one), starting at the overworld.
 func begin_file(data: Dictionary) -> bool:
@@ -1870,6 +1994,7 @@ func begin_file(data: Dictionary) -> bool:
 	lifted_item = null
 	held.clear()
 	enter_room(start_room, start_room.spawn, Vector2i.UP)
+	start_curtain()
 	return true
 
 ## The game state of a checked snapshot, or null (with a status) if its

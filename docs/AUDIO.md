@@ -35,6 +35,10 @@ The overworld recording includes its introduction, then loops at the original
 repeating phrase boundary. The cave recording uses the underworld song and its
 phrase loop. Using dungeon music in the sword cave is an intentional content
 choice for this request; set that room's music to empty for a silent cave.
+The ending song loops at its repeating phrase the same way. The title song
+(`title`) covers one cycle of the title and story, which requests it again.
+Zelda's rescue plays her own song (`zelda`, request $06), and the ending's
+furl waits until it has finished.
 
 ## Custom content
 

@@ -415,7 +415,7 @@ func rescue_zelda(world: Node, actor: RefCounted) -> void:
 	if actor.family.zelda_state == 1 and actor.family.timer == 0x80:
 		world.player.place(Vector2i(0x88, 0x88 - 64))
 		world.player.facing = Vector2i.LEFT
-		world.audio.play(&"item_fanfare")
+		world.audio.set_music(&"zelda")
 	if actor.family.zelda_state == 2 and not ending:
 		ending = true
 		world.state.flags["zelda_rescued"] = true

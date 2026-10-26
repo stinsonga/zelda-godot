@@ -5,8 +5,36 @@ func _initialize() -> void:
 
 func preview() -> void:
 	var args := OS.get_cmdline_user_args()
+	# The imported title and story after a number of frames: title_<frames>.
+	for arg in args:
+		if not arg.begins_with("title_"): continue
+		var title_front = preload("res://scenes/front_end.tscn").instantiate()
+		title_front.files_directory = OS.get_temp_dir().path_join("zelda-preview-files-%d" % OS.get_process_id())
+		root.add_child(title_front)
+		title_front.set_physics_process(false)
+		for i in range(int(arg.trim_prefix("title_"))): title_front.tick(Vector2i.ZERO, false, false)
+		title_front.world.audio.silence()
+		title_front.screen.queue_redraw()
+		return
+	# The imported ending, a number of frames after Zelda's rescue: ending_<frames>[_2] (second quest).
+	for arg in args:
+		if not arg.begins_with("ending_"): continue
+		var parts: PackedStringArray = arg.split("_")
+		var ending_world = preload("res://scenes/main.tscn").instantiate()
+		ending_world.menus_enabled = true
+		root.add_child(ending_world)
+		ending_world.set_physics_process(false)
+		ending_world.file_info = {"quest": 2 if parts.size() > 2 else 1, "name": [0x15, 0x12, 0x17, 0x14, 0x24, 0x24, 0x24, 0x24], "deaths": 7}
+		ending_world.enter_room(ending_world.rooms[&"l9_32"], Vector2i(0x78, 0x95 - 64 + 16), Vector2i.UP)
+		while ending_world.curtain >= 0: ending_world.simulate_tick(Vector2i.ZERO)
+		ending_world.player.place(Vector2i(0x78, 0x95 - 64))
+		while ending_world.game_phase != "ending": ending_world.simulate_tick(Vector2i.ZERO)
+		for i in range(int(parts[1])): ending_world.simulate_tick(Vector2i.ZERO)
+		ending_world.audio.silence()
+		ending_world.queue_redraw()
+		return
 	# The front end with three temporary files: files, register, eliminate, continue.
-	if args.has("front_files") or args.has("front_register") or args.has("front_eliminate") or args.has("front_continue"):
+	if args.has("front_files") or args.has("front_register") or args.has("front_eliminate") or args.has("front_continue") or args.has("front_curtain"):
 		var front = preload("res://scenes/front_end.tscn").instantiate()
 		front.files_directory = OS.get_temp_dir().path_join("zelda-preview-files-%d" % OS.get_process_id())
 		root.add_child(front)
@@ -31,6 +59,10 @@ func preview() -> void:
 		if args.has("front_continue"):
 			front.play(0)
 			front.world.open_continue_menu()
+		if args.has("front_curtain"):
+			front.play(0)
+			for i in range(37): front.world.simulate_tick(Vector2i.ZERO)
+			front.world.queue_redraw()
 		front.queue_redraw()
 		return
 	# The ROM-free dungeon lab: dungeon_lab [entry|hall|block|cellar|treasure].

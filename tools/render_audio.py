@@ -202,7 +202,13 @@ CUES = {
     'dungeon': (0x600,0x40,50), 'level_9': (0x600,0x20,50),
     # Z_05 WieldArrow/WieldBoomerang effect $02; Z_07 WieldFlute tune $10.
     'magic': (0x603,4,0.6), 'arrow': (0x603,2,0.4), 'recorder': (0x602,0x10,2.6),
+    # Z_02 InitDemoSubphasePlayTitleSong: one demo cycle, after which the demo requests it again.
+    'title': (0x600,0x80,81),
+    # Z_04 UpdateZelda's fanfare ($06); Z_02 UpdateMode13WinGame_Sub0_Flash's ending song ($10).
+    'zelda': (0x600,0x06,6), 'ending': (0x600,0x10,70),
 }
+# Songs that loop: the phrase index (driver byte $6C) where the loop begins.
+LOOP_PHRASES = {'overworld': 10, 'cave': 16, 'ending': 21}
 
 def export_audio(prg, destination):
     destination = Path(destination); destination.mkdir(parents=True, exist_ok=True)
@@ -216,15 +222,14 @@ def export_audio(prg, destination):
             driver.m[0x15] = frame & 255
             driver.run()
             phrase = driver.m[0x6c]
-            target = 10 if name == 'overworld' else 16
-            if name in ('overworld','cave') and phrase == target and phrase != previous_phrase:
+            if name in LOOP_PHRASES and phrase == LOOP_PHRASES[name] and phrase != previous_phrase:
                 if loop_start:
                     loop_end = len(samples); break
                 loop_start = len(samples)
             previous_phrase = phrase
             count = (frame+1)*RATE//FPS - frame*RATE//FPS
             samples.extend(apu.frame(driver,count))
-        if name in ('overworld','cave') and not loop_end:
+        if name in LOOP_PHRASES and not loop_end:
             raise ValueError(f'Could not locate source phrase loop for {name}')
         if not loop_end:
             last = next((i for i in range(len(samples)-1,-1,-1) if samples[i]),0)

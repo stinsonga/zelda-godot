@@ -43,6 +43,11 @@ func cleanup() -> void:
 	DirAccess.remove_absolute(base)
 
 func check_registration() -> void:
+	# With an import the title comes first, and Start leaves it once it is running.
+	var frames := 0
+	while front.mode == "title" and frames < 10:
+		menu(1, Vector2i.ZERO, true)
+		frames += 1
 	check(front.mode == "files" and front.cursor == 3, "With no files the cursor starts on REGISTER")
 	check(not front.world.visible, "The world waits behind the menus")
 	menu(1, Vector2i.ZERO, true)
@@ -86,6 +91,14 @@ func check_play_and_death() -> void:
 	menu(1, Vector2i.ZERO, true)
 	var world: Node = front.world
 	check(front.mode == "playing" and world.visible and world.room == world.start_room and world.state.health == 6, "A file starts at the overworld start with three hearts")
+	# Mode 3: the curtain opens a column pair every five frames, 16 times.
+	var at: Vector2i = world.player.pixel_position()
+	var curtain_frames := 0
+	while world.curtain >= 0 and curtain_frames < 200:
+		front.world.simulate_tick(Vector2i.LEFT)
+		curtain_frames += 1
+	check(curtain_frames == 76, "The curtain takes 76 frames (%d)" % curtain_frames)
+	check(world.player.pixel_position() == at and world.audio.current_music == world.room.music, "Link waits behind it; the song starts when it opens")
 	world.state.take_item(load("res://content/items/bombs.tres"))
 	world.state.max_health = 10
 	# Death: the sequence, then Continue/Save/Retry and a death on the file.
@@ -126,6 +139,18 @@ func check_play_and_death() -> void:
 	play_ticks(1, true)
 	play_ticks(0x40)
 	check(world.game_phase == "play" and world.state.health == 6 and world.room == world.start_room, "CONTINUE resumes at the start with three hearts")
+	check(world.curtain == 0, "behind the curtain")
+	# Moving between the overworld and a dungeon raises it too; caves and rooms within a level do not.
+	var dungeon_rooms: Array = world.rooms.values().filter(func(r: Resource) -> bool: return r.dungeon_level > 0)
+	if not dungeon_rooms.is_empty():
+		world.enter_room(dungeon_rooms[0], Vector2i(120, 157), Vector2i.UP)
+		check(world.curtain == 0, "Entering a dungeon raises the curtain")
+		var same_level: Array = dungeon_rooms.filter(func(r: Resource) -> bool: return r != dungeon_rooms[0] and r.dungeon_level == dungeon_rooms[0].dungeon_level)
+		if not same_level.is_empty():
+			world.enter_room(same_level[0], Vector2i(120, 157), Vector2i.UP)
+			check(world.curtain == -1, "Rooms within a level need none")
+		world.enter_room(world.start_room, world.start_room.spawn, Vector2i.UP)
+		check(world.curtain == 0, "Leaving for the overworld raises it")
 	front.show_files()
 
 func check_elimination() -> void:

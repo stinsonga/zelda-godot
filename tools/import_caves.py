@@ -174,7 +174,8 @@ def export_item_sprites(prg, patterns, palettes, output, png, blit_tile):
         png(output / f'{name}.png', 16, 16, canvas)
         names.append(name)
     for item_id, name in ITEMS.items():
-        if name in ANIMATED_ITEMS or name == 'wooden_sword': continue
+        # The Triforce of Power uses level 9's patterns (import_dungeons.ganon_sprites).
+        if name in ANIMATED_ITEMS or name in ('wooden_sword', 'triforce_of_power'): continue
         write(name, *item_tile(prg, item_id))
     # Z_04 UpdateDock draws raft item slot $09 with palette attribute zero.
     write('deployed_raft', prg[ITEM_FRAME_TILES + prg[ITEM_FRAME_OFFSETS + 9]], 0)

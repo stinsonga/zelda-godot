@@ -14,6 +14,7 @@ import zlib
 from import_dungeons import MONSTERS, export_levels, level_rooms
 import import_dungeons
 import import_submenu
+import import_title
 from import_caves import (TELEPORT_YS, WHIRLWIND_ROOMS, CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
                           cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
                           secret_resource, SQUARE_FLOOR, SQUARE_STAIRS)
@@ -854,6 +855,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
         'limitations': ['First-quest terrain and overworld actors are imported.',
                         'First-quest dungeon encounters are imported; Zora and Armos are in.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
+    import_title.export(prg, output, png, COLORS)
     from render_audio import export_audio
     export_audio(prg, output / 'audio')
     print(f'Imported 128 overworld rooms, {len(cave_ids)} caves, terrain, player, item, and common overworld enemy sprites into {output}')

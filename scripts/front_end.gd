@@ -1,9 +1,11 @@
 extends Node2D
-## The original's front end around the game (Z_02 modes 1, $E, and $F): the
-## file menu, name registration, and elimination. The World plays a chosen
-## file and reports death and its Continue/Save/Retry choice back here.
+## The original's front end around the game (Z_02 modes 0, 1, $E, and $F): the
+## title and story, the file menu, name registration, and elimination. The
+## World plays a chosen file and reports death and its Continue/Save/Retry
+## choice back here.
 ## Keys: arrows; Enter is Start, Tab is Select, Z is A, X is B.
 const Files = preload("res://scripts/save_files.gd")
+const Title = preload("res://scripts/title_demo.gd")
 ## Z_02 Mode1CursorSpriteYs: three files, then REGISTER and ELIMINATION.
 const FILE_CURSOR_YS := [0x5C, 0x74, 0x8C, 0xA8, 0xB8]
 ## Z_02 ModeEandFSlotCursorYs: three files, then END.
@@ -20,7 +22,10 @@ const TILE_CHARS := {0x24: " ", 0x28: ",", 0x29: "!", 0x2A: "'", 0x2B: "&", 0x2C
 @export var files_directory := "user://files"
 var files: RefCounted
 var world: Node
-## "files", "register", "eliminate", or "playing".
+## The title and story, when imported; without them the game opens on the files.
+var title: RefCounted
+var screen: NesScreen
+## "title", "files", "register", "eliminate", or "playing".
 var mode := "files"
 var cursor := 0
 var playing_slot := -1
@@ -42,7 +47,13 @@ func _ready() -> void:
 	add_child(world)
 	world.menu_choice.connect(_on_menu_choice)
 	world.died.connect(func() -> void: files.add_death(playing_slot))
-	show_files()
+	screen = NesScreen.new()
+	add_child(screen)
+	var title_data: Dictionary = Title.load_data()
+	if title_data.is_empty(): show_files()
+	else:
+		title = Title.new(title_data, screen, world.audio)
+		show_title()
 
 func _input(event: InputEvent) -> void:
 	if mode == "playing" or not event is InputEventKey or event.echo: return
@@ -65,17 +76,26 @@ func _physics_process(_delta: float) -> void:
 	tick(Vector2i.ZERO if held.is_empty() else held.back(), pressed.start, pressed.select, pressed.a, pressed.b)
 	for key in pressed: pressed[key] = false
 	queue_redraw()
+	screen.queue_redraw()
 
 ## One frame of the menus; tests drive this directly.
 func tick(direction: Vector2i, start: bool, select: bool, a: bool = false, b: bool = false) -> void:
 	frame += 1
 	match mode:
+		"title": if title.tick(start): show_files()
 		"files": tick_files(start, select)
 		"register": tick_register(direction, start, select, a, b)
 		"eliminate": tick_eliminate(start, select)
 
+func show_title() -> void:
+	mode = "title"
+	screen.visible = true
+	world.visible = false
+	world.set_physics_process(false)
+
 func show_files() -> void:
 	mode = "files"
+	screen.visible = false
 	world.visible = false
 	world.set_physics_process(false)
 	world.audio.silence()
@@ -103,6 +123,7 @@ func tick_files(start: bool, select: bool) -> void:
 func play(slot: int) -> void:
 	if not files.active(slot): return
 	playing_slot = slot
+	world.file_info = {"quest": files.meta[slot].quest, "name": files.meta[slot].name, "deaths": files.meta[slot].deaths}
 	if not world.begin_file(files.read_state(slot, world.world_id)): return
 	mode = "playing"
 	world.visible = true
@@ -110,6 +131,10 @@ func play(slot: int) -> void:
 
 func _on_menu_choice(choice: String) -> void:
 	if choice == "save": files.write_state(playing_slot, world.snapshot(), world.world_id)
+	# The ending moves the file on to the second quest and saves it (Z_02 mode $D).
+	if choice == "second_quest":
+		files.meta[playing_slot].quest = 2
+		files.write_state(playing_slot, world.snapshot(), world.world_id)
 	show_files()
 
 func show_names(next_mode: String) -> void:
@@ -182,7 +207,7 @@ func tick_eliminate(start: bool, select: bool) -> void:
 		world.audio.play(&"player_hurt")
 
 func _draw() -> void:
-	if mode == "playing": return
+	if mode == "playing" or mode == "title": return
 	draw_rect(Rect2(0, 0, 256, 240), Color.BLACK)
 	if mode == "files": draw_files()
 	else: draw_names()

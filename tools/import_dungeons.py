@@ -9,7 +9,7 @@ import json
 import re
 
 from nes_cpu import Cpu
-from import_caves import person_text
+from import_caves import item_tile, person_text, render_item
 
 LEVEL_BLOCKS = {1: 0x18700, 7: 0x18A00}   # Levels 1-6 and 7-9 share a 128-room grid.
 LEVEL_INFO = 0x19300
@@ -785,6 +785,8 @@ def ganon_sprites(prg, level, patterns, palettes, output, png, blit_tile, names)
                     canvas[((oy + y) * 32 + ox) * 4:((oy + y) * 32 + ox + 16) * 4] = piece[y * 64:(y + 1) * 64]
             save(f'l{level}_ganon_{colors}_{pose}', 32, canvas)
     save(f'l{level}_ganon_ashes', 16, sprite_piece(patterns, prg[0x6E83 + base + 0x0B], rows['triforce'], blit_tile))
+    # The Triforce of Power ($0E) only appears here; its tiles are in Ganon's sprite patterns.
+    save('triforce_of_power', 16, render_item(prg, patterns, palettes, *item_tile(prg, 0x0E), blit_tile))
     for index, image in enumerate((0x0C, 0x0D)):
         save(f'l{level}_ganon_cloud_{index}', 16, sprite_piece(patterns, prg[0x6E83 + base + image], rows['triforce'], blit_tile, mirrored=True))
     # Rays use the slot-indexed tiles and flips; the frame counter picks the palette row.
