@@ -1,5 +1,5 @@
-[gd_resource type="Resource" script_class="ItemDefinition" load_steps=2 format=3]
-[ext_resource type="Script" path="res://scripts/item_definition.gd" id="1"]
+[gd_resource type="Resource" script_class="WeaponDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/weapon_definition.gd" id="1"]
 [resource]
 script = ExtResource("1")
 id = &"magic_rod"
@@ -8,3 +8,7 @@ effect = "unique"
 slot = &"rod"
 value = 1
 usable = true
+damage = 2
+fires_beam = false
+sprite_prefix = &"rod"
+use_speed_subpixels = 640

@@ -167,6 +167,8 @@ def export_cave(prg, patterns, palettes, output):
     for name, frame, flip in [('attack_right', 4, False), ('attack_left', 4, True),
                                ('attack_down', 6, False), ('attack_up', 7, False)]:
         sprite(name, prg[0x6E83 + frame], 4, flip_x=flip)
+        for palette in range(1, 4):
+            sprite(f'{name}_clock_{palette}', prg[0x6E83 + frame], 4 + palette, flip_x=flip)
     # Item slot $21: lifting pose, with the narrow-item one-arm substitution.
     lift_tile = prg[0x714C + prg[0x7127 + 0x21]]
     sprite('lift', lift_tile, 4, mirrored=True, right_override=0x08)
@@ -248,20 +250,20 @@ def export_combat_sprites(prg, patterns, palettes, output):
 
 def export_beam_sprites(prg, patterns, palettes, output):
     names = []
-    def render(key, tile, palette, flip_x=False, flip_y=False, narrow=False):
+    def render(key, tile, palette, flip_x=False, flip_y=False, narrow=False, mirrored=False):
         canvas = bytearray(16 * 16 * 4)
         bank = patterns[0x1000:] if tile & 1 else patterns
         top = tile & 0xFE
         for column in range(1 if narrow else 2):
             for row in range(2):
                 block = bytearray(8 * 8 * 4)
-                blit_tile(block, 8, 0, 0, bank, top + column * 2 + row, palettes[4 + palette], transparent=True)
+                blit_tile(block, 8, 0, 0, bank, top + (0 if mirrored else column * 2) + row, palettes[4 + palette], transparent=True)
                 for y in range(8):
                     for x in range(8):
                         dx, dy = column * 8 + x + (4 if narrow else 0), row * 8 + y
                         if flip_x: dx = 15 - dx
                         if flip_y: dy = 15 - dy
-                        dst, src = (dy * 16 + dx) * 4, (y * 8 + x) * 4
+                        dst, src = (dy * 16 + dx) * 4, (y * 8 + (7 - x if mirrored and column == 1 else x)) * 4
                         canvas[dst:dst + 4] = block[src:src + 4]
         png(output / (key + '.png'), 16, 16, canvas)
         names.append(key)
@@ -272,6 +274,10 @@ def export_beam_sprites(prg, patterns, palettes, output):
             tile = prg[0x714C + offset]
             render(f'beam_{direction}_{palette}', tile, palette,
                    flip_x=direction == 'left', flip_y=direction == 'down', narrow=not horizontal)
+            magic_tile = prg[0x714C + prg[0x7127 + 0x23] + int(horizontal)]
+            render(f'magic_wave_{direction}_{palette}', magic_tile, palette,
+                   flip_x=direction == 'left', flip_y=direction == 'down', mirrored=not horizontal)
+
         tile = prg[0x714C + prg[0x7127 + 0x23] + 2]
         for corner in range(4):
             render(f'beam_burst_{corner}_{palette}', tile, palette,
@@ -482,25 +488,26 @@ def import_rom(prg, output):
                           patterns[0x1000:], tile, palettes[palette])
     png(output / 'overworld_tiles.png', 256, 256, atlas)
     # Eight explicit directional frames: right, left, down, up, two poses each.
-    player = bytearray(128 * 16 * 4)
-    for direction in range(4):
-        for pose in range(2):
-            frame = pose if direction < 2 else direction
-            tile = prg[0x6E83 + frame]
-            sprite = bytearray(16 * 16 * 4)
-            for part in range(4):
-                actual = tile + part
-                if direction == 2 and part == 0:
-                    actual += 0x50  # Original small-shield substitution, Z_07.
-                blit_tile(sprite, 16, part // 2 * 8, part % 2 * 8,
-                          patterns, actual, palettes[4], transparent=True)
-            flip = direction == 1 or (direction >= 2 and pose == 1)
-            for y in range(16):
-                for x in range(16):
-                    src = (y * 16 + (15 - x if flip else x)) * 4
-                    dst = (y * 128 + (direction * 2 + pose) * 16 + x) * 4
-                    player[dst:dst + 4] = sprite[src:src + 4]
-    png(output / 'player.png', 128, 16, player)
+    for player_palette in range(4):
+        player = bytearray(128 * 16 * 4)
+        for direction in range(4):
+            for pose in range(2):
+                frame = pose if direction < 2 else direction
+                tile = prg[0x6E83 + frame]
+                sprite = bytearray(16 * 16 * 4)
+                for part in range(4):
+                    actual = tile + part
+                    if direction == 2 and part == 0:
+                        actual += 0x50  # Original small-shield substitution, Z_07.
+                    blit_tile(sprite, 16, part // 2 * 8, part % 2 * 8,
+                              patterns, actual, palettes[4 + player_palette], transparent=True)
+                flip = direction == 1 or (direction >= 2 and pose == 1)
+                for y in range(16):
+                    for x in range(16):
+                        src = (y * 16 + (15 - x if flip else x)) * 4
+                        dst = (y * 128 + (direction * 2 + pose) * 16 + x) * 4
+                        player[dst:dst + 4] = sprite[src:src + 4]
+        png(output / ('player.png' if player_palette == 0 else f'clock_player_{player_palette}.png'), 128, 16, player)
     glyphs = bytearray(128 * 128 * 4)
     for tile in range(256):
         blit_tile(glyphs, 128, tile % 16 * 8, tile // 16 * 8,
@@ -649,6 +656,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
     if (output / 'rooms' / 'sword_cave.tres').exists():
         (output / 'rooms' / 'sword_cave.tres').unlink()
     names = ['fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
+    names += [f'clock_player_{i}' for i in range(1,4)] + [f'attack_{direction}_clock_{i}' for direction in ('up','down','left','right') for i in range(1,4)]
     theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={5 + len(names)} format=3]',
              '[ext_resource type="Script" path="res://scripts/visual_theme.gd" id="1"]',
              '[ext_resource type="Texture2D" path="res://imported/player.png" id="2"]',
@@ -659,7 +667,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
     theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")', 'hud_hearts = ExtResource("hearts")',
               'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
     (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
-    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={138 + len(cave_ids) + len(level_room_ids)} format=3]',
+    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={140 + len(cave_ids) + len(level_room_ids)} format=3]',
                '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
                '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]']
     for i in range(128):
@@ -671,10 +679,12 @@ ladder_water = PackedByteArray({array(ladder_water)})
         '[ext_resource type="Resource" path="res://content/items/heart.tres" id="heart"]',
         '[ext_resource type="Resource" path="res://content/items/rupee.tres" id="rupee"]',
         '[ext_resource type="Resource" path="res://content/items/five_rupees.tres" id="five_rupees"]',
-        '[ext_resource type="Resource" path="res://content/items/bomb_drop.tres" id="bomb_drop"]']
+        '[ext_resource type="Resource" path="res://content/items/bomb_drop.tres" id="bomb_drop"]',
+        '[ext_resource type="Resource" path="res://content/items/clock.tres" id="clock"]',
+        '[ext_resource type="Resource" path="res://content/items/fairy.tres" id="fairy"]']
     # Original group rates and kill-cycle rows remain generated local data.
-    # Clocks ($21) and fairies ($23) are not built yet and still drop nothing.
-    supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees', 0x00: 'bomb_drop'}
+    # All original drop IDs now have native behavior resources.
+    supported = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees', 0x00: 'bomb_drop', 0x21: 'clock', 0x23: 'fairy'}
     for name, group in [(f'loot_{group}', group) for group in range(4)]:
         row = prg[0x13042 + group * 10:0x13042 + group * 10 + 10]
         entries = [f'ExtResource("{supported[value]}")' if value in supported else 'null' for value in row]

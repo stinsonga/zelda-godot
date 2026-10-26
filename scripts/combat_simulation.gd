@@ -43,10 +43,10 @@ const STATUE_START_TIMES := [0x50, 0x80, 0xF0, 0x60]
 const PERSON_POSITION := Vector2i(0x78, 0x80 - 64)
 ## Z_07 MoveAndDrawRoomItem: a Like Like, Stalfos, or Gibdo in slot 1 carries the room item.
 const CARRIERS := [0x17, 0x2A, 0x30]
-## Help drops: five rupees ($0F), a bomb ($00), or a fairy ($23, not yet built).
+## Help drops: five rupees ($0F), a bomb ($00), or a fairy ($23).
 const FIVE_RUPEE_DROP = preload("res://content/items/five_rupees.tres")
 const BOMB_DROP = preload("res://content/items/bomb_drop.tres")
-const FAIRY_DROP: Resource = null
+const FAIRY_DROP = preload("res://content/items/fairy.tres")
 
 func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entry_position: Vector2i = Vector2i.ZERO, entry_direction: Vector2i = Vector2i.UP) -> void:
 	beam = null
@@ -204,7 +204,7 @@ func can_enemy_occupy(world: Node, at: Vector2i) -> bool:
 	return true
 
 func hurt_player(world: Node, damage: int, source: Vector2i) -> bool:
-	if player_invulnerability > 0 or world.state.health <= 0: return false
+	if world.state.clock_active or player_invulnerability > 0 or world.state.health <= 0: return false
 	world.state.take_damage(damage)
 	if world.state.health == 0: world.audio.silence()
 	world.audio.play(&"player_hurt")
@@ -216,6 +216,7 @@ func hurt_player(world: Node, damage: int, source: Vector2i) -> bool:
 	shove_direction = (Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT) if horizontal else (Vector2i.DOWN if delta.y >= 0 else Vector2i.UP)
 	shove_remaining = 32
 	world.sword.phase = -1
+	world.rod.phase = -1
 	return true
 
 func move_shoved_player(world: Node) -> void:
@@ -235,6 +236,9 @@ func tick(world: Node) -> void:
 	if world.sword.phase == 2 and not world.sword.beam_attempted:
 		world.sword.beam_attempted = true
 		launched = launch_beam(world)
+	if world.rod.phase == 2 and not world.rod.beam_attempted:
+		world.rod.beam_attempted = true
+		launched = launch_magic(world) or launched
 	if not launched: tick_beam(world)
 	var food_target: Variant=null
 	var attracts:bool=world.room.bait_attraction=="enabled"
@@ -253,7 +257,7 @@ func tick(world: Node) -> void:
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11)),
-		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at)}
+		"blocked":func(at: Vector2i) -> bool: return world.is_blocked(at), "clock":world.state.clock_active}
 	# Z_01 Person_CheckCollisions: striking a dungeon resident enables the fires' fireballs.
 	if world.room.dungeon_level > 0 and world.cave_session != null and world.cave_session.person_visible() and world.sword.hits(world.player.pixel_position(), PERSON_POSITION):
 		person_provoked = true
@@ -270,6 +274,13 @@ func tick(world: Node) -> void:
 					record_permanent_kill(world, actor)
 			elif actor.parried_hit:
 				world.audio.play(&"parry")
+		if actor.targetable() and world.rod.hits(world.player.pixel_position(), actor.hit_position()):
+			if actor.receive_hit(world.rod.weapon.damage, world.rod.direction, "rod"):
+				world.audio.play(&"enemy_hit")
+				if actor.health == 0:
+					world.audio.play(&"enemy_die")
+					record_permanent_kill(world, actor)
+			elif actor.parried_hit: world.audio.play(&"parry")
 		var was_alive: bool = actor.health > 0
 		var original: bool = actor.definition.behavior != "native"
 		var target: Vector2i = chase_target if original else world.player.pixel_position()
@@ -319,13 +330,10 @@ func tick(world: Node) -> void:
 			if table != null:
 				var item: Resource = original_drop(world, table, actor.source_random) if original else table.select(world.state.kill_cycle, actor.rng.randi_range(0, 255))
 				if item != null:
-					var reward = Reward.new()
-					reward.definition = item
-					reward.position = actor.position()
-					rewards.append(reward)
+					spawn_reward(world, item, actor.position(), actor.slot)
 		var reach: Vector2i = actor.collision_size() / 2 + Vector2i.ONE
 		var gap: Vector2i = (actor.position() + actor.definition.collision_offset + actor.collision_size() / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
-		if actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
+		if not world.state.clock_active and actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
 			touch_player(world, actor)
 	tick_rupee_stash(world)
 	tick_statues(world)
@@ -352,7 +360,7 @@ func tick(world: Node) -> void:
 				rock.alive = false
 			elif world.room.is_pixel_solid(at + Vector2i(8, 8)):
 				rock.alive = false
-			elif rock.hurtbox().intersects(player_box(world)):
+			elif not world.state.clock_active and rock.hurtbox().intersects(player_box(world)):
 				# The basic shield blocks rocks arriving from the facing direction,
 				# while Link is free to defend (not using the sword).
 				if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
@@ -362,15 +370,24 @@ func tick(world: Node) -> void:
 					rock.alive = false
 	rocks = rocks.filter(func(rock: RefCounted) -> bool: return rock.alive)
 	for reward in rewards:
-		reward.age += 1
+		reward.tick(bounds, source_random.at(reward.source_slot + 1))
 		if world.state.health > 0 and reward.available():
 			var touched: bool = reward.touches(world.player.pixel_position())
 			if world.sword.visible():
 				touched = touched or reward.touches(world.player.pixel_position() + world.sword.offset())
 			if touched:
 				reward.take(world.state)
-				world.audio.play(&"heart" if reward.definition.effect == "health" else &"rupee")
-	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < Reward.LIFETIME)
+				world.audio.play(reward.pickup_sound())
+	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < reward.definition.lifetime_ticks)
+
+func spawn_reward(world: Node, definition: Resource, at: Vector2i, source_slot: int = 1) -> RefCounted:
+	var reward = Reward.new()
+	reward.definition = definition
+	reward.source_slot = source_slot
+	reward.position = at
+	rewards.append(reward)
+	if not definition.appearance_cue.is_empty(): world.audio.play(definition.appearance_cue)
+	return reward
 
 func apply_ganon_cues(world: Node, actor: RefCounted) -> void:
 	var fight: RefCounted = actor.family.ganon
@@ -473,6 +490,7 @@ func shield_blocks(world: Node, rock: RefCounted) -> bool:
 ## Contact effects: damage, capture (Like Like, Wallmaster), or a Bubble's
 ## effect on the sword (Z_04 UpdateBubble).
 func touch_player(world: Node, actor: RefCounted) -> void:
+	if world.state.clock_active: return
 	match actor.definition.contact_effect:
 		"block_sword":
 			world.state.sword_block_ticks = 0xA0
@@ -571,7 +589,7 @@ func tick_fireball(world: Node, rock: RefCounted) -> void:
 		if not bounds.grow(8).has_point(rock.position()):
 			rock.alive = false
 			return
-	if player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
+	if not world.state.clock_active and player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
 		if shield_blocks(world, rock) and world.player.facing.dot(rock.direction) < 0 and not world.sword.active():
 			world.audio.play(&"parry")
 		else:
@@ -598,7 +616,7 @@ func tick_boomerang(world: Node, rock: RefCounted) -> void:
 			owner.shot_out = false
 			return
 		rock.subposition += Vector2i(signi(delta.x), signi(delta.y)) * 640
-	if player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
+	if not world.state.clock_active and player_invulnerability == 0 and source_contact(rock.position(), world.player.pixel_position()):
 		if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
 			world.audio.play(&"parry")
 			rock.returning = true
@@ -623,6 +641,31 @@ func launch_beam(world: Node) -> bool:
 	beam.damage = world.sword.weapon.damage
 	return true
 
+func launch_magic(world: Node) -> bool:
+	# A magic shot replaces a sword shot, but never another magic shot.
+	if beam != null and beam.kind == "magic": return false
+	beam = null
+	var at: Vector2i = world.player.pixel_position() + world.rod.direction * 16
+	world.audio.play(&"magic")
+	if world.rod.direction.x != 0 and (at.x < 20 or at.x >= 236): return false
+	beam = Beam.new()
+	beam.kind = "magic"
+	beam.position = at
+	beam.direction = world.rod.direction
+	beam.damage = world.rod.weapon.use_damage
+	beam.speed_subpixels = world.rod.weapon.use_speed_subpixels
+	return true
+
+func impact_beam(world: Node) -> void:
+	if beam.kind != "magic":
+		beam.impact()
+		return
+	if world.state.item_value(&"book") > 0 and world.burning_objects() < 2:
+		var book: Resource = world.item_for_slot(&"book")
+		world.item_objects.append(preload("res://scripts/item_object.gd").standing_fire(beam.position, beam.direction, book.use_duration_ticks if book != null else 79))
+		world.audio.play(&"flame")
+	beam = null
+
 func tick_beam(world: Node) -> void:
 	if beam == null: return
 	if beam.burst_remaining > 0:
@@ -632,24 +675,27 @@ func tick_beam(world: Node) -> void:
 			beam = null
 		return
 	# MoveShot checks room bounds. Beam flight does not use rock terrain checks.
-	for pixel in range(Beam.SPEED):
+	beam.fraction += beam.speed_subpixels
+	var pixels: int = beam.fraction / 256
+	beam.fraction %= 256
+	for pixel in range(pixels):
 		var next: Vector2i = beam.position + beam.direction
-		if not world.room.movement_bounds.has_point(next):
-			beam.impact()
+		if not (bounds if beam.kind == "magic" else world.room.movement_bounds).has_point(next):
+			impact_beam(world)
 			return
 		beam.position = next
 		for actor in enemies:
 			if actor.targetable() and beam.hits(actor.hit_position()):
-				if actor.receive_hit(beam.damage, beam.direction, "beam"):
+				if actor.receive_hit(beam.damage, beam.direction, beam.kind):
 					world.audio.play(&"enemy_hit")
 					if actor.health == 0:
 						world.audio.play(&"enemy_die")
 						record_permanent_kill(world, actor)
-					beam.impact()
+					impact_beam(world)
 					return
 				if actor.parried_hit:
 					world.audio.play(&"parry")
-					beam.impact()
+					impact_beam(world)
 					return
 
 func record_permanent_kill(world: Node, actor: RefCounted) -> void:
@@ -794,7 +840,7 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 	rock.subposition += rock.direction * rock.speed_subpixels
 	var center: Vector2i = rock.position() + (Vector2i(4,8) if rock.kind == "rock" else Vector2i(8,8))
 	var player_center: Vector2i = world.player.pixel_position() + Vector2i(8, 8)
-	if player_invulnerability == 0 and source_contact(center, player_center):
+	if not world.state.clock_active and player_invulnerability == 0 and source_contact(center, player_center):
 		if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():
 			world.audio.play(&"parry")
 			rock.bounce_direction = world.player.facing

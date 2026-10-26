@@ -7,3 +7,4 @@ title = "Book of magic"
 effect = "unique"
 slot = &"book"
 value = 1
+use_duration_ticks = 79

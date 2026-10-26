@@ -140,9 +140,10 @@ named `sword_cave` load through `WorldDefinition.legacy_ids`.
   flight is not animated: Link is set down at the destination after the tune.
 - Held white and magical swords use grade palettes on the wooden sword's tiles.
   Link's sprite does not change with the magical shield.
-- Armos and raft are not connected. The magical rod has no use
-  yet. There is no submenu.
+- Armos and raft are not connected. There is no submenu.
 - Shortcut-room rocks follow the ROM's shortcut positions. Rooms $1D and $49 point
   at index 0, which has not been checked against an emulator.
 
 Bait and stepladder behavior are implemented; see BAIT.md and LADDER.md.
+
+Magical rod and book behavior are implemented; see ROD_AND_BOOK.md.

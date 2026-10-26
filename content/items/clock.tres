@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="RewardDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/reward_definition.gd" id="reward"]
+[resource]
+script = ExtResource("reward")
+id = &"clock"
+effect = "clock"
+sprite = &"clock"
+pickup_cue = &"item"
+fallback_color = Color(0.7,0.8,1,1)

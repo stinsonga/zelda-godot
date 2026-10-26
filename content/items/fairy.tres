@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RewardDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/reward_definition.gd" id="reward"]
+[resource]
+script = ExtResource("reward")
+id = &"fairy"
+effect = "health"
+amount = 6
+sprite = &"fairy"
+flying = true
+frame_ticks = 4
+pickup_cue = &"item"
+appearance_cue = &"item"
+fallback_color = Color(1,0.5,0.65,1)

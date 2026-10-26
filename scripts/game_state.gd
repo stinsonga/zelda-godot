@@ -11,6 +11,8 @@ var rupees := 0
 ## Z_01 World_ChangeRupees applies these one rupee every other frame.
 var rupees_to_add := 0
 var rupees_to_subtract := 0
+## Magic clock lasts for this room visit, never part of a checkpoint.
+var clock_active := false
 var kill_cycle := 0
 var max_health := 6
 ## Half hearts are split into 128 units so rings can reduce damage.

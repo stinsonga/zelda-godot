@@ -6,6 +6,10 @@ const BURST_TICKS := 22
 var position := Vector2i.ZERO
 var direction := Vector2i.UP
 var damage := 1
+## Sword and rod shots share slot $0E. Magic uses its own damage type.
+var kind := "beam"
+var speed_subpixels := 768
+var fraction := 0
 var burst_remaining := 0
 var finished := false
 

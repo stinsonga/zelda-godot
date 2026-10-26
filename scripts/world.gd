@@ -56,6 +56,7 @@ var held_direction := Vector2i.ZERO
 ## A Like Like or Wallmaster holding Link.
 var captor: RefCounted
 const DIRECTION_NAMES := {Vector2i.UP: "up", Vector2i.DOWN: "down", Vector2i.LEFT: "left", Vector2i.RIGHT: "right"}
+var rod = preload("res://scripts/rod_action.gd").new()
 var ladder = preload("res://scripts/ladder.gd").new()
 var lighting = preload("res://scripts/room_lighting.gd").new()
 var simulation_tick := 0
@@ -192,6 +193,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	walk_ticks = 0
 	walk_pose = 0
 	sword.phase = -1
+	rod.phase = -1
 	item_objects.clear()
 	recorder_used_here = false
 	whirlwind_pending = false
@@ -202,6 +204,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	rise_remaining = rise * 4
 	rise_square = Rect2i(at.x, at.y + 3, 16, 16)
 	portal_armed = true
+	state.clock_active = false
 	state.current_level = room.dungeon_level
 	secrets.enter(room, state)
 	overrides = compute_overrides(room)
@@ -210,6 +213,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 		cave_session = preload("res://scripts/cave_session.gd").new()
 		cave_session.start(room.cave, room.id, state, combat.source_random)
 	combat.enter_room(room, state, restoring, at, facing)
+	for spawn in room.reward_spawns: combat.spawn_reward(self, spawn.definition, spawn.position)
 	lighting.enter(room,previous!=null and previous.dungeon_level==room.dungeon_level,previous_light,restoring,ganon_intro())
 	state.visit_room(room)
 	audio.set_music(room.music)
@@ -297,6 +301,10 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	elif sword.active():
 		sword.tick()
+		combat.tick(self)
+		return
+	elif rod.active():
+		rod.tick()
 		combat.tick(self)
 		return
 	elif item_use_remaining > 0:
@@ -581,9 +589,9 @@ func tick_thrown(object: RefCounted) -> void:
 			return
 		object.position += Vector2i(signi(delta.x), signi(delta.y)) * 3
 	for reward in combat.rewards:
-		if object.kind == "boomerang" and reward.available() and reward.touches(object.position):
+		if object.kind in ["boomerang", "arrow"] and reward.available() and reward.touches(object.position):
 			reward.take(state)
-			audio.play(&"heart" if reward.definition.effect == "health" else &"rupee")
+			audio.play(reward.pickup_sound())
 	for actor in combat.enemies:
 		# Z_04 Ganon_CheckCollisions tests only an arrow in flight against brown Ganon.
 		if object.kind == "arrow" and actor.definition.behavior == "ganon":
@@ -658,7 +666,7 @@ func use_item() -> bool:
 			return true
 		&"arrows":
 			# Z_05 WieldArrow: needs the bow and a rupee; one arrow at a time.
-			if state.item_value(&"bow") == 0 or state.rupees == 0 or item_objects.any(func(o: RefCounted) -> bool: return o.kind == "arrow"):
+			if rod.active() or state.item_value(&"bow") == 0 or state.rupees == 0 or item_objects.any(func(o: RefCounted) -> bool: return o.kind == "arrow"):
 				return false
 			state.rupees_to_subtract += 1
 			var arrow: Resource = item_for_slot(&"arrows")
@@ -679,6 +687,9 @@ func use_item() -> bool:
 			var food:Resource=item_for_slot(&"bait")
 			item_objects.append(ItemObject.bait(ahead,food.use_duration_ticks if food!=null else 765))
 			if cave_session!=null:cave_session.try_feed(self)
+		&"rod":
+			if rod.active() or item_objects.any(func(o: RefCounted) -> bool: return o.active and o.kind == "arrow"): return false
+			return rod.start(item_for_slot(&"rod"), player.facing)
 		&"recorder":
 			play_recorder()
 		&"letter":
@@ -870,7 +881,7 @@ func _draw() -> void:
 	draw_combat()
 	if rise_remaining > 0:
 		draw_rising_player()
-	elif combat.player_invulnerability == 0 or simulation_tick % 4 < 2:
+	elif state.clock_active or combat.player_invulnerability == 0 or simulation_tick % 4 < 2:
 		var at: Vector2 = Vector2(player.pixel_position()) + Vector2(0, HUD_HEIGHT)
 		if lift_remaining > 0 and visual_theme.sprites.has(&"lift"):
 			draw_named_sprite(&"lift", Vector2(player.pixel_position()))
@@ -879,9 +890,9 @@ func _draw() -> void:
 			# Ganon_ScenePhase0/1: Link holds up the Triforce of Courage.
 			draw_named_sprite(&"lift", Vector2(player.pixel_position()))
 			draw_named_sprite(item_sprite(TRIFORCE), Vector2(player.pixel_position()) - Vector2(4, 16))
-		elif (sword.active() or item_use_remaining > 0) and visual_theme.sprites.has(StringName("attack_" + direction_name(player.facing))):
+		elif (sword.active() or rod.active() or item_use_remaining > 0) and visual_theme.sprites.has(StringName("attack_" + direction_name(player.facing))):
 			var facing: Vector2i = sword.direction if sword.active() else player.facing
-			draw_named_sprite(StringName("attack_" + direction_name(facing)), Vector2(player.pixel_position()) + Vector2(0, 2))
+			draw_named_sprite(clock_sprite(StringName("attack_" + direction_name(facing))), Vector2(player.pixel_position()) + Vector2(0, 2))
 		elif visual_theme.player_sheet:
 			var direction := 0
 			if player.facing == Vector2i.LEFT: direction = 1
@@ -889,14 +900,21 @@ func _draw() -> void:
 			elif player.facing == Vector2i.UP: direction = 3
 			var frame := direction * 2 + walk_pose
 			# Z_07 applies a two-pixel overworld drawing offset, independent of collision.
-			draw_texture_rect_region(visual_theme.player_sheet, Rect2(at + Vector2(0, 2), Vector2(16, 16)), Rect2(frame * visual_theme.player_sheet.get_width() / 8.0, 0, visual_theme.player_sheet.get_width() / 8.0, visual_theme.player_sheet.get_height()))
+			var sheet: Texture2D = visual_theme.sprites.get(StringName("clock_player_" + str(clock_palette())), visual_theme.player_sheet) if state.clock_active else visual_theme.player_sheet
+			draw_texture_rect_region(sheet, Rect2(at + Vector2(0, 2), Vector2(16, 16)), Rect2(frame * sheet.get_width() / 8.0, 0, sheet.get_width() / 8.0, sheet.get_height()))
 		elif visual_theme.player_texture:
 			draw_texture_rect(visual_theme.player_texture, Rect2(at, Vector2(16, 16)), false)
 		else:
-			draw_rect(Rect2(at + Vector2(3, 2), Vector2(10, 13)), visual_theme.player_color)
+			draw_rect(Rect2(at + Vector2(3, 2), Vector2(10, 13)), (Color.from_hsv(clock_palette() / 4.0, 0.5, 1.0) if state.clock_active else visual_theme.player_color))
 			draw_rect(Rect2(at + Vector2(4, 5), Vector2(8, 5)), visual_theme.accent_color)
 			draw_line(at + Vector2(8, 8), at + Vector2(8, 8) + Vector2(player.facing) * 7, Color("263b32"), 2)
 
+		if rod.visible():
+			var sprite := StringName("rod_" + direction_name(rod.direction))
+			if visual_theme.sprites.has(sprite): draw_named_sprite(sprite, Vector2(player.pixel_position() + rod.offset()))
+			else:
+				var center := Vector2(player.pixel_position() + rod.offset()) + Vector2(8, HUD_HEIGHT + 8)
+				draw_line(center - Vector2(rod.direction) * 7, center + Vector2(rod.direction) * 7, Color("88b8ff"), 3)
 		if sword.visible():
 			draw_named_sprite(sword_sprite(sword.weapon, sword.direction), Vector2(player.pixel_position() + sword.offset()))
 
@@ -927,6 +945,13 @@ func draw_rising_player() -> void:
 	if not visible.has_area(): return
 	var source := Rect2(frame * width + (visible.position.x - at.x) * width / 16.0, visible.position.y - at.y, visible.size.x * width / 16.0, visible.size.y)
 	draw_texture_rect_region(visual_theme.player_sheet, visible, source)
+
+func clock_palette() -> int:
+	return posmod(-int(simulation_tick / 2), 4)
+
+func clock_sprite(base: StringName) -> StringName:
+	var variant := StringName(String(base) + "_clock_" + str(clock_palette()))
+	return variant if state.clock_active and visual_theme.sprites.has(variant) else base
 
 func direction_name(direction: Vector2i) -> String:
 	if direction == Vector2i.RIGHT: return "right"
@@ -1222,7 +1247,7 @@ func draw_combat() -> void:
 			continue
 		var sprite: StringName = &"rock"
 		if rock.kind == "arrow": sprite = StringName("monster_arrow_" + direction_name(rock.direction))
-		elif rock.kind in ["sword", "magic"]: sprite = StringName("beam_" + direction_name(rock.direction) + "_" + str(simulation_tick % 4))
+		elif rock.kind in ["sword", "magic"]: sprite = StringName(("magic_wave_" if rock.kind == "magic" else "beam_") + direction_name(rock.direction) + "_" + str(simulation_tick % 4))
 		elif rock.kind == "fireball": sprite = StringName("fireball_" + str(simulation_tick % 2))
 		if visual_theme.sprites.has(sprite):
 			draw_named_sprite(sprite, Vector2(rock.position()) + (Vector2(0,3) if rock.kind in ["sword", "magic"] and rock.direction.x != 0 else Vector2.ZERO))
@@ -1233,9 +1258,9 @@ func draw_combat() -> void:
 			draw_line(center-Vector2(rock.direction)*6,center+Vector2(rock.direction)*6,Color("eeeecc"),3)
 
 	for reward in combat.rewards:
-		if reward.age < 32 and (reward.age / 2) % 2 != 0:
+		if reward.age < reward.definition.pickup_delay_ticks and not reward.definition.flying and (reward.age / 2) % 2 != 0:
 			continue
-		var pose := (simulation_tick / 8) % 2
+		var pose: int = (simulation_tick / reward.definition.frame_ticks) % 2
 		var sprite := StringName(String(reward.definition.sprite) + "_" + str(pose))
 		# Single-image drops such as bombs use the plain item sprite.
 		if not visual_theme.sprites.has(sprite): sprite = reward.definition.sprite
@@ -1248,7 +1273,7 @@ func draw_combat() -> void:
 		var beam = combat.beam
 		var palette := simulation_tick % 4
 		if beam.flying():
-			var name := StringName("beam_" + direction_name(beam.direction) + "_" + str(palette))
+			var name := StringName(("magic_wave_" if beam.kind == "magic" else "beam_") + direction_name(beam.direction) + "_" + str(palette))
 			var at: Vector2 = Vector2(beam.position) + (Vector2(0, 3) if beam.direction.x != 0 else Vector2.ZERO)
 			if visual_theme.sprites.has(name):
 				draw_named_sprite(name, at)

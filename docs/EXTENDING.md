@@ -182,3 +182,12 @@ room attraction overrides.
 Use `~` tiles for authored ladder-crossable water, or `ladder_water` for fine
 eight-pixel masks. `ladder_allowed` controls room eligibility. The ROM-free
 `scenes/ladder_lab.tscn` demonstrates crossings; see [LADDER.md](LADDER.md).
+
+`scenes/reward_lab.tscn` demonstrates transient reward spawns without a ROM.
+Use `RoomDefinition.reward_spawns` with `RewardSpawn` definitions and positions.
+Reward timing, healing, fairy flight, and `EnemyDefinition.clock_response` are
+editable; see [CLOCK_AND_FAIRIES.md](CLOCK_AND_FAIRIES.md).
+
+`scenes/rod_lab.tscn` demonstrates rod melee, magic waves, and book fire without
+a ROM. Rod damage, flight speed, swing phases/offsets, and book fire lifetime
+are editable; see [ROD_AND_BOOK.md](ROD_AND_BOOK.md).

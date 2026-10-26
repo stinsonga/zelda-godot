@@ -66,7 +66,7 @@ func check_drop_order() -> void:
 	check(world.combat.original_drop(world, never, 255) == Combat.BOMB_DROP and not state.help_drop_bomb, "After a bomb kill it guarantees a bomb")
 	state.world_kill_count = 0x10
 	state.help_drop_count = 4
-	check(world.combat.original_drop(world, always, 0) == Combat.FAIRY_DROP and state.help_drop_count == 0 and state.world_kill_count == 0x10, "The sixteenth kill brings the fairy (not yet built) and keeps counting")
+	check(world.combat.original_drop(world, always, 0) == Combat.FAIRY_DROP and state.help_drop_count == 0 and state.world_kill_count == 0x10, "The sixteenth kill brings the fairy and keeps counting")
 	state.world_kill_count = 0
 	# Taking a dropped bomb gives the bombs item.
 	state.max_bombs = 8

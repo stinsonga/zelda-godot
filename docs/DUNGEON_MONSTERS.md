@@ -57,8 +57,8 @@ copy one into `content/` to make variants, as with overworld enemies.
 ## Not yet
 
 Bait, Dodongo's bomb drop, and keys carried by monsters are implemented; see
-BAIT.md and the help drops in COMBAT.md. Second-quest Stalfos shooting and
-the clock's freeze remain to be implemented. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
+BAIT.md and the help drops in COMBAT.md. Second-quest Stalfos shooting remains to be implemented. Clock behavior is in;
+see CLOCK_AND_FAIRIES.md. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
 
 ## Manhandla
 

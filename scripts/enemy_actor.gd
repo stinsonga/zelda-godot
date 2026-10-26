@@ -29,7 +29,7 @@ var shot_out := false
 var split_pending := false
 ## Like Like and Wallmaster: ticks spent holding Link; 0 when free.
 var capture_ticks := 0
-## The boomerang (and later the clock) freezes monsters for $A0 frames.
+## The boomerang stuns monsters for $A0 frames; clocks last for the visit.
 var stun_ticks := 0
 ## The weapon of the killing hit, for HandleMonsterDied's help-drop count.
 var died_from := ""
@@ -80,14 +80,16 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 	parried_hit = false
 	if not targetable() or invulnerability > 0:
 		return false
-	if definition.behavior == "gleeok" and kind in ["sword", "beam"] and family.gleeok != null:
+	if definition.behavior == "gleeok" and kind in ["sword", "beam", "rod"] and family.gleeok != null:
 		family.gleeok.writhing = 6
 		family.gleeok.animation_timer = 6
 	if definition.behavior == "gleeok_head" and family.gleeok != null and family.gleeok.hit_timer > 0: return false
 	# Only the sword reaches Ganon here; arrows go through Ganon_CheckCollisions.
 	if definition.behavior == "ganon": return kind == "sword" and family.ganon.sword_hit(self, damage)
+	# A rod thrust uses the sword mask, except Ganon only accepts his sword path.
+	var damage_kind := "sword" if kind == "rod" else kind
 	# Darknuts parry weapons arriving head-on; masks parry whole damage types.
-	if kind in definition.invincible_to or (definition.front_shield and direction == -facing):
+	if damage_kind in definition.invincible_to or (definition.front_shield and direction == -facing):
 		parried_hit = true
 		return false
 	health = maxi(0, health - damage)
@@ -109,6 +111,10 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 		split_pending = true
 	return true
 
+func affected_by_clock() -> bool:
+	if definition.clock_response != "source": return definition.clock_response == "freeze"
+	return definition.behavior not in ["trap", "dodongo", "gohma", "manhandla", "gleeok", "gleeok_head", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash"]
+
 ## Returns true on the frame a rock should be emitted.
 func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Callable(), can_shoot: bool = true, context: Dictionary = {}) -> bool:
 	if waiting_spawn: return false
@@ -122,6 +128,12 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 	invulnerability = maxi(0, invulnerability - 1)
 	if stun_ticks > 0:
 		stun_ticks -= 1
+		return false
+	if context.get("clock", false) and affected_by_clock() and shove_remaining == 0:
+		# Global object timers keep counting; movement and attacks do not run.
+		family.timer = maxi(0, family.timer - 1)
+		source.turn_timer = maxi(0, source.turn_timer - 1)
+		cooldown = maxi(0, cooldown - 1)
 		return false
 	if definition.behavior != "native":
 		var probe := segment_probe

@@ -178,6 +178,13 @@ def export_item_sprites(prg, patterns, palettes, output, png, blit_tile):
         write(name, *item_tile(prg, item_id))
     # Z_05 CheckLadder draws static item slot $0C with palette attribute zero.
     write('deployed_ladder', prg[ITEM_FRAME_TILES + prg[ITEM_FRAME_OFFSETS + 0x0C]], 0)
+    write('clock', *item_tile(prg, 0x21))
+    for frame in range(2):
+        tile, _ = item_tile(prg, 0x23, frame)
+        write(f'fairy_{frame}', tile, 2)
+    for direction in ('up', 'down', 'left', 'right'):
+        tile = prg[ITEM_FRAME_TILES + prg[ITEM_FRAME_OFFSETS + 8] + int(direction in ('left','right'))]
+        write(f'rod_{direction}', tile, 1, flip_x=direction == 'left', flip_y=direction == 'down')
     # Bomb smoke uses item slot 1 frames 1 and 2 with the blue palette row.
     for frame in (1, 2):
         write(f'bomb_cloud_{frame}', prg[ITEM_FRAME_TILES + prg[ITEM_FRAME_OFFSETS + 1] + frame], 1)

@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=11 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/reward_spawn.gd" id="reward_spawn"]
+[ext_resource type="Script" path="res://scripts/enemy_spawn.gd" id="enemy_spawn"]
+[ext_resource type="Resource" path="res://content/items/clock.tres" id="clock"]
+[ext_resource type="Resource" path="res://content/items/fairy.tres" id="fairy"]
+[ext_resource type="Resource" path="res://content/enemies/red_octorok.tres" id="octorok"]
+[sub_resource type="Resource" id="clock_drop"]
+script = ExtResource("reward_spawn")
+definition = ExtResource("clock")
+position = Vector2i(80, 125)
+[sub_resource type="Resource" id="fairy_drop"]
+script = ExtResource("reward_spawn")
+definition = ExtResource("fairy")
+position = Vector2i(176, 109)
+[sub_resource type="Resource" id="left_enemy"]
+script = ExtResource("enemy_spawn")
+id = &"left_enemy"
+enemy = ExtResource("octorok")
+position = Vector2i(64, 45)
+[sub_resource type="Resource" id="right_enemy"]
+script = ExtResource("enemy_spawn")
+id = &"right_enemy"
+enemy = ExtResource("octorok")
+position = Vector2i(192, 45)
+[resource]
+script = ExtResource("room")
+id = &"reward_lab"
+title = "Clock and fairies"
+enemy_persistence = "reset"
+spawn = Vector2i(80, 141)
+grid_origin = Vector2i(0, 5)
+movement_bounds = Rect2i(0, -3, 241, 161)
+reward_spawns = Array[Resource]([SubResource("clock_drop"), SubResource("fairy_drop")])
+enemies = Array[Resource]([SubResource("left_enemy"), SubResource("right_enemy")])
+tiles = "################\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n################"

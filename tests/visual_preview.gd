@@ -17,6 +17,25 @@ func preview() -> void:
 			lab.overrides = lab.compute_overrides(lab.room)
 		lab.queue_redraw()
 		return
+	if args.has("rod_lab"):
+		var lab = preload("res://scenes/rod_lab.tscn").instantiate()
+		root.add_child(lab)
+		lab.set_physics_process(false)
+		lab.state.take_item(preload("res://content/items/magic_rod.tres"))
+		lab.state.take_item(preload("res://content/items/book.tres"))
+		lab.player.place(Vector2i(80,77))
+		lab.player.facing = Vector2i.RIGHT
+		lab.use_item()
+		for i in range(13): lab.simulate_tick(Vector2i.ZERO)
+		lab.queue_redraw()
+		return
+	if args.has("reward_lab"):
+		var lab = preload("res://scenes/reward_lab.tscn").instantiate()
+		root.add_child(lab)
+		lab.set_physics_process(false)
+		for i in range(40): lab.simulate_tick(Vector2i.ZERO)
+		lab.queue_redraw()
+		return
 	if args.has("ladder_lab"):
 		var lab = preload("res://scenes/ladder_lab.tscn").instantiate()
 		root.add_child(lab)
@@ -42,6 +61,24 @@ func preview() -> void:
 	if not world.rooms.has(&"cave_77"):
 		push_error("Visual previews require a local ROM import")
 		quit(1)
+		return
+	if args.has("rod"):
+		world.combat.enemies.clear()
+		if not world.item_catalog.has(&"magic_rod"): world.register_item(preload("res://content/items/magic_rod.tres"))
+		world.state.take_item(preload("res://content/items/magic_rod.tres"))
+		world.state.selected_item = &"rod"
+		world.player.place(Vector2i(120,77))
+		world.player.facing = Vector2i.UP
+		world.use_item()
+		for i in range(13): world.simulate_tick(Vector2i.ZERO)
+		world.queue_redraw()
+		return
+	if args.has("clock_fairy"):
+		world.combat.enemies.clear()
+		world.state.clock_active = true
+		world.combat.spawn_reward(world, preload("res://content/items/clock.tres"), Vector2i(88,109)).age = 32
+		world.combat.spawn_reward(world, preload("res://content/items/fairy.tres"), Vector2i(160,109)).age = 32
+		world.queue_redraw()
 		return
 	if args.has("bait"):
 		world.enter_room(world.rooms[&"l7_28"], Vector2i(120,125), Vector2i.UP)

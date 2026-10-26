@@ -5,6 +5,8 @@ extends Resource
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
+## Source preserves original clock exceptions; authored variants can override.
+@export_enum("source", "freeze", "immune") var clock_response: String = "source"
 @export var id: StringName
 @export var title: String
 @export var health: int = 1
@@ -140,6 +142,7 @@ extends Resource
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
+	if clock_response not in ["source", "freeze", "immune"]: errors.append("Unknown clock response")
 	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)

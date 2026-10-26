@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=9 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/magic_rod.tres" id="rod"]
+[ext_resource type="Resource" path="res://content/items/book.tres" id="book"]
+[ext_resource type="Script" path="res://scripts/secret_definition.gd" id="secret"]
+[sub_resource type="Resource" id="rod_pickup"]
+script = ExtResource("pickup")
+id = &"rod_pickup"
+item = ExtResource("rod")
+position = Vector2i(80, 125)
+lift_ticks = 0
+[sub_resource type="Resource" id="book_pickup"]
+script = ExtResource("pickup")
+id = &"book_pickup"
+item = ExtResource("book")
+position = Vector2i(160, 125)
+lift_ticks = 0
+[sub_resource type="Resource" id="tree"]
+script = ExtResource("secret")
+trigger = "fire"
+cell = Vector2i(13, 4)
+reveal_cell = Vector2i(13, 4)
+[resource]
+script = ExtResource("room")
+id = &"rod_lab"
+title = "Rod and book"
+spawn = Vector2i(80, 125)
+grid_origin = Vector2i(0, 5)
+movement_bounds = Rect2i(0, -3, 241, 161)
+pickups = Array[Resource]([SubResource("rod_pickup"), SubResource("book_pickup")])
+secret = SubResource("tree")
+tiles = "################\n#..............#\n#..............#\n#..............#\n#............#.#\n#..............#\n#..............#\n#..............#\n#..............#\n#..............#\n################"

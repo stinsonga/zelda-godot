@@ -19,6 +19,7 @@ extends Resource
 @export var enemies: Array[Resource] = []
 @export var portals: Array[Resource] = []
 @export var pickups: Array[Resource] = []
+@export var reward_spawns: Array[Resource] = []
 @export var decorations: Array[Resource] = []
 ## Cave resident and wares (CaveDefinition); people in caves block the upper half.
 @export var cave: Resource
@@ -117,6 +118,9 @@ func validation_errors() -> PackedStringArray:
 			errors.append("Enemy spawn is missing a definition")
 		elif spawn.enemy.health < 1 or spawn.enemy.speed_subpixels < 0 or spawn.enemy.shoot_windup < 1:
 			errors.append("Enemy health, speed, or shooting timing is invalid")
+	for spawn in reward_spawns:
+		if spawn.definition == null: errors.append("Reward spawn needs a definition")
+		else: errors.append_array(spawn.definition.validation_errors())
 	var pickup_ids: Dictionary = {}
 	for pickup in pickups:
 		if pickup.id.is_empty() or pickup_ids.has(pickup.id):

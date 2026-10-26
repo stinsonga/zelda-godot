@@ -42,6 +42,12 @@ static func fire(at: Vector2i, facing: Vector2i) -> RefCounted:
 	object.direction = facing
 	return object
 
+static func standing_fire(at: Vector2i, facing: Vector2i, lifetime := 79) -> RefCounted:
+	var object = fire(at, facing)
+	object.stage = 2
+	object.timer = lifetime
+	return object
+
 static func arrow(at: Vector2i, facing: Vector2i, damage: int, pixels_per_tick := 3) -> RefCounted:
 	var object = new()
 	object.kind = "arrow"
