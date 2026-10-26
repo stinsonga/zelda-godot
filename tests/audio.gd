@@ -13,7 +13,9 @@ func run() -> void:
 	world.set_physics_process(false)
 	world.combat.enemies.clear()
 	var audio = world.audio
-	check(audio.bank.streams.size() == 22 and audio.bank.streams.has(&"magic"), "Source-only audio must include all cues")
+	check(audio.bank.streams.size() == 25 and audio.bank.streams.has(&"magic") and audio.bank.streams.has(&"door") and audio.bank.streams.has(&"menu_select") and audio.bank.streams.has(&"low_health"), "Source-only audio must include all cues")
+	check_door_samples()
+	check_warning(world)
 	var track: AudioStream = audio.music.stream
 	audio.set_music(&"overworld")
 	check(audio.music.stream == track, "Same music selection must retain the current stream")
@@ -107,3 +109,54 @@ func run() -> void:
 	await create_timer(0.1).timeout
 	print("Audio checks: ", "PASS" if failures == 0 else "FAIL")
 	quit(0 if failures == 0 else 1)
+
+func check_warning(world: Node) -> void:
+	var audio = world.audio
+	audio.silence()
+	audio.history.clear()
+	world.state.health = 2
+	world.simulate_tick(Vector2i.ZERO)
+	check(audio.history.count(&"low_health") == 1, "One full heart requests a warning")
+	for i in range(18): world.simulate_tick(Vector2i.ZERO)
+	check(audio.history.count(&"low_health") == 1, "Warning does not overlap its own source cycle")
+	world.simulate_tick(Vector2i.ZERO)
+	check(audio.history.count(&"low_health") == 2, "Warning repeats on its 19-frame source cycle")
+	world.state.health = 3
+	world.simulate_tick(Vector2i.ZERO)
+	check(not audio.warning.playing and audio.warning_ticks == 0, "Healing above one heart stops warning")
+	audio.silence()
+	audio.play(&"player_hurt")
+	var count: int = audio.history.count(&"low_health")
+	audio.tick_warning(true)
+	check(audio.history.count(&"low_health") == count and not audio.warning.playing, "Combat sound has priority over warning")
+	audio.warning_block_ticks = 0
+	audio.tick_warning(true)
+	check(audio.warning.playing, "Warning resumes when its channel becomes free")
+	audio.suspended = true
+	audio.apply_pause()
+	check(audio.warning.stream_paused, "Warning respects focus suspension")
+	audio.suspended = false
+	audio.silence()
+	world.state.health = world.state.max_health
+	audio.history.clear()
+
+func check_door_samples() -> void:
+	var lab = preload("res://scenes/dungeon_lab.tscn").instantiate()
+	root.add_child(lab)
+	lab.set_physics_process(false)
+	lab.enter_room(lab.rooms[&"lab_dungeon_hall"],Vector2i(120,125),Vector2i.UP)
+	var closed_count: int = lab.audio.history.count(&"door")
+	check(closed_count == 1, "Entering a closed shutter room plays one door sample")
+	for actor in lab.combat.enemies: actor.health = 0
+	lab.combat.tick(lab)
+	check(lab.audio.history.count(&"door") == closed_count + 1, "Clearing shutter room plays its opening sample")
+	lab.combat.tick(lab)
+	check(lab.audio.history.count(&"door") == closed_count + 1, "Open shutters do not replay sample")
+	var door = preload("res://scripts/door_definition.gd").new()
+	door.kind = "bombable"
+	lab.open_door(door)
+	check(lab.audio.history.count(&"door") == closed_count + 1, "Bomb walls keep their explosion sound without a door sample")
+	door.kind = "key"
+	lab.open_door(door)
+	check(lab.audio.history.count(&"door") == closed_count + 2, "Key door plays door sample")
+	lab.free()

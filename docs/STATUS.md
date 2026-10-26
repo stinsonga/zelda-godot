@@ -46,16 +46,16 @@ becomes unreachable.
 ### 1. Audio gaps (smaller)
 
 See [AUDIO.md](AUDIO.md).
-- **Missing cues.** The game requests `door` and `menu_select`, but no recording
-  exists for either, so they are silent.
-- **Low-health beep.** Not implemented.
+- **Completed:** door and menu-selection recordings, and the low-health warning
+  at one heart or less. The warning repeats on the source driver cycle and yields
+  to competing Tune0 effects. DMC sample decoding now supports the door sound.
 - **Boss roars and other DMC samples.** These come through `PlaySample` (for
-  example Aquamentus, Gleeok, and Ganon), and the renderer doesn't model the DMC
-  channel.
+  example Aquamentus, Gleeok, and Ganon). The DMC decoder is now available;
+  exporting the roar cues and wiring their room/actor triggers still remains.
 - **Song codes.** Check the remaining song requests against the original's codes
   (Triforce piece, death, Ganon's room) and add any that are still borrowed.
 - **Synthesis.** It is approximate: per-frame APU writes, incomplete sweep and
-  linear counter, no filtering. Godot also mixes effects alongside the music
+  linear counter, incomplete analog filtering. Godot also mixes effects alongside the music
   rather than taking over its channels as the original does.
 
 ### 2. Fidelity pass

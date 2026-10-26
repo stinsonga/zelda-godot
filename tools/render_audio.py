@@ -3,7 +3,7 @@
 
 No music notes, envelopes, or sound scripts are distributed in this tool.
 The CPU subset intentionally fails on unsupported instructions. APU output is
-an approximation (frame-level register timing, no DMC or analog filter model).
+an approximation (frame-level register timing, approximate DMC timing and no full analog filter model).
 """
 import array
 import json
@@ -136,11 +136,61 @@ class Driver:
         self.writes.add(addr)
         self.events.append((addr,value))
 
+class Dmc:
+    """Delta decoder. Frame-level register writes; no DMA stalls or IRQ handling.
+
+    NTSC periods and register semantics follow the NES DMC hardware (see
+    Mesen2 Core/NES/APU/DeltaModulationChannel). Sample bytes stay in the ROM.
+    """
+    PERIODS = (428,380,340,320,286,254,226,214,190,160,142,128,106,85,72,54)
+
+    def __init__(self):
+        self.control = self.start = self.size = self.output = 0
+        self.address = self.remaining = self.bits = self.shift = 0
+        self.phase = self.dc = 0.0
+
+    def write(self, address, value):
+        if address == 0x4010: self.control = value
+        elif address == 0x4011: self.output = value & 127
+        elif address == 0x4012: self.start = 0xC000 + value * 64
+        elif address == 0x4013: self.size = value * 16 + 1
+        elif address == 0x4015:
+            if not value & 16: self.remaining = 0
+            elif self.remaining == 0: self.address, self.remaining = self.start, self.size
+
+    def clock(self, memory):
+        if self.bits == 0:
+            if self.remaining == 0: return
+            self.shift = memory[self.address]
+            self.address = 0x8000 if self.address == 0xFFFF else self.address + 1
+            self.remaining -= 1
+            self.bits = 8
+            if self.remaining == 0 and self.control & 64:
+                self.address, self.remaining = self.start, self.size
+        if self.shift & 1:
+            if self.output <= 125: self.output += 2
+        elif self.output >= 2: self.output -= 2
+        self.shift >>= 1
+        self.bits -= 1
+
+    def sample(self, memory):
+        self.phase += CLOCK / RATE
+        period = self.PERIODS[self.control & 15]
+        while self.phase >= period:
+            self.phase -= period
+            self.clock(memory)
+        # Remove the DAC's held DC level so completed samples do not leave a
+        # constant offset. This is a simple high-pass, not the full NES mixer.
+        signal = self.output / 127.0
+        self.dc += 0.002 * (signal - self.dc)
+        return (signal - self.dc) * 0.35
+
 class Apu:
     def __init__(self):
         self.phase = [0.,0.,0.]
         self.env = [0.,0.,0.]
         self.length = [0,0,0,0]
+        self.dmc = Dmc()
         self.noise = 1
         self.noise_phase = 0.
 
@@ -149,6 +199,7 @@ class Apu:
         lengths = (10,254,20,2,40,4,80,6,160,8,60,10,14,12,26,14,12,16,24,18,48,20,96,22,192,24,72,26,16,28,32,30)
         bases = (0x4000,0x4004,0x4008,0x400c)
         for address,value in driver.events:
+            self.dmc.write(address,value)
             if address == 0x4015:
                 for ch in range(4):
                     if not value & (1 << ch): self.length[ch] = 0
@@ -171,7 +222,7 @@ class Apu:
             if self.env[i] < 0: self.env[i] = 15. if control&32 else 0.
         out = array.array('h')
         for _ in range(count):
-            value = 0.
+            value = self.dmc.sample(m)
             for ch,base in enumerate((0x4000,0x4004)):
                 self.phase[ch] = (self.phase[ch]+rates[ch])%1
                 if self.length[ch] and periods[ch] >= 8 and m[0x4015] & (1<<ch):
@@ -203,6 +254,8 @@ CUES = {
     # Z_05 WieldArrow/WieldBoomerang effect $02; Z_07 WieldFlute tune $10.
     'magic': (0x603,4,0.6), 'arrow': (0x603,2,0.4), 'recorder': (0x602,0x10,2.6),
     # Z_02 InitDemoSubphasePlayTitleSong: one demo cycle, after which the demo requests it again.
+    'door': (0x601,4,0.5), 'menu_select': (0x602,1,0.4),
+    'low_health': (0x604,0x40,1),
     'title': (0x600,0x80,81),
     # Z_04 UpdateZelda's fanfare ($06); Z_02 UpdateMode13WinGame_Sub0_Flash's ending song ($10).
     'zelda': (0x600,0x06,6), 'ending': (0x600,0x10,70),
@@ -218,9 +271,11 @@ def export_audio(prg, destination):
         driver.m[address] = request
         samples = array.array('h'); loop_start = loop_end = 0
         previous_phrase = -1
+        repeat_ticks = 0
         for frame in range(round(seconds*FPS)):
             driver.m[0x15] = frame & 255
             driver.run()
+            if name == "low_health" and not repeat_ticks and driver.m[0x605] == 0: repeat_ticks = frame + 1
             phrase = driver.m[0x6c]
             if name in LOOP_PHRASES and phrase == LOOP_PHRASES[name] and phrase != previous_phrase:
                 if loop_start:
@@ -237,6 +292,7 @@ def export_audio(prg, destination):
         with wave.open(str(destination/f'{name}.wav'),'wb') as output:
             output.setparams((1,2,RATE,0,'NONE','not compressed')); output.writeframes(samples.tobytes())
         manifest['cues'][name] = {'file':f'{name}.wav','loop_begin':loop_start,'loop_end':loop_end,'frames':len(samples)}
+        if repeat_ticks: manifest['cues'][name]['repeat_ticks'] = repeat_ticks
         print(f'Audio: {name} ({len(samples)/RATE:.2f}s)')
     (destination/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     return manifest

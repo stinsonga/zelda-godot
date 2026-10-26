@@ -58,7 +58,10 @@ collecting the sword does not also play the secret tune.
 Note sequences and driver tick timing come from the original ROM. Waveform
 synthesis is approximate: APU writes are applied once per video frame, pulse
 sweeps and the triangle linear counter are not fully modeled, and this does not
-reproduce analog filtering, nonlinear mixing, DMC, or cycle-accurate timing.
+reproduce full analog filtering, nonlinear mixing, DMC DMA/IRQ timing, or
+cycle-accurate timing. DMC samples are now delta-decoded with NTSC bit rates,
+register-controlled address/length, looping, seven-bit DAC limits, and address
+wrap. A simple DC blocker removes the DAC held level from exported samples.
 Godot mixes effects through eight reusable voices instead of stealing the NES's
 music channels. This preserves music during combat but differs from the original
 channel arbitration. Runtime audio uses the device clock rather than the manual
@@ -77,3 +80,30 @@ The gameplay, save/load, room persistence, and Octorok suites also remain valid.
 On this machine, headless Godot 4.6.2 reports WAV playback references at shutdown;
 the same audio checks pass without that warning using the normal graphical/audio
 backend. The assertions and source-only tests pass in both modes.
+
+
+## Door, menu selection, and heart warning
+
+`door` records SampleRequest $04 ($0601), using the DMC decoder. Key doors
+and shutter openings/closings request it; bomb walls keep their explosion cue. The decoded
+sample stays under ignored imported/audio/ along with every other ROM recording.
+`menu_select` uses Tune1Request $01 ($0602), as UpdateSubmenuSelection requests.
+The source channel/DAC reference used for the decoder is
+[Mesen2's DMC implementation](https://github.com/SourMesen/Mesen2/blob/master/Core/NES/APU/DeltaModulationChannel.cpp).
+This implementation does not reproduce DMA stalls, IRQs, or cycle-level buffering.
+
+The heart warning uses Tune0Request $40 ($0604). A single request runs the
+original driver's 19-frame script; the exporter records that cycle as repeat_ticks
+in its manifest. Gameplay requests it when health is positive and at most one
+heart, preserving fractional ring damage at the threshold. It stops on healing,
+death, menus, scrolling, refills, and front-end sequences. A dedicated voice
+supports pause, mute, and immediate cancellation. Other Tune0 effects interrupt
+or delay it; their exported stream lengths approximate channel occupancy.
+The rest of the eight-voice mixer still differs from the original channel sharing.
+
+ROM-free builds provide generated placeholders for all three cues, and custom
+AudioBank streams can replace them. The warning's fallback period is 19 frames;
+imported recordings provide their measured cycle. DMC decoding is groundwork for
+boss roars; their runtime triggers and the remaining song-code audit are separate
+follow-ups. Unit checks cover delta bit order, DAC saturation, loop/disable,
+address wrap, cue requests, and warning cadence, priority, healing, and pause.

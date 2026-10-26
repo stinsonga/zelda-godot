@@ -394,6 +394,7 @@ func tick(world: Node) -> void:
 				reward.take(world.state)
 				world.audio.play(reward.pickup_sound())
 	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < reward.definition.lifetime_ticks)
+	world.tick_shutter_audio()
 
 func spawn_reward(world: Node, definition: Resource, at: Vector2i, source_slot: int = 1) -> RefCounted:
 	var reward = Reward.new()

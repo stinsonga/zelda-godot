@@ -109,6 +109,7 @@ var pickup_ticks: Dictionary[String, int] = {}
 var carried_positions: Dictionary = {}
 ## Key doors still opening in this room, by direction: frames left.
 var door_openings: Dictionary = {}
+var shutter_audio_open := true
 ## Statue squares already woken this visit, by cell: they show floor.
 var woken_statues: Dictionary = {}
 ## Z_01 MazeStep: progress through the current maze room's sequence.
@@ -282,6 +283,8 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 		cave_session = preload("res://scripts/cave_session.gd").new()
 		cave_session.start(room.cave, room.id, state, combat.source_random)
 	combat.enter_room(room, state, restoring, at, facing)
+	shutter_audio_open = shutters_open()
+	if not restoring and not shutter_audio_open and room.doors.any(func(d: Resource) -> bool: return d.kind == "shutter"): audio.play(&"door")
 	for spawn in room.reward_spawns: combat.spawn_reward(self, spawn.definition, spawn.position)
 	lighting.enter(room,previous!=null and previous.dungeon_level==room.dungeon_level,previous_light,restoring,ganon_intro())
 	if raft.can_arrive(room, player.pixel_position(), state): raft.try_start(self)
@@ -352,6 +355,9 @@ func dialogue_visible() -> bool:
 
 func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_pressed: bool = false, start_pressed: bool = false, select_pressed: bool = false) -> void:
 	simulation_tick += 1
+	# Z_07 requests heart warning when the last heart is all that remains.
+	# Halt it during menus, transitions, refills, and front-end sequences.
+	audio.tick_warning(game_phase == "play" and curtain < 0 and state.health_units > 0 and state.health_units <= 2 * state.HEALTH_UNITS and transition == null and not lighting.fading() and not submenu.is_open() and not start_pressed and not filling_hearts and recorder_ticks == 0 and entry_walk_remaining == 0 and lift_remaining == 0 and rise_remaining == 0)
 	if game_phase == "continue":
 		tick_continue_menu(start_pressed, select_pressed)
 		return
@@ -682,7 +688,7 @@ func open_door(door: Resource) -> void:
 	var name: String = DIRECTION_NAMES[door.direction]
 	if room.exits.has(name) and rooms.has(StringName(room.exits[name])):
 		state.flags[door_key(rooms[StringName(room.exits[name])], -door.direction)] = true
-	audio.play(&"door")
+	if door.kind == "key": audio.play(&"door")
 	overrides = compute_overrides(room)
 
 ## Z_05 TouchDoorKey: pressing into a locked doorway spends a key; the magical key is never spent.
@@ -701,6 +707,13 @@ func try_doors(direction: Vector2i) -> void:
 		# UpdateDoors: the open command steps now and again after DoorTimer 8.
 		door_openings[door.direction] = DOOR_OPEN_TICKS
 		overrides = compute_overrides(room)
+
+## A shutter transition has one sample even when several doors change together.
+func tick_shutter_audio() -> void:
+	var opened := shutters_open()
+	if opened != shutter_audio_open and room.doors.any(func(d: Resource) -> bool: return d.kind == "shutter"):
+		audio.play(&"door")
+	shutter_audio_open = opened
 
 ## Counts down doors still opening; each becomes passable when its count ends.
 func tick_door_openings() -> void:
