@@ -1,7 +1,7 @@
 # Dungeon foundations
 
 After a ROM import, all nine first-quest levels are connected and walkable. There
-are 255 rooms, cellars included. Enter a level through its overworld entrance and leave through the
+are 256 rooms, cellars included. Enter a level through its overworld entrance and leave through the
 start room's south doorway. Level 7's entrance needs the recorder, which is not
 implemented, but its rooms and exit are imported.
 
@@ -62,7 +62,10 @@ doorway geometry the importer derives (`DoorDefinition.STANDARD_CELLS`). See
 - Push blocks (attribute D bit 6) follow `UpdateBlock0Idle`: Link must be
   aligned and push away from himself for 16 ticks, with no monsters left. Trigger 4
   opens shutters; trigger 5 reveals stairs at ($D0, $60).
-- Stairs squares lead to the cellar whose attribute A or B names the room. Link starts
+- Stairs squares lead to the cellar whose attribute A or B names the room. Z_05
+  scans `LevelInfo_CellarRoomIdArray` for it with no bound. Level 3 lists no
+  cellars, so the scan reads on through the rest of the level info until a byte
+  names the raft's cellar ($0F). The importer scans the same way. Link starts
   at ladder X $30 or $C0 and climbs down 28 pixels. Leaving above the screen
   uses attribute A left of $80, else B, and arrives at attribute C's position.
 

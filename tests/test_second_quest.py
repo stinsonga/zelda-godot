@@ -45,6 +45,17 @@ class SecondQuestImportTests(unittest.TestCase):
             start, rooms, cellars = dungeon.level_rooms(patched, level)
             self.assertIn(start, rooms)
 
+    def test_cellar_scan(self):
+        prg = self.local()
+        # The first quest's level 3 lists no cellars; the stairs search reads on into
+        # the rest of the level info and finds the raft's cellar, $0F.
+        info, block = dungeon.level_info(prg, 3), dungeon.level_block(prg, 3)
+        self.assertEqual(set(info[0x34:0x3E]), {0xFF})
+        self.assertEqual(dungeon.level_rooms(prg, 3)[2], [0x0F])
+        self.assertEqual(block[512 + 0x0F] & 0x1F, 0x0C)
+        # Listed cellars are still found first.
+        self.assertEqual(dungeon.level_rooms(prg, 1)[2], [0x7F])
+
     def test_one_entrance_per_level(self):
         prg = self.local()
         for quest, data in ((1, prg), (2, rom.second_quest_prg(prg))):

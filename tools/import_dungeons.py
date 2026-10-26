@@ -135,16 +135,32 @@ def collision(tiles):
     return [int(tile_at(tiles, x, y) >= FIRST_UNWALKABLE) for y in range(22) for x in range(32)]
 
 
+CELLAR_ARRAY = 0x34                       # LevelInfo_CellarRoomIdArray.
+
+
+def find_cellar(info, block, room):
+    """Z_05 (stairs into a cellar): scan LevelInfo_CellarRoomIdArray for an entry whose
+    attribute A or B is this room. The loop has no bound, so where the ten entries hold
+    none (the first quest's level 3), it reads on through the rest of the level info."""
+    for x in range(CELLAR_ARRAY, len(info)):
+        cellar = info[x]
+        if block[cellar] == room or block[128 + cellar] == room: return cellar
+    return None
+
+
+def has_stairs(layouts, block, room):
+    """Stairs squares (tile $70) in the layout, or a push block that reveals stairs (trigger 5)."""
+    if block[384 + room] & 0x40 and block[640 + room] & 7 == 5: return True
+    closed, _ = layouts.room(room)
+    return any(tile_at(closed, x, y) == 0x70 for x in range(0, 32, 2) for y in range(0, 22, 2))
+
+
 def level_rooms(prg, level):
     """Rooms reachable from the start room through doors and cellar stairs."""
     layouts = Layouts(prg, level)
     block, info = layouts.block, layouts.info
     start = info[0x2F]
-    cellars = [room for room in info[0x34:0x3E] if room != 0xFF]
-    links = {}
-    for cellar in cellars:
-        for room in (block[cellar], block[128 + cellar]):
-            links.setdefault(room, set()).add(cellar)
+    cellars = set()
     seen, pending = set(), [start]
     while pending:
         room = pending.pop()
@@ -153,12 +169,16 @@ def level_rooms(prg, level):
         if room in cellars:
             pending += [block[room], block[128 + room]]
             continue
-        pending += list(links.get(room, ()))
+        if has_stairs(layouts, block, room):
+            cellar = find_cellar(info, block, room)
+            if cellar is not None and cellar not in seen:
+                cellars.add(cellar)
+                pending.append(cellar)
         for direction in DIRECTIONS:
             if door_kind(block, room, direction) == 'wall' or (room == start and direction == 'down'): continue
             target = neighbor(room, direction)
             if target is not None: pending.append(target)
-    return start, sorted(r for r in seen if r not in cellars), sorted(r for r in seen if r in cellars)
+    return start, sorted(r for r in seen if r not in cellars), sorted(cellars)
 
 
 def room_id(level, room):
@@ -279,9 +299,9 @@ def export_levels(prg, output, png, blit_tile, entrances, quest_dir=''):
         atlas = Atlas()
         music = 'level_9' if level == 9 else 'dungeon'
         cellar_of = {}
-        for cellar in cellars:
-            for side, room in enumerate((block[cellar], block[128 + cellar])):
-                cellar_of.setdefault(room, (cellar, side))
+        for room in rooms:
+            cellar = find_cellar(info, block, room)
+            if cellar in cellars: cellar_of[room] = (cellar, 0 if block[cellar] == room else 1)
         texts = {}
         kinds = {0x1B} if cellars else set()
         for room in rooms:

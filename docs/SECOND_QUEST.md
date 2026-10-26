@@ -20,7 +20,7 @@ routines check the quest directly. Here a quest is a `WorldDefinition`:
    positions).
 4. **Dungeon contents (done).** Monsters, items, doors, cellars, and old men, checked room
    by room.
-5. **Verification.** Every level and item reachable; docs.
+5. **Verification (done).** Every level and item reachable; docs.
 
 ## Foundation
 
@@ -146,3 +146,45 @@ also checks the worlds, monster rules, file switching, the patched rooms and
 quest secrets, and draining a pond. `tests/test_second_quest.py` checks the
 variants, the patch bytes, and that each quest has one entrance per level.
 `tests/visual_preview.gd -- q2_<room>` renders a second-quest room.
+
+## Reachability
+
+`tests/reachability.gd` plays both quests forward from the start with nothing,
+on Link's 8-pixel grid, using the world's own collision probes. Items open the
+way:
+- bombs open walls and bombable doors;
+- a candle burns trees;
+- the recorder drains ponds;
+- the bracelet moves rocks;
+- the ladder crosses water in the rooms that allow it;
+- the raft sails from the two docks.
+
+Shutters and room items need the room beaten: a sword, plus arrows for Gohma,
+the recorder for Digdogger, bombs for Dodongo, and silver arrows for Ganon. Shops
+and caves hand over their wares. The Triforce gate wants all eight pieces, and
+the hungry Goriya wants bait. Room items and wares are collected, and the solver
+repeats until nothing new turns up.
+
+Both quests come out completable: every treasure, all eight Triforce pieces, and
+Zelda are reached, and so is every dungeon room. The approximations:
+- key counts are not modelled;
+- the ladder crosses any water in an allowed room;
+- mazes don't repeat;
+- shops cost nothing.
+
+Building the solver turned up three bugs, all in both quests:
+- **The raft's cellar was missing.** Level 3 of the first quest lists no
+  cellars, and the original finds the raft's by scanning past the list (see
+  DUNGEONS.md). Without it, the raft and so level 4 were out of reach.
+- **Screen edges checked the next room.** Since the first cave work, the world
+  refused to change screens onto an unwalkable square. `Z_07 CheckScreenEdge`
+  never looks; Link can arrive over water and walk on.
+- **Pushed rocks and graves stayed in the way.** This was in the solver's own
+  model, not the game, and is now fixed there.
+
+**Known gap.** Overworld room $0F (the north-east corner, with a 100-rupee "IT'S A
+SECRET TO EVERYBODY" cave) is unreachable in both quests. Its only opening is a
+waterfall square at the bottom, which leads onto solid rock at the top of room
+$1F in the decoded layouts. The original's hint "WALK INTO THE WATERFALL!"
+suggests a way in that the overworld import doesn't reproduce yet. The test pins
+this as the only unreachable pair of rooms.

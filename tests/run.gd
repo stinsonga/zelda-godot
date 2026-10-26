@@ -107,7 +107,7 @@ func run() -> void:
 		imported.scroll_transitions = false
 		root.add_child(imported)
 		imported.set_physics_process(false)
-		check(imported.rooms.size() == 446, "Imported world must contain 128 overworld rooms, 63 reachable caves, and 255 level rooms")
+		check(imported.rooms.size() == 447, "Imported world must contain 128 overworld rooms, 63 reachable caves, and 256 level rooms")
 		check(imported.room.id == &"ow_77", "Import must start at the original first-quest room")
 		check(imported.player.pixel_position() == Vector2i(120, 77), "Original starting position must come from level info")
 		check(imported.can_occupy(imported.player.pixel_position()), "Imported start must be walkable")
@@ -581,7 +581,8 @@ func check_scrolling() -> void:
 	world.enter_room(a, Vector2i(240, 80), Vector2i.RIGHT)
 	world.combat.beam = preload("res://scripts/sword_beam.gd").new()
 	world.try_exit(Vector2i.RIGHT)
-	check(world.transition == null and world.room.id == a.id and world.combat.beam != null, "Blocked destination must neither scroll nor clear ongoing combat")
+	# Z_07 CheckScreenEdge never looks at the next room: Link scrolls even onto a wall.
+	check(world.transition != null and world.combat.beam == null, "A blocked destination still scrolls, clearing combat like any room change")
 	world.enter_room(a, Vector2i(120, 80), Vector2i.RIGHT)
 	world.try_exit(Vector2i.RIGHT)
 	check(world.transition == null, "An interior position must not start scrolling")

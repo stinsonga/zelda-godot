@@ -1066,7 +1066,8 @@ func try_exit(direction: Vector2i) -> void:
 		"right": destination.x = target.movement_bounds.position.x
 		"up": destination.y = target.movement_bounds.end.y - 1
 		"down": destination.y = target.movement_bounds.position.y
-	if not occupiable_in(target, destination) and not raft.can_arrive(target, destination, state): return
+	# Z_07 CheckScreenEdge: Link reaches it "regardless of walkability" and never
+	# checks the next room, so he can arrive over water and walk on (room $0F).
 	if not scroll_transitions:
 		enter_room(target, destination, direction)
 		return
