@@ -5,7 +5,8 @@
 1. Candle-lit dark rooms and Ganon's palette fade are done; see docs/LIGHTING.md.
    Old men, bomb offers, the level 9 gate, statues, rupee stashes, carried room
    items, and help drops (including Dodongo's bomb) are also done.
-2. Remaining items: magical-key edge cases.
+2. Every first-quest item is in, including the magical key's edge cases.
+3. Next: the item submenu replacing C/Tab cycling.
 
 ## Expansion groundwork
 

@@ -99,6 +99,7 @@ func check_doors(world: Node) -> void:
 	if locked != null:
 		world.player.place(locked.bomb_hotspot() if locked.direction.y == 0 else Vector2i(120, 29 if locked.direction == Vector2i.UP else 125))
 		world.try_doors(locked.direction)
+		ticks(world, world.DOOR_OPEN_TICKS)
 		check(world.door_passable(world.room, locked), "The magical key must open locked doors without being spent")
 	world.state.slots[&"magic_key"] = 0
 	var bombable: Resource = door(world, &"l1_43", "bombable")

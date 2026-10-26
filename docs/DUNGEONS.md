@@ -40,7 +40,7 @@ room edge that `CheckDoorway` lets Link walk.
 | --- | --- |
 | open | Always passable. |
 | false | Looks like a wall; Link walks through. |
-| key | Opens when Link presses into it (`DoorwayBoundsMinOver/MaxOver`) holding a key, or the magical key without spending it. |
+| key | Opens when Link presses into it (`DoorwayBoundsMinOver/MaxOver`) holding a key, or the magical key without spending it (`TouchDoorKey`). The door takes 9 frames to open (`UpdateDoors`: a step now and one after DoorTimer 8) and holds Link meanwhile; pressing on spends nothing more. With the magical key the HUD shows "XA" instead of a key count. |
 | bombable | Opens when a detonating bomb is within $18 of its `BombableWallHotspots` point. |
 | shutter | Closes behind Link and reopens when the room's trigger fires (`CheckSecretTrigger`): triggers 1, 2, 3, and 7 when the monsters are gone, 4 when the block is pushed, 6 when the money-or-life man leaves. Triggers 0 and 5 never open them; trigger 0 shutters are one-way. Seen from the next room, a shutter is open. |
 

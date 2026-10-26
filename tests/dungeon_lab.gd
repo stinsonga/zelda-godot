@@ -42,6 +42,7 @@ func run() -> void:
 	check_block_and_cellar()
 	check_treasure_and_exit()
 	check_editable_settings()
+	check_key_doors()
 	world.free()
 	print("Dungeon lab checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
@@ -199,3 +200,44 @@ func check_editable_settings() -> void:
 		world.simulate_tick(Vector2i.ZERO)
 		if actor.family.rope_speed == 192: rushed = true
 	check(rushed, "Rope rush speed and line-up distance are definition settings")
+
+## Z_05 TouchDoorKey and UpdateDoors: one key per door, none with the magical
+## key, a short opening that holds Link, and flags that outlive the visit.
+func check_key_doors() -> void:
+	var temporary := OS.get_temp_dir().path_join("zelda-key-doors-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()])
+	world.save_store = preload("res://scripts/save_store.gd").new(temporary)
+	for key in world.state.flags.keys():
+		if String(key).begins_with("door/"): world.state.flags.erase(key)
+	world.state.slots[&"magic_key"] = 0
+	world.state.slots[&"keys"] = 0
+	world.enter_room(world.rooms[&"lab_dungeon_entry"], Vector2i(120, 45), Vector2i.UP)
+	var door: Resource = world.room.doors[0]
+	check(not walk(Vector2i.UP, in_room(&"lab_dungeon_hall"), 40) and world.state.item_value(&"keys") == 0, "Without a key the door holds")
+	world.state.slots[&"keys"] = 2
+	world.player.place(Vector2i(120, 45))
+	var held := 0
+	for i in range(world.DOOR_OPEN_TICKS + 30):
+		world.simulate_tick(Vector2i.UP)
+		if world.room.id != &"lab_dungeon_entry": break
+		if i < world.DOOR_OPEN_TICKS - 1 and not world.door_passable(world.room, door): held += 1
+	check(world.state.item_value(&"keys") == 1, "Pressing on during the opening spends only one key")
+	check(held >= world.DOOR_OPEN_TICKS - 2, "The opening door holds Link briefly (%d)" % held)
+	check(world.room.id == &"lab_dungeon_hall", "Then Link walks through")
+	check(world.door_passable(world.room, world.room.doors[0]) or world.state.flags.get("door/lab_dungeon_hall/down", false), "The far side is marked open too")
+	walk(Vector2i.ZERO, func() -> bool: return world.transition == null and world.entry_walk_remaining == 0 and world.state.rupees_settled(), 80)
+	var saved: bool = world.save_game()
+	var loaded: bool = world.load_game()
+	check(saved and loaded, "A checkpoint after opening loads")
+	check(world.state.flags.get("door/lab_dungeon_entry/up", false) and world.state.item_value(&"keys") == 1, "Opened doors and the key count survive loading")
+	var path: String = world.save_store.path_for(world.world_id)
+	if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(temporary)
+	# The magical key opens without spending, and the HUD shows XA.
+	world.state.flags.erase("door/lab_dungeon_entry/up")
+	world.state.flags.erase("door/lab_dungeon_hall/down")
+	world.state.slots[&"magic_key"] = 1
+	world.enter_room(world.rooms[&"lab_dungeon_entry"], Vector2i(120, 45), Vector2i.UP)
+	check(walk(Vector2i.UP, in_room(&"lab_dungeon_hall"), 80) and world.state.item_value(&"keys") == 1, "The magical key opens without spending a key")
+	check(world.key_count_text() == "XA", "With the magical key the HUD shows XA")
+	world.state.slots[&"magic_key"] = 0
+	check(world.key_count_text() == "X1", "Otherwise it shows the count")

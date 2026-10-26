@@ -71,6 +71,9 @@ var lifted_item: Resource
 var pickup_ticks: Dictionary[String, int] = {}
 ## Last positions of carried room items, by pickup ID, for the current room.
 var carried_positions: Dictionary = {}
+## Key doors still opening in this room, by direction: frames left.
+var door_openings: Dictionary = {}
+const DOOR_OPEN_TICKS := 9
 var walk_ticks := 0
 var walk_pose := 0
 var room: Resource
@@ -201,6 +204,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	whirlwind_pending = false
 	captor = null
 	carried_positions.clear()
+	door_openings.clear()
 	candle_used = false
 	item_use_remaining = 0
 	rise_remaining = rise * 4
@@ -261,6 +265,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 			take_whirlwind()
 		return
 	tick_item_objects()
+	tick_door_openings()
 	tick_captor()
 	overrides = compute_overrides(room)
 	# Zelda's rescue ends play; the ending scenes belong to the front end.
@@ -453,7 +458,7 @@ func door_key(definition: Resource, direction: Vector2i) -> String:
 func door_passable(definition: Resource, door: Resource) -> bool:
 	match door.kind:
 		"open", "false": return true
-		"key", "bombable": return state.flags.get(door_key(definition, door.direction), false)
+		"key", "bombable": return state.flags.get(door_key(definition, door.direction), false) and not (definition == room and door_openings.has(door.direction))
 		"shutter": return definition != room or shutters_open()
 	return false
 
@@ -488,14 +493,31 @@ func open_door(door: Resource) -> void:
 	overrides = compute_overrides(room)
 
 ## Z_05 TouchDoorKey: pressing into a locked doorway spends a key; the magical key is never spent.
+func key_count_text() -> String:
+	return "XA" if state.item_value(&"magic_key") > 0 else "X%d" % state.item_value(&"keys")
+
+## A door still opening (TriggeredDoorCmd) blocks Link but spends nothing more.
 func try_doors(direction: Vector2i) -> void:
 	var at: Vector2i = player.pixel_position()
 	for door in room.doors:
-		if door.kind != "key" or direction != door.direction or door_passable(room, door) or not door.in_doorway(at): continue
+		if door.kind != "key" or direction != door.direction or state.flags.get(door_key(room, door.direction), false) or not door.in_doorway(at): continue
 		if state.item_value(&"magic_key") == 0:
 			if state.item_value(&"keys") == 0: continue
 			state.slots[&"keys"] -= 1
 		open_door(door)
+		# UpdateDoors: the open command steps now and again after DoorTimer 8.
+		door_openings[door.direction] = DOOR_OPEN_TICKS
+		overrides = compute_overrides(room)
+
+## Counts down doors still opening; each becomes passable when its count ends.
+func tick_door_openings() -> void:
+	var opened := false
+	for direction in door_openings.keys():
+		door_openings[direction] -= 1
+		if door_openings[direction] <= 0:
+			door_openings.erase(direction)
+			opened = true
+	if opened: overrides = compute_overrides(room)
 
 ## Z_04 UpdateLikeLike and UpdateWallmaster: a Like Like holds Link where he
 ## stands; a Wallmaster carries him, and finishing its path restarts the level.
@@ -1144,7 +1166,8 @@ func draw_original_hud() -> void:
 		var room_number: int = room.map_room_id if room.map_room_id >= 0 else 0
 		draw_rect(Rect2(16 + room_number % 16 * 4, 16 + (room_number / 16) * 4, 4, 4), Color("80d010"))
 	draw_hud_text("X%d" % state.rupees, Vector2(96, 16))
-	draw_hud_text("X%d" % state.item_value(&"keys"), Vector2(96, 32))
+	# Z_01: with the magical key the count shows "XA".
+	draw_hud_text(key_count_text(), Vector2(96, 32))
 	draw_hud_text("X%d" % state.item_value(&"bombs"), Vector2(96, 40))
 	draw_rect(Rect2(124, 24, 20, 24), Color("4070c0"), false, 2)
 	draw_rect(Rect2(148, 24, 20, 24), Color("4070c0"), false, 2)

@@ -28,6 +28,7 @@ script = ExtResource("room")
 id = &"lab_dungeon_block"
 title = "Dungeon lab block room"
 tiles = "################\n################\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n##............##\n################\n################"
+spawn = Vector2i(120, 77)
 movement_bounds = Rect2i(0, -3, 241, 161)
 grid_origin = Vector2i(0, 5)
 dungeon_level = 10
