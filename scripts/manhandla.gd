@@ -33,6 +33,8 @@ func update(context: Dictionary) -> int:
 		speed += actor.definition.boss_lost_hand_speed # Source uses one "segment just died" flag per update.
 		dead_hands = dead
 	if not hands.is_empty() and dead == hands.size():
+		var cry: StringName = actor.death_sound()
+		if not cry.is_empty(): actor.cues.append(cry)
 		actor.health = 0
 		actor.death_remaining = 19
 		return 0

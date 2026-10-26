@@ -290,6 +290,12 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	if raft.can_arrive(room, player.pixel_position(), state): raft.try_start(self)
 	state.visit_room(room)
 	audio.set_music(room.music)
+	update_ambient_audio()
+	var appearances: Array[StringName] = []
+	for actor in combat.enemies:
+		var cue: StringName = actor.appearance_sound()
+		if actor.health > 0 and not cue.is_empty() and cue not in appearances: appearances.append(cue)
+	for cue in appearances: audio.play_sample(cue)
 	if not restoring and (previous == null or previous.dungeon_level != room.dungeon_level): start_curtain()
 
 ## Mode $13 begins $80 frames into Zelda's fanfare.
@@ -347,6 +353,25 @@ func can_open_submenu() -> bool:
 	return state.health > 0 and curtain < 0 and transition == null and entry_walk_remaining == 0 and lift_remaining == 0 and rise_remaining == 0 \
 		and level_exit_remaining == 0 and not filling_hearts and recorder_ticks == 0 and captor == null and not combat.ending \
 		and not combat.holds_player() and (cave_session == null or not cave_session.blocks_player())
+
+func update_ambient_audio() -> void:
+	var cue: StringName = room.ambient_sample
+	# Boss initializers also latch a background family, even when the boss
+	# room itself has no neighbouring-room ambience bits.
+	if cue.is_empty():
+		for actor in combat.enemies:
+			if actor.health <= 0: continue
+			var appearance: StringName = actor.appearance_sound()
+			if String(appearance).begins_with("roar_"):
+				cue = StringName("ambient_boss_" + String(appearance))
+				break
+			if actor.definition.behavior == "ganon" and actor.family.ganon != null and actor.family.ganon.dying < 0x50:
+				cue = &"ambient_boss_roar_aquamentus"
+				break
+	if not room.ambient_boss_room.is_empty():
+		var record: Dictionary = state.room_records.get(String(room.ambient_boss_room), {})
+		if record.get("cleared", false) or (room.id == room.ambient_boss_room and monsters_gone()): cue = &""
+	audio.set_ambient(cue)
 
 func dialogue_visible() -> bool:
 	if cave_session != null:
@@ -561,14 +586,13 @@ func try_pickups() -> void:
 		if distance.x > pickup.tolerance.x or distance.y > pickup.tolerance.y:
 			continue
 		if state.collect(room.id, pickup):
-			audio.play(&"item_fanfare" if pickup.lift_ticks > 0 else &"item")
+			audio.play(&"end_level" if "slot" in pickup.item and pickup.item.slot == &"triforce" else &"item_fanfare" if pickup.lift_ticks > 0 else &"item")
 			lifted_item = pickup.item
 			lift_remaining = pickup.lift_ticks
 			pickup_ticks[state.pickup_key(room.id, pickup.id)] = simulation_tick
 			if "slot" in pickup.item and pickup.item.slot == &"triforce":
 				# Z_05 mode $12: the fanfare plays, hearts refill, then Link leaves the level.
 				state.health = state.max_health
-				audio.play(&"item_fanfare")
 				level_exit_remaining = 192
 			return
 
@@ -1931,6 +1955,7 @@ func tick_death() -> void:
 		"flash":
 			if phase_ticks >= 0x21:
 				next_death_step("spin")
+				audio.play(&"death")
 				spin_turns = 4
 				player.facing = Vector2i.DOWN
 		"spin":

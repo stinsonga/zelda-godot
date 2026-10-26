@@ -13,7 +13,7 @@ func run() -> void:
 	world.set_physics_process(false)
 	world.combat.enemies.clear()
 	var audio = world.audio
-	check(audio.bank.streams.size() == 25 and audio.bank.streams.has(&"magic") and audio.bank.streams.has(&"door") and audio.bank.streams.has(&"menu_select") and audio.bank.streams.has(&"low_health"), "Source-only audio must include all cues")
+	check(audio.bank.streams.size() == 39 and audio.bank.streams.has(&"magic") and audio.bank.streams.has(&"door") and audio.bank.streams.has(&"menu_select") and audio.bank.streams.has(&"low_health"), "Source-only audio must include all cues")
 	check_door_samples()
 	check_warning(world)
 	var track: AudioStream = audio.music.stream
@@ -125,7 +125,7 @@ func check_warning(world: Node) -> void:
 	world.simulate_tick(Vector2i.ZERO)
 	check(not audio.warning.playing and audio.warning_ticks == 0, "Healing above one heart stops warning")
 	audio.silence()
-	audio.play(&"player_hurt")
+	audio.play(&"enemy_hit")
 	var count: int = audio.history.count(&"low_health")
 	audio.tick_warning(true)
 	check(audio.history.count(&"low_health") == count and not audio.warning.playing, "Combat sound has priority over warning")

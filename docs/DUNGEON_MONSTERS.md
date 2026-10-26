@@ -130,7 +130,8 @@ partial-fight reconstruction, persistent defeat, and editable four-head variants
 With imports it exercises every Gleeok room. `tests/test_gleeok.py` checks variants
 and every body/neck/attached-head pixel in level groups 4/6/8. Preview arguments
 are `gleeok2`, `gleeok4`, and optional `detached`. Frame-by-frame emulator
-comparison, sprite priority/flash details, and boss cries remain pending.
+comparison and sprite priority/flash details remain pending. Boss samples are
+implemented; see AUDIO.md.
 
 ## Moldorm
 
@@ -173,7 +174,7 @@ they simulate all Moldorm rooms. Python checks source stats and each sprite pixe
 in levels 2 and 7. `visual_preview.gd -- moldorm` renders a deterministic encounter.
 
 Per-slot movement/collision order, initial timer phase, exact death-spark timing,
-and boss cries remain emulator-comparison follow-ups.
+and per-frame audio ordering remain emulator-comparison follow-ups.
 
 ## Lanmola
 

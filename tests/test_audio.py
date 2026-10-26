@@ -110,7 +110,7 @@ class AudioTests(unittest.TestCase):
                 samples = array.array('h',stream.readframes(stream.getnframes()))
                 self.assertEqual(len(samples),data['frames'])
                 self.assertGreater(max(abs(v) for v in samples),1000,cue)
-                if cue in ('overworld','cave'):
+                if cue in ('overworld','cave','dungeon','level_9'):
                     self.assertLess(0,data['loop_begin'])
                     self.assertEqual(data['loop_end'],len(samples))
                     self.assertGreater(data['loop_end']-data['loop_begin'],22050)

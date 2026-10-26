@@ -312,13 +312,17 @@ func tick(world: Node) -> void:
 				rock.speed_subpixels = actor.definition.projectile_speed_subpixels
 				rocks.append(rock)
 		if was_alive and actor.health == 0:
+			var cry: StringName = actor.death_sound()
+			if not cry.is_empty() and cry not in actor.cues: actor.cues.append(cry)
 			record_permanent_kill(world,actor)
 			if actor.definition.behavior == "gleeok": world.audio.play(&"enemy_die")
 		if actor.definition.behavior=="moldorm" and actor.family.moldorm!=null and actor.family.moldorm.death_cues>0:
 			world.audio.play(&"enemy_die")
 			actor.family.moldorm.death_cues=0
 		if actor.definition.behavior == "ganon" and actor.family.ganon != null: apply_ganon_cues(world, actor)
-		for cue in actor.cues: world.audio.play(cue)
+		for cue in actor.cues:
+			if cue == actor.hurt_sound() or cue == actor.death_sound(): world.audio.play_sample(cue)
+			else: world.audio.play(cue)
 		actor.cues.clear()
 		if actor.definition.behavior == "zelda" and actor.family.zelda_state > 0: rescue_zelda(world, actor)
 		for shot in actor.pending_shots:
@@ -395,6 +399,7 @@ func tick(world: Node) -> void:
 				world.audio.play(reward.pickup_sound())
 	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < reward.definition.lifetime_ticks)
 	world.tick_shutter_audio()
+	world.update_ambient_audio()
 
 func spawn_reward(world: Node, definition: Resource, at: Vector2i, source_slot: int = 1) -> RefCounted:
 	var reward = Reward.new()
@@ -409,7 +414,10 @@ func apply_ganon_cues(world: Node, actor: RefCounted) -> void:
 	var fight: RefCounted = actor.family.ganon
 	for cue in fight.cues:
 		if cue == &"level_music": world.audio.set_music(world.room.music)
-		elif cue in [&"enemy_hit", &"enemy_die", &"item"]: world.audio.play(cue)
+		elif cue == &"ganon_song": world.audio.set_music(&"ganon_song")
+		elif cue == &"enemy_hit": world.audio.play_sample(actor.hurt_sound())
+		elif cue == &"enemy_die": world.audio.play_sample(actor.definition.death_sample if not actor.definition.death_sample.is_empty() else &"boss_hit")
+		elif cue == &"item": world.audio.play(cue)
 	fight.cues.clear()
 	if fight.item_released and room_item_position == null: room_item_position = actor.position()
 
@@ -713,6 +721,7 @@ func launch_beam(world: Node) -> bool:
 	beam.position = at
 	beam.direction = world.sword.direction
 	beam.damage = world.sword.weapon.damage
+	world.audio.play(&"sword_beam")
 	return true
 
 func launch_magic(world: Node) -> bool:

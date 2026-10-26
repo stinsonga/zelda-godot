@@ -195,3 +195,8 @@ are editable; see [ROD_AND_BOOK.md](ROD_AND_BOOK.md).
 `scenes/raft_lab.tscn` demonstrates automatic dock travel and an island round trip.
 Assign a `RaftRoute` to a mainland room and connect its exit to the island; dock,
 edge, landing, speed, and sprite offset are editable. See [RAFT.md](RAFT.md).
+
+Room ambience can use `ambient_sample` and `ambient_boss_room` to stop after a
+boss room clears. Enemy `appearance_sample`, `hurt_sample`, and `death_sample`
+override the original family cues. Supply custom streams through AudioBank; see
+[AUDIO.md](AUDIO.md) for sample channels, looping ambience, and source cue names.

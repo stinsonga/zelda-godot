@@ -103,7 +103,79 @@ The rest of the eight-voice mixer still differs from the original channel sharin
 
 ROM-free builds provide generated placeholders for all three cues, and custom
 AudioBank streams can replace them. The warning's fallback period is 19 frames;
-imported recordings provide their measured cycle. DMC decoding is groundwork for
-boss roars; their runtime triggers and the remaining song-code audit are separate
-follow-ups. Unit checks cover delta bit order, DAC saturation, loop/disable,
+imported recordings provide their measured cycle. Boss roar triggers and the remaining song-code audit are now implemented,
+as described below. Unit checks cover delta bit order, DAC saturation, loop/disable,
 address wrap, cue requests, and warning cadence, priority, healing, and pause.
+
+
+## Boss samples and source song audit
+
+The cue requests below are read from the disassembly; the sample bytes, melodies,
+room sound flags, and rendered WAV files remain in ignored imported/.
+
+| Cue | Source request |
+| --- | --- |
+| sword_beam | SampleRequest $01 |
+| boss_hit (also boss death/shout) | SampleRequest $02 |
+| door | SampleRequest $04 |
+| player_hurt | SampleRequest $08 |
+| roar_aquamentus (Aquamentus/Gleeok/Ganon family) | SampleRequest $10 |
+| roar_dodongo (Dodongo/Gohma family) | SampleRequest $20 |
+| roar_manhandla (Digdogger/Manhandla/Patra family) | SampleRequest $40 |
+| ambient_roar_* (nearby rooms) | Family request OR $80 |
+| ambient_boss_roar_* (boss initializer) | Family request without $80 |
+| end_level | SongRequest $04 |
+| ganon_song | SongRequest $02 |
+| death | Tune1Request $80 |
+
+A dedicated foreground sample voice lets boss cries, Link's damage, beam shots,
+and doors replace one another. A looping background voice pauses during those
+samples and restarts after the source $A0-frame sample counter; focus pause, mute, and silence affect both.
+Both sets of background recordings preserve the driver's $A0-frame repeat period.
+This approximates the NES's shared DMC channel; it does not reproduce exact
+same-frame request arbitration, DMA timing, or cycle-level buffering.
+
+`RoomDefinition.ambient_sample` selects room ambience. `ambient_boss_room`
+optionally names a room whose cleared record silences it; the current boss room
+stops as soon as its monsters are gone. Imported dungeon rooms use attribute E's
+bits 5-6 and LevelInfo_BossRoomId ($3E), for both quests, so nearby rooms can also
+hear a living boss. Boss initializers also latch their own background family
+even when their room has no ambience flags, as Ganon does. Separate recordings
+retain the low DAC reset of initializer samples and the high DAC reset of
+room-flag samples. Ordinary rooms and
+cleared boss rooms are quiet.
+
+Enemy appearance samples follow the source family. Multipart appearances are
+coalesced, so Manhandla's five actors do not start five recordings. Accepted boss
+hits and deaths, Gleeok's final neck, and Ganon's shout/death phases request the
+boss cry. EnemyDefinition.appearance_sample, hurt_sample, and death_sample can
+override family cues with custom AudioBank recordings; empty means use the family
+default. Attached Gleeok heads share the boss hit sample; detached heads retain
+their invulnerability.
+
+Triforce pieces now request end_level once, rather than the ordinary cave item
+fanfare twice. The full fanfare continues if the native level-exit timer returns
+Link to the overworld before it finishes, pausing the new music until the jingle
+ends. The native end-level visual/refill/exit timing is still a fidelity follow-up.
+Ganon's ganon_song cue is now handled at the intro fade and ashes phase, and
+level 9 music returns for the fight. Death starts its own tune at the beginning
+of the spin; its final heart/spark sound was already correct and is retained.
+Zelda, ending, title, and level song requests were checked and keep their cues.
+Record lengths are checked against the original driver's completion state.
+
+Player damage is now its DMC sample, not an enemy-hit substitute; it no longer
+blocks the Tune0 heart warning. The warning still yields to actual Tune0 effects.
+Boss-cry frame ordering and the existing native invincibility/animation timing
+remain to be compared against an emulator.
+
+`tests/boss_audio.gd` covers family selection, overrides, ambient suppression and
+resumption, pause/silence, end-level fanfare continuity, death/Ganon songs, and
+both imported quest catalogs. `tests/test_boss_audio.py` checks request codes,
+every room's source ambience bits/boss reference in both quests, and complete song
+record lengths. Existing audio tests check that every local WAV is audible.
+
+Dungeon music now carries loop metadata too: levels 1-8 use the underworld
+phrase boundary already used for cave music. Level 9 is a single-phrase song
+whose phrase index never changes; its loop is detected when the square-1 script
+offset resets. Both tracks loop their complete source cycles rather than
+stopping at the exporter's 50-second capture limit.

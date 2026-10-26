@@ -49,11 +49,9 @@ See [AUDIO.md](AUDIO.md).
 - **Completed:** door and menu-selection recordings, and the low-health warning
   at one heart or less. The warning repeats on the source driver cycle and yields
   to competing Tune0 effects. DMC sample decoding now supports the door sound.
-- **Boss roars and other DMC samples.** These come through `PlaySample` (for
-  example Aquamentus, Gleeok, and Ganon). The DMC decoder is now available;
-  exporting the roar cues and wiring their room/actor triggers still remains.
-- **Song codes.** Check the remaining song requests against the original's codes
-  (Triforce piece, death, Ganon's room) and add any that are still borrowed.
+- **Completed:** boss appearance/hit/death samples, ambient roars in both quests,
+  Link's damage and sword-beam samples, continuous dungeon-track loops, and the
+  song-code audit for Triforce, Ganon, and death. All ROM recordings remain in ignored imported/audio/.
 - **Synthesis.** It is approximate: per-frame APU writes, incomplete sweep and
   linear counter, incomplete analog filtering. Godot also mixes effects alongside the music
   rather than taking over its channels as the original does.
@@ -76,7 +74,9 @@ These are recorded approximations, each small:
 - **Pols Voice.** Its eight-way jump table is not translated yet
   (`overworld_enemy.gd`).
 - **Untraced timings.** Item-use pose length, push speed, and some message
-  timing are untraced.
+  timing are untraced. The native end-level exit still uses its existing timer;
+  the full fanfare now continues across the overworld transition. Boss sample
+  update order and foreground/background timing need reference comparison.
 - **Visual details.**
   - Held white and magical swords reuse the wooden sword's tiles.
   - Link's sprite ignores the magical shield.

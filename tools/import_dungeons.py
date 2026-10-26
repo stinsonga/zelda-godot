@@ -412,6 +412,8 @@ def export_levels(prg, output, png, blit_tile, entrances, quest_dir=''):
                 coverage['populated'] += 1
             elif types: coverage['unsupported'] += 1
             indices = [atlas.index(closed, closed_attrs, cx, cy) for cy in range(11) for cx in range(16)]
+            ambient = ('', 'ambient_roar_aquamentus', 'ambient_roar_dodongo', 'ambient_roar_manhandla')[(block[512 + room] >> 5) & 3]
+            if ambient: fields += [f'ambient_sample = &"{ambient}"', f'ambient_boss_room = &"{room_id(level, info[0x3E])}"']
             fields += [f'dungeon_level = {level}', f'enemy_persistence = "{persistence}"', f'map_room_id = {room}', f'shutter_trigger = {trigger}',
                        f'doors = Array[Resource]([{", ".join(doors)}])', f'portals = Array[Resource]([{", ".join(portals)}])']
             text = resource(ext + subs + ['[resource]', 'script = ExtResource("room")', f'id = &"{room_id(level, room)}"',

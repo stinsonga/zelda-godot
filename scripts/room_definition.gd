@@ -38,6 +38,9 @@ extends Resource
 @export var map_room_id: int = -1
 @export var id: StringName
 @export var title: String = ""
+@export var ambient_sample: StringName
+## Empty means unconditional ambience; otherwise stop after this boss room clears.
+@export var ambient_boss_room: StringName
 @export var music: StringName = &"overworld" # Empty selects silence.
 @export_multiline var tiles: String = ""
 @export var exits: Dictionary[String, String] = {}

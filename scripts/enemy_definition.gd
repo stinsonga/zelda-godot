@@ -10,6 +10,10 @@ extends Resource
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
 ## Source preserves original clock exceptions; authored variants can override.
 @export_enum("source", "freeze", "immune") var clock_response: String = "source"
+## Empty uses the original family sample; override with a custom bank cue.
+@export var appearance_sample: StringName
+@export var hurt_sample: StringName
+@export var death_sample: StringName
 @export var id: StringName
 @export var title: String
 @export var health: int = 1

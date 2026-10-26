@@ -96,7 +96,10 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 		family.gleeok.animation_timer = 6
 	if definition.behavior == "gleeok_head" and family.gleeok != null and family.gleeok.hit_timer > 0: return false
 	# Only the sword reaches Ganon here; arrows go through Ganon_CheckCollisions.
-	if definition.behavior == "ganon": return kind == "sword" and family.ganon.sword_hit(self, damage)
+	if definition.behavior == "ganon":
+		var accepted: bool = kind == "sword" and family.ganon.sword_hit(self, damage)
+		if accepted and not hurt_sound().is_empty(): cues.append(hurt_sound())
+		return accepted
 	# A rod thrust uses the sword mask, except Ganon only accepts his sword path.
 	var damage_kind := "sword" if kind == "rod" else kind
 	# Darknuts parry weapons arriving head-on; masks parry whole damage types.
@@ -104,6 +107,8 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 		parried_hit = true
 		return false
 	health = maxi(0, health - damage)
+	var sample_cue: StringName = death_sound() if health == 0 else hurt_sound()
+	if not sample_cue.is_empty(): cues.append(sample_cue)
 	if health == 0: died_from = kind
 	invulnerability = 32
 	windup = 0
@@ -121,6 +126,25 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 	elif definition.splits_into != null:
 		split_pending = true
 	return true
+
+func appearance_sound() -> StringName:
+	if not definition.appearance_sample.is_empty(): return definition.appearance_sample
+	if definition.behavior == "digdogger" and definition.size.x == 16: return &""
+	match definition.behavior:
+		"aquamentus", "gleeok": return &"roar_aquamentus"
+		"dodongo", "gohma": return &"roar_dodongo"
+		"digdogger", "manhandla", "patra": return &"roar_manhandla"
+		"ganon": return &"boss_hit"
+	return &""
+
+func hurt_sound() -> StringName:
+	if not definition.hurt_sample.is_empty(): return definition.hurt_sample
+	return &"boss_hit" if definition.behavior in ["aquamentus", "manhandla", "gleeok", "gleeok_head", "gohma", "patra", "ganon"] else &""
+
+func death_sound() -> StringName:
+	if not definition.death_sample.is_empty(): return definition.death_sample
+	if definition.behavior == "gleeok_head": return hurt_sound()
+	return &"boss_hit" if definition.behavior in ["aquamentus", "dodongo", "gohma", "manhandla", "gleeok", "patra", "digdogger"] else &""
 
 func affected_by_clock() -> bool:
 	if definition.clock_response != "source": return definition.clock_response == "freeze"

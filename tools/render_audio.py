@@ -242,7 +242,7 @@ class Apu:
 CUES = {
     'overworld': (0x600,1,100), 'cave': (0x600,0x40,50),
     'item_fanfare': (0x600,8,4), 'attack': (0x603,1,0.4),
-    'player_hurt': (0x604,2,0.7), 'enemy_hit': (0x604,2,0.7),
+    'player_hurt': (0x601,8,0.35), 'enemy_hit': (0x604,2,0.7),
     'parry': (0x604,1,0.3), 'heart': (0x604,16,0.25),
     'rupee': (0x602,1,0.4), 'item': (0x602,8,1),
     'secret': (0x602,4,3), 'enemy_die': (0x602,0x20,1.5),
@@ -254,6 +254,12 @@ CUES = {
     # Z_05 WieldArrow/WieldBoomerang effect $02; Z_07 WieldFlute tune $10.
     'magic': (0x603,4,0.6), 'arrow': (0x603,2,0.4), 'recorder': (0x602,0x10,2.6),
     # Z_02 InitDemoSubphasePlayTitleSong: one demo cycle, after which the demo requests it again.
+    # Z_04 boss initializers / CheckBossSoundEffectUW; background repeats at $A0 frames.
+    'boss_hit': (0x601,2,1.6), 'sword_beam': (0x601,1,0.8),
+    'roar_aquamentus': (0x601,0x10,1.6), 'roar_dodongo': (0x601,0x20,1.6), 'roar_manhandla': (0x601,0x40,1.6),
+    'ambient_boss_roar_aquamentus': (0x601,0x10,160/60), 'ambient_boss_roar_dodongo': (0x601,0x20,160/60), 'ambient_boss_roar_manhandla': (0x601,0x40,160/60),
+    'ambient_roar_aquamentus': (0x601,0x90,160/60), 'ambient_roar_dodongo': (0x601,0xA0,160/60), 'ambient_roar_manhandla': (0x601,0xC0,160/60),
+    'end_level': (0x600,4,8), 'ganon_song': (0x600,2,8), 'death': (0x602,0x80,4),
     'door': (0x601,4,0.5), 'menu_select': (0x602,1,0.4),
     'low_health': (0x604,0x40,1),
     'title': (0x600,0x80,81),
@@ -261,7 +267,10 @@ CUES = {
     'zelda': (0x600,0x06,6), 'ending': (0x600,0x10,70),
 }
 # Songs that loop: the phrase index (driver byte $6C) where the loop begins.
-LOOP_PHRASES = {'overworld': 10, 'cave': 16, 'ending': 21}
+LOOP_PHRASES = {'overworld': 10, 'cave': 16, 'dungeon': 16, 'ending': 21}
+# Single-phrase level 9 repeats without changing SongPhraseIndex; observe the
+# square-1 script offset resetting instead (Z_00 PlaySinglePhraseSong).
+LOOP_NOTE_OFFSETS = {'level_9': 0x60A}
 
 def export_audio(prg, destination):
     destination = Path(destination); destination.mkdir(parents=True, exist_ok=True)
@@ -271,6 +280,7 @@ def export_audio(prg, destination):
         driver.m[address] = request
         samples = array.array('h'); loop_start = loop_end = 0
         previous_phrase = -1
+        previous_note_offset = -1
         repeat_ticks = 0
         for frame in range(round(seconds*FPS)):
             driver.m[0x15] = frame & 255
@@ -282,9 +292,17 @@ def export_audio(prg, destination):
                     loop_end = len(samples); break
                 loop_start = len(samples)
             previous_phrase = phrase
+            if name in LOOP_NOTE_OFFSETS:
+                offset = driver.m[LOOP_NOTE_OFFSETS[name]]
+                if previous_note_offset >= 0 and offset < previous_note_offset:
+                    if loop_start:
+                        loop_end = len(samples); break
+                    loop_start = len(samples)
+                previous_note_offset = offset
             count = (frame+1)*RATE//FPS - frame*RATE//FPS
             samples.extend(apu.frame(driver,count))
-        if name in LOOP_PHRASES and not loop_end:
+        if name.startswith(("ambient_roar_", "ambient_boss_roar_")): loop_end = len(samples)
+        if (name in LOOP_PHRASES or name in LOOP_NOTE_OFFSETS) and not loop_end:
             raise ValueError(f'Could not locate source phrase loop for {name}')
         if not loop_end:
             last = next((i for i in range(len(samples)-1,-1,-1) if samples[i]),0)

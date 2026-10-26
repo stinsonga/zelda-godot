@@ -41,6 +41,8 @@ func update(context: Dictionary) -> void:
 	if alive == 0 and not heads.is_empty():
 		var base = body.get_ref()
 		if base != null and base.health > 0:
+			var cry: StringName = base.death_sound()
+			if not cry.is_empty(): base.cues.append(cry)
 			base.health = 0
 			base.death_remaining = 19
 		for weak_head in heads:
