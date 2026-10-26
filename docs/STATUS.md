@@ -4,7 +4,8 @@ Both quests are playable from the title screen to the ending, as far as the
 importer and tests can show. `tests/reachability.gd` finds every treasure, all
 eight Triforce pieces, Zelda, and every dungeon room reachable in each quest.
 This page records the one problem left open and the work that remains. Details
-live in the topic documents linked below.
+live in the topic documents linked below. The latest session handoff is
+[HANDOFF_2026-10-26.md](HANDOFF_2026-10-26.md).
 
 ## Unresolved: overworld room $0F
 
@@ -83,13 +84,11 @@ These are recorded approximations, each small:
   - A drained pond keeps its water colour.
 - **Unverified rocks.** The shortcut-room rocks in $1D and $49 haven't been
   checked against an emulator.
-- **Movement.** Input priority, turn timing, and fractional carry have not been
-  compared frame by frame against the original
-  ([IMPLEMENTATION.md](IMPLEMENTATION.md)).
-
-The most valuable single step here is an emulator comparison harness. Capturing
-reference input and position sequences would turn many of these from "believed
-correct" into "checked".
+- **Movement.** A headless Nestopia/Godot harness now compares 200 frames across
+  four starting-room scenarios. It finds one-pixel grid-boundary differences and
+  an earlier turn in Godot. Next: trace and correct boundary/fractional carry,
+  then expand coverage to input priority and enemies. See
+  [MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md) for setup, safeguards and findings.
 
 ### 3. Expansion tools
 

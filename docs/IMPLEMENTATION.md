@@ -61,7 +61,9 @@ Still provisional: exact diagonal input handling, turn timing, fractional carry,
 special-case collision at doors and screen edges, original room-entry walks,
 NTSC timing, stairs, knockback, and animation. The prototype must not
 be treated as a frame-accurate reproduction yet. The controller preserves fractional movement through grid boundaries; exact NES
-input priorities and frame-by-frame turn timing still need emulator comparison.
+input priorities remain unverified. The first [movement comparison](MOVEMENT_COMPARISON.md)
+now measures grid-boundary and turn differences against Nestopia; these remain
+to be corrected.
 
 ## Next implementation stages
 

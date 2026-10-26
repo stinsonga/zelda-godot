@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "name": "link_movement_v1",
+  "room": "ow_77",
+  "quest": 1,
+  "initial": {
+    "x": 120,
+    "y": 77,
+    "direction": 8,
+    "fraction": 0,
+    "grid_offset": 0
+  },
+  "cases": [
+    {
+      "id": "walk_stop",
+      "segments": [
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [],
+          "frames": 8
+        },
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [],
+          "frames": 8
+        }
+      ]
+    },
+    {
+      "id": "reverse_stop",
+      "segments": [
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [],
+          "frames": 6
+        },
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [],
+          "frames": 6
+        }
+      ]
+    },
+    {
+      "id": "turn_mid_segment",
+      "segments": [
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 5
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 5
+        },
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 5
+        },
+        {
+          "buttons": [
+            "down"
+          ],
+          "frames": 5
+        },
+        {
+          "buttons": [],
+          "frames": 8
+        }
+      ]
+    },
+    {
+      "id": "bush_contact",
+      "segments": [
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 32
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 48
+        },
+        {
+          "buttons": [],
+          "frames": 8
+        },
+        {
+          "buttons": [
+            "down"
+          ],
+          "frames": 8
+        }
+      ]
+    }
+  ]
+}
