@@ -57,7 +57,7 @@ copy one into `content/` to make variants, as with overworld enemies.
 ## Not yet
 
 Bait, Dodongo's bomb drop, and keys carried by monsters are implemented; see
-BAIT.md and the help drops in COMBAT.md. Second-quest Stalfos shooting remains to be implemented. Clock behavior is in;
+BAIT.md and the help drops in COMBAT.md. Second-quest Stalfos shooting is in; see SECOND_QUEST.md. Clock behavior is in;
 see CLOCK_AND_FAIRIES.md. The boomerang's stun is in; see Link's items in CAVES_AND_SECRETS.md.
 
 ## Manhandla
@@ -248,8 +248,7 @@ stats, rooms, and pixels.
 3. The fight: monsters keep updating while Link is held (`combat.holds_player()`),
    and Link is released when this phase begins.
 
-Dark rooms are not drawn yet, so a dimming overlay stands in for the palette
-cycles in Ganon's room.
+Ganon's room darkness uses the level's dark palette atlases; see LIGHTING.md.
 
 In the fight Ganon is blue and invisible, moving like a teleporting blue Wizzrobe
 (`BlueWizzrobe_TurnSometimesAndMoveAndCheckTile` with `ObjRemDistance` 1):
@@ -285,7 +284,7 @@ Power) appears on the ashes, and the room counts as clear, opening the shutters.
 Link stands at Y $95 with X in [$70, $81), `UpdateZelda` places him at ($88, $88)
 facing left and halts him. After $80 frames play stops,
 `state.flags.zelda_rescued` is set, and `combat.ending` asks the front end for the
-ending (mode $13, not yet built).
+ending (mode $13; see FRONT_END.md).
 
 The roar, the Triforce/Ganon song, and Zelda's fanfare are not synthesized.
 Existing cues stand in for them.

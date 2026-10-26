@@ -2,8 +2,7 @@
 
 After a ROM import, all nine first-quest levels are connected and walkable. There
 are 256 rooms, cellars included. Enter a level through its overworld entrance and leave through the
-start room's south doorway. Level 7's entrance needs the recorder, which is not
-implemented, but its rooms and exit are imported.
+start room's south doorway. Level 7's entrance is the recorder pond.
 
 The first dungeon monster families are in; see [dungeon monsters](DUNGEON_MONSTERS.md).
 Rooms whose monsters are not implemented yet are empty, so their shutters and

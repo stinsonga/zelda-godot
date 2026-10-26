@@ -153,8 +153,8 @@ func solve(path: String) -> void:
 	for id in reached:
 		if world.rooms[id].enemies.any(func(spawn: Resource) -> bool: return spawn.enemy.behavior == "zelda"): zelda = true
 	check(zelda, "%s: Zelda's room is out of reach" % world.world_id)
-	# Known gap: room $0F's waterfall opens onto solid rock at the top of room $1F
-	# in the decoded layouts, so it and its cave are unreachable in both quests.
+	# Unresolved (docs/STATUS.md): room $0F and its cave have no way in. The original's
+	# own layout routine gives the same tiles, so this appears to be faithful.
 	var unreached: Array = world.rooms.keys().filter(func(id: StringName) -> bool: return not reached.has(id)).map(func(id: StringName) -> String: return String(id))
 	unreached.sort()
 	check(unreached == ["cave_0f", "ow_0f"], "%s: unreachable rooms %s" % [world.world_id, unreached])

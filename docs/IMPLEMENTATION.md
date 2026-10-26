@@ -20,8 +20,8 @@ To add a room:
 4. Add an exit to the new ID in an existing room. For a return trip, add the
    reverse exit. Open matching passages at both edges.
 
-Exits preserve the coordinate along the edge. A blocked destination prevents
-transition. Overworld edge transitions now scroll; see [timing and behavior](SCROLLING.md).
+Exits preserve the coordinate along the edge. As in `Z_07 CheckScreenEdge`, the
+next room is not checked: Link can arrive on an unwalkable square. Overworld edge transitions now scroll; see [timing and behavior](SCROLLING.md).
 Resources are validated at startup in debug builds. The first room in the list
 is the initial room. Editing tile text is the initial authoring interface; a
 paintable editor can replace it once the original room format has been imported.
@@ -64,6 +64,9 @@ be treated as a frame-accurate reproduction yet. The controller preserves fracti
 input priorities and frame-by-frame turn timing still need emulator comparison.
 
 ## Next implementation stages
+
+The current status, known problems, and remaining work are in [STATUS.md](STATUS.md).
+The list below is the original plan, kept for history.
 
 1. Trace and translate the original input, turning, and collision routines;
    compare captured movement sequences against the original game.

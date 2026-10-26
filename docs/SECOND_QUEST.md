@@ -182,9 +182,8 @@ Building the solver turned up three bugs, all in both quests:
 - **Pushed rocks and graves stayed in the way.** This was in the solver's own
   model, not the game, and is now fixed there.
 
-**Known gap.** Overworld room $0F (the north-east corner, with a 100-rupee "IT'S A
-SECRET TO EVERYBODY" cave) is unreachable in both quests. Its only opening is a
-waterfall square at the bottom, which leads onto solid rock at the top of room
-$1F in the decoded layouts. The original's hint "WALK INTO THE WATERFALL!"
-suggests a way in that the overworld import doesn't reproduce yet. The test pins
-this as the only unreachable pair of rooms.
+**Unresolved: room $0F.** Overworld room $0F (the north-east corner, with a
+100-rupee "IT'S A SECRET TO EVERYBODY" cave) is unreachable in both quests. It
+appears to be unreachable in the original too, but that isn't confirmed; see
+[STATUS.md](STATUS.md). The test pins it and its cave as the only unreachable
+rooms.

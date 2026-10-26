@@ -67,8 +67,9 @@ dialogue restarts unless the saved pickup/progression state suppresses it.
 This is a native game save, not an NES emulator save state. Partially damaged
 enemies, projectile positions, random-generator state, and loose drops are not
 saved. Room history, insertion cursor, and kill records persist across save/load.
-See [room persistence](ROOM_PERSISTENCE.md) for respawn rules and migration details. Multiple player profiles, save-slot selection, autosaving, and the
-original NES continue/save menu are not implemented yet.
+See [room persistence](ROOM_PERSISTENCE.md) for respawn rules and migration details. The original's three save files and its Continue/Save/Retry menu are in the
+front end (FRONT_END.md); these checkpoints stay separate. Autosaving is not
+implemented.
 
 ## Verification
 
