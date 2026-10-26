@@ -145,7 +145,7 @@ func check_editable_settings() -> void:
 	var short: Resource = load("res://content/items/boomerang.tres").duplicate()
 	short.use_range = 16
 	short.use_speed = 2
-	world.register_item(short)
+	world.item_catalog[&"boomerang"] = short
 	world.state.slots[&"boomerang"] = 1
 	world.state.selected_item = &"boomerang"
 	world.item_objects.clear()

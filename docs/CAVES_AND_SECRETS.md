@@ -8,9 +8,8 @@ reveal hidden entrances. Shops sell working equipment.
 
 ## Controls
 
-- B item: X or Shift. Choose the B item: C or Tab. This is a provisional
-  selection key until the original submenu exists. The B box in the HUD shows
-  the selection.
+- B item: X or Shift. Choose it in the submenu (Enter); see SUBMENU.md. The B
+  box in the HUD shows the selection.
 - Walk onto a ware to take or buy it. Hint caves charge when you touch a price;
   the money-making game takes your pick.
 - Showing the letter to the old woman: select the letter, then press B in her cave.

@@ -65,6 +65,20 @@ func preview() -> void:
 		lab.queue_redraw()
 		return
 	var world = preload("res://scenes/main.tscn").instantiate()
+	if args.has("submenu_ow") or args.has("submenu_uw"):
+		root.add_child(world)
+		world.set_physics_process(false)
+		for item in ["boomerang", "bombs", "bow", "arrows", "blue_candle", "recorder", "bait", "red_potion", "magic_rod", "raft", "book", "red_ring", "ladder", "magic_key", "power_bracelet"]:
+			world.state.take_item(load("res://content/items/%s.tres" % item))
+		for level in [1, 2, 3, 5, 6]: world.state.flags["triforce/%d" % level] = true
+		if args.has("submenu_uw"):
+			world.state.flags["map/1"] = true
+			world.state.flags["compass/1"] = true
+			for id in [&"l1_73", &"l1_72", &"l1_74", &"l1_63", &"l1_53", &"l1_52", &"l1_43"]: world.enter_room(world.rooms[id], Vector2i(120, 77), Vector2i.UP)
+		world.simulate_tick(Vector2i.ZERO, false, false, true)
+		for tick in range(80): world.simulate_tick(Vector2i.RIGHT if tick == 70 else Vector2i.ZERO)
+		world.queue_redraw()
+		return
 	root.add_child(world)
 	world.set_physics_process(false)
 	if not world.rooms.has(&"cave_77"):

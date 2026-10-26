@@ -12,6 +12,8 @@ import struct
 import zlib
 
 from import_dungeons import MONSTERS, export_levels, level_rooms
+import import_dungeons
+import import_submenu
 from import_caves import (TELEPORT_YS, WHIRLWIND_ROOMS, CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
                           cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
                           secret_resource)
@@ -547,6 +549,12 @@ def import_rom(prg, output):
     combat_names += export_beam_sprites(prg, patterns, palettes, output)
     combat_names += export_source_enemies(prg, patterns, palettes, output)
     combat_names += export_overworld_enemies(prg, patterns, palettes, output)
+    # The pause submenu uses the overworld or the current level's background patterns.
+    uw_patterns = bytearray(8192)
+    for source, length, target in [(32895, 1792, 0), (34687, 1792, 0x1000), (36479, 224, 0x1F20), (49435, 0x820, 0x1700)]:
+        uw_patterns[target:target + length] = prg[source:source + length]
+    combat_names += import_submenu.export(prg, output, patterns, uw_patterns, palettes,
+                                          {level: import_dungeons.level_info(prg, level) for level in range(1, 10)}, png, blit_tile)
     start_id = prg[103168 + 47]
     start_y = prg[103168 + 40] - 64
     for room_id, layout in enumerate(layouts):
@@ -674,9 +682,10 @@ ladder_water = PackedByteArray({array(ladder_water)})
     theme += ['[resource]', 'script = ExtResource("1")', 'player_sheet = ExtResource("2")', 'hud_tiles = ExtResource("3")', 'hud_hearts = ExtResource("hearts")',
               'sprites = Dictionary[StringName, Texture2D]({' + ', '.join(f'&"{name}": ExtResource("{name}")' for name in names) + '})']
     (output / 'theme.tres').write_text('\n'.join(theme) + '\n')
-    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={140 + len(cave_ids) + len(level_room_ids)} format=3]',
+    catalog = [f'[gd_resource type="Resource" script_class="WorldDefinition" load_steps={141 + len(cave_ids) + len(level_room_ids)} format=3]',
                '[ext_resource type="Script" path="res://scripts/world_definition.gd" id="script"]',
-               '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]']
+               '[ext_resource type="Resource" path="res://imported/theme.tres" id="theme"]',
+               '[ext_resource type="Resource" path="res://imported/submenu.tres" id="submenu"]']
     for i in range(128):
         catalog.append(f'[ext_resource type="Resource" path="res://imported/rooms/ow_{i:02x}.tres" id="r{i}"]')
     for name in cave_ids + level_room_ids:
@@ -697,7 +706,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
         entries = [f'ExtResource("{supported[value]}")' if value in supported else 'null' for value in row]
         catalog += [f'[sub_resource type="Resource" id="{name}"]', 'script = ExtResource("loot_script")',
                     f'chance = {prg[0x1303E + group]}', 'entries = Array[Resource]([' + ', '.join(entries) + '])']
-    catalog += ['[resource]', 'script = ExtResource("script")', 'id = &"original_quest_1"', f'start_room = &"ow_{start_id:02x}"',
+    catalog += ['[resource]', 'script = ExtResource("script")', 'id = &"original_quest_1"', 'submenu = ExtResource("submenu")', f'start_room = &"ow_{start_id:02x}"',
                 'visual_theme = ExtResource("theme")',
                 'spawn_lists = Array[PackedByteArray]([' + ', '.join('PackedByteArray(' + array(prg[0x1464E + i * 9:0x1464E + i * 9 + 9]) + ')' for i in range(4)) + '])',
                 'loot_tables = Dictionary[StringName, Resource]({' + ', '.join(f'&"{name}": SubResource("loot_{loot_group(prg,kind)}")' for kind,(name,_) in list(ENEMY_TYPES.items()) + list(MONSTERS.items())) + '})',

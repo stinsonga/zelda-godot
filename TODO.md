@@ -6,7 +6,8 @@
    Old men, bomb offers, the level 9 gate, statues, rupee stashes, carried room
    items, and help drops (including Dodongo's bomb) are also done.
 2. Every first-quest item is in, including the magical key's edge cases.
-3. Next: the item submenu replacing C/Tab cycling.
+3. The submenu replaces C/Tab cycling (docs/SUBMENU.md). Still missing: its
+   selection tune and the compass's Triforce marker on the sheet map.
 
 ## Expansion groundwork
 
@@ -19,7 +20,7 @@ timings. A visual room editor would help authors most.
 ## Overworld and fidelity
 
 - Armos, their caves and the power bracelet; Zora, Ghini, boulders, special actors.
-- Item submenu replacing C/Tab; trace item-use timing against the original.
+- Trace item-use timing against the original.
 - Emulator replay comparisons, starting with Octoroks and bosses. Resolve provisional
   push/item poses, Pols Voice jumps, Wizzrobe/pond graphics, and whirlwind flight.
 - Full object-slot scheduling, fuller APU synthesis/reference listening, door sound.

@@ -3,6 +3,7 @@ extends Node2D
 const Room = preload("res://scripts/room_definition.gd")
 const Player = preload("res://scripts/player.gd")
 const Saves = preload("res://scripts/save_store.gd")
+const Submenu = preload("res://scripts/submenu.gd")
 const HUD_HEIGHT := 64
 const ROOM_SIZE := Vector2i(256, 176)
 const ItemObject = preload("res://scripts/item_object.gd")
@@ -35,6 +36,10 @@ var combat = preload("res://scripts/combat_simulation.gd").new()
 var sword = preload("res://scripts/sword_action.gd").new()
 var attack_requested := false
 var item_requested := false
+var start_requested := false
+var submenu = preload("res://scripts/submenu.gd").new()
+## Original submenu layout from the world; null draws placeholders.
+var submenu_layout: Resource
 var cave_session: RefCounted
 var secrets = preload("res://scripts/secret_runtime.gd").new()
 var item_objects: Array[RefCounted] = []
@@ -97,6 +102,7 @@ func _ready() -> void:
 		legacy_ids = selected_world.legacy_ids
 		world_definition_whirlwinds = selected_world.whirlwinds
 		world_id = String(selected_world.id)
+		submenu_layout = selected_world.submenu
 		item_resources = item_resources + selected_world.items
 	audio.configure(selected_world.audio_bank if selected_world != null else null, selected_world != null and String(selected_world.id) == "original_quest_1")
 	assert(not room_resources.is_empty(), "World must contain rooms")
@@ -114,6 +120,13 @@ func _ready() -> void:
 	var first_room: Resource = rooms[start_id] if not start_id.is_empty() else room_resources[0]
 	if world_id.is_empty(): world_id = "native/" + String(first_room.id)
 	for item in item_resources: register_item(item)
+	# The submenu shows any owned item, wherever it came from; fill the catalog
+	# from the native item definitions without overriding the world's own.
+	for file in ResourceLoader.list_directory("res://content/items/"):
+		var path := "res://content/items/" + file.trim_suffix(".remap")
+		if not path.ends_with(".tres"): continue
+		var item: Resource = load(path)
+		if item is ItemDefinition and not item_catalog.has(item.id): item_catalog[item.id] = item
 	for definition in room_resources:
 		for pickup in definition.pickups: register_item(pickup.item)
 		if definition.cave != null:
@@ -143,16 +156,15 @@ func _input(event: InputEvent) -> void:
 				state.health = state.max_health
 				combat.player_invulnerability = 48
 				enter_room(room, room.spawn, Vector2i.UP)
+			elif event.pressed:
+				# Start: open or close the submenu.
+				start_requested = true
 		KEY_Z, KEY_SPACE:
 			if event.pressed:
 				attack_requested = true
 		KEY_X, KEY_SHIFT:
 			if event.pressed:
 				item_requested = true
-		KEY_C, KEY_TAB:
-			# Provisional selection until the original submenu exists.
-			if event.pressed:
-				cycle_item()
 		KEY_R:
 			if event.pressed and transition == null:
 				player.place(room.spawn)
@@ -171,13 +183,15 @@ func _notification(what: int) -> void:
 		held.clear()
 		attack_requested = false
 		item_requested = false
+		start_requested = false
 
 func _physics_process(_delta: float) -> void:
 	status_ticks = maxi(0, status_ticks - 1)
 	var direction: Vector2i = Vector2i.ZERO if held.is_empty() else held.back()
-	simulate_tick(direction, attack_requested, item_requested)
+	simulate_tick(direction, attack_requested, item_requested, start_requested)
 	attack_requested = false
 	item_requested = false
+	start_requested = false
 	queue_redraw()
 
 func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: int = 0, restoring: bool = false, rise: int = 0) -> void:
@@ -212,6 +226,8 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	portal_armed = true
 	state.clock_active = false
 	state.current_level = room.dungeon_level
+	# The room flags' visit bit drives the submenu's sheet map.
+	if room.dungeon_level > 0 and room.map_room_id >= 0: state.flags["visited/" + String(room.id)] = true
 	secrets.enter(room, state)
 	overrides = compute_overrides(room)
 	cave_session = null
@@ -225,12 +241,18 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	state.visit_room(room)
 	audio.set_music(room.music)
 
+## Start opens the submenu only while Link is free to act.
+func can_open_submenu() -> bool:
+	return state.health > 0 and transition == null and entry_walk_remaining == 0 and lift_remaining == 0 and rise_remaining == 0 \
+		and level_exit_remaining == 0 and not filling_hearts and recorder_ticks == 0 and captor == null and not combat.ending \
+		and not combat.holds_player() and (cave_session == null or not cave_session.blocks_player())
+
 func dialogue_visible() -> bool:
 	if cave_session != null:
 		return cave_session.visible_text() != "" or cave_session.phase in ["prices", "text"]
 	return not room.dialogue.is_empty() and (room.dialogue_until_pickup.is_empty() or not state.has_collected(room.id, room.dialogue_until_pickup))
 
-func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_pressed: bool = false) -> void:
+func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_pressed: bool = false, start_pressed: bool = false) -> void:
 	simulation_tick += 1
 	combat.advance_frame()
 	if state.tick_rupees(simulation_tick):
@@ -246,6 +268,14 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	if transition != null:
 		if transition.tick():
 			enter_room(transition.target, transition.destination, transition.direction)
+		return
+	# Z_05 UpdateMenu: while the submenu is up, only it (and the meters) update.
+	if submenu.is_open():
+		submenu.tick(state, start_pressed, direction)
+		if submenu.moved: audio.play(&"menu_select")
+		return
+	if start_pressed and can_open_submenu():
+		submenu.open(room.dungeon_level > 0, state)
 		return
 	held_direction = direction
 	if filling_hearts:
@@ -893,6 +923,8 @@ func _draw() -> void:
 	if room == null:
 		return
 	draw_rect(Rect2(0, 0, 256, 240), Color("171c20"))
+	# The open submenu pushes the status bar and play area down.
+	if submenu.offset > 0: draw_set_transform(Vector2(0, submenu.offset))
 	if visual_theme.hud_tiles:
 		draw_original_hud()
 	else:
@@ -907,6 +939,11 @@ func _draw() -> void:
 		draw_scrolling_rooms()
 		return
 	draw_terrain(room, Vector2.ZERO)
+	# UpdateMenuCommon1 hides every sprite while the submenu is up.
+	if submenu.is_open():
+		draw_set_transform(Vector2.ZERO)
+		draw_submenu()
+		return
 	draw_pushed_object()
 	draw_ladder()
 	draw_raft()
@@ -1101,6 +1138,118 @@ func draw_ladder() -> void:
 		at.y += HUD_HEIGHT
 		for x in [2, 13]: draw_rect(Rect2(at + Vector2(x, 0), Vector2(2, 16)), Color("b88a48"))
 		for y in [2, 7, 12]: draw_rect(Rect2(at + Vector2(2, y), Vector2(13, 2)), Color("e8c078"))
+
+## Z_05 DrawSubmenuItems and UpdateSubmenuSelection, over the backdrop the
+## original builds in NT2. Without an import the boxes and labels are placeholders.
+func draw_submenu() -> void:
+	var top := Vector2(0, submenu.offset - Submenu.HEIGHT)
+	var backdrop := StringName("submenu_l%d" % room.dungeon_level if room.dungeon_level > 0 else "submenu_ow")
+	if visual_theme.sprites.has(backdrop):
+		draw_texture(visual_theme.sprites[backdrop], top)
+	else:
+		draw_rect(Rect2(top, Vector2(256, Submenu.HEIGHT)), Color.BLACK)
+		draw_rect(Rect2(top + Vector2(56, 48), Vector2(32, 32)), Color("4a5ce0"), false, 2)
+		draw_rect(Rect2(top + Vector2(120, 48), Vector2(104, 40)), Color("4a5ce0"), false, 2)
+		draw_string(font, top + Vector2(32, 40), "INVENTORY", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color("d84020"))
+		draw_string(font, top + Vector2(16, 92), "B BUTTON ITEM", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color.WHITE)
+	# Owned equipment in the top row, selectable items in the boxes.
+	for i in range(Submenu.EQUIPMENT.size()):
+		draw_submenu_item(Submenu.EQUIPMENT[i], top + Vector2(Submenu.equipment_position(i)))
+	for index in range(9):
+		var name: StringName = Submenu.SLOT_ITEMS[index] if index != 7 else (&"potion" if state.item_value(&"potion") > 0 else &"letter")
+		if index == 3: name = &"bow"
+		draw_submenu_item(name, top + Vector2(Submenu.item_position(index)))
+	var selected: StringName = Submenu.item_at(state, submenu.slot)
+	if selected != &"": draw_submenu_item(selected, top + Vector2(Submenu.SELECTED_BOX + Vector2i(0, 2)))
+	if submenu.active():
+		# The cursor flashes between palette rows 5 and 6 every eight frames.
+		var flash := (simulation_tick >> 3) & 1
+		var at: Vector2 = top + Vector2(Submenu.cursor_position(submenu.slot))
+		for side in range(2):
+			var sprite := StringName("submenu_cursor_%d%s" % [flash, "_right" if side else ""])
+			if visual_theme.sprites.has(sprite): draw_texture(visual_theme.sprites[sprite], at + Vector2(side * 8, 0))
+			else: draw_rect(Rect2(at + Vector2(side * 8, 0), Vector2(8, 16)), Color("d84020") if flash else Color("f0a050"), false, 1)
+	if room.dungeon_level > 0: draw_submenu_map(top)
+	else: draw_submenu_triforce(top)
+
+func draw_submenu_item(slot: StringName, at: Vector2) -> void:
+	if state.item_value(slot) <= 0: return
+	var item: Resource = item_for_slot(slot)
+	if item == null: return
+	var sprite := item_sprite(item)
+	if not visual_theme.sprites.has(sprite): sprite = StringName(String(sprite) + "_0")
+	if visual_theme.sprites.has(sprite): draw_texture(visual_theme.sprites[sprite], at)
+	else: draw_rect(Rect2(at + Vector2(4, 2), Vector2(8, 12)), Color("f0d070"))
+
+## Z_05 UpdateMenuStartOW: each owned piece fills three tile slots; a slot a
+## neighbouring piece already half filled ($E5, $E6) becomes full ($F5).
+func draw_submenu_triforce(top: Vector2) -> void:
+	var atlas: Texture2D = visual_theme.sprites.get(&"submenu_ow_tiles")
+	if submenu_layout == null or atlas == null:
+		var count := range(1, 9).filter(func(level: int) -> bool: return state.has_level_item(&"triforce", level)).size()
+		draw_string(font, top + Vector2(96, 150), "TRIFORCE %d/8" % count, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color("f0a050"))
+		return
+	var tiles: Dictionary = submenu_triforce_tiles()
+	for spot in tiles: draw_menu_tile(atlas, tiles[spot], top + spot)
+
+## Menu-local position -> tile for the Triforce with the pieces Link holds.
+func submenu_triforce_tiles() -> Dictionary:
+	var tiles: Dictionary = {}
+	for slot in range(24): tiles[submenu_layout.triforce_positions[slot]] = submenu_layout.triforce_empty[slot]
+	for slot in range(24):
+		if not state.has_level_item(&"triforce", slot / 3 + 1): continue
+		var spot: Vector2 = submenu_layout.triforce_positions[slot]
+		tiles[spot] = 0xF5 if tiles[spot] in [0xE5, 0xE6] else submenu_layout.triforce_full[slot]
+	return tiles
+
+func draw_menu_tile(atlas: Texture2D, tile: int, at: Vector2) -> void:
+	draw_texture_rect_region(atlas, Rect2(at, Vector2(8, 8)), Rect2((tile % 16) * 8, (tile / 16) * 8, 8, 8))
+
+## Z_05 Submenu_WriteSheetMapRowTransferRecord: rows of 16 rooms, rotated
+## right by the level's rotation; masked cells and unvisited rooms stay blank,
+## visited ones show which of their four doorways are walkable. The map and
+## compass sit at the left; Link's room is marked.
+func draw_submenu_map(top: Vector2) -> void:
+	var level: int = room.dungeon_level
+	for pair in [[&"map", 0x76], [&"compass", 0x9E]]:
+		if state.has_level_item(pair[0], level):
+			var item: Resource = item_for_slot(pair[0])
+			if item == null: item = load("res://content/items/%s.tres" % pair[0])
+			var sprite := item_sprite(item)
+			if visual_theme.sprites.has(sprite): draw_texture(visual_theme.sprites[sprite], top + Vector2(0x2C, pair[1] + 2))
+	var atlas: Texture2D = visual_theme.sprites.get(StringName("submenu_l%d_tiles" % level))
+	var rotation: int = submenu_layout.map_rotations[level - 1] if submenu_layout != null and level <= submenu_layout.map_rotations.size() else 0
+	var by_map: Dictionary = {}
+	for definition in rooms.values():
+		if definition.dungeon_level == level and definition.map_room_id >= 0: by_map[definition.map_room_id] = definition
+	for row in range(8):
+		for column in range(16):
+			var place := (column + rotation) % 16
+			if submenu_layout != null and level <= submenu_layout.map_rotations.size():
+				if submenu_layout.map_masks[(level - 1) * 16 + place] & (0x80 >> row) == 0: continue
+			var definition: Resource = by_map.get(row * 16 + column)
+			if definition == null or not state.flags.get("visited/" + String(definition.id), false): continue
+			var at: Vector2 = top + Vector2(96 + place * 8, (13 + row) * 8)
+			if atlas != null: draw_menu_tile(atlas, 0xE2 + doorway_mask(definition), at)
+			else: draw_rect(Rect2(at + Vector2(1, 1), Vector2(6, 6)), Color("f0a050"))
+	if room.map_room_id >= 0:
+		var shift: int = rotation * 8 if rotation < 8 else -(16 - rotation) * 8
+		var marker: Vector2 = top + Vector2((room.map_room_id & 0x0F) * 8 + shift + 0x62, (room.map_room_id >> 4) * 8 + 0x69 + 2)
+		if visual_theme.sprites.has(&"submenu_marker"): draw_texture(visual_theme.sprites[&"submenu_marker"], marker)
+		else: draw_rect(Rect2(marker + Vector2(2, 2), Vector2(3, 3)), Color("40d040"))
+
+## Z_05 CalcOpenDoorwayMask: up, down, left, right as bits 3-0; open doorways
+## count, walls and false walls do not, and other doors count once opened.
+func doorway_mask(definition: Resource) -> int:
+	var mask := 0
+	for direction in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var walkable := false
+		for door in definition.doors:
+			if door.direction != direction: continue
+			if door.kind == "open": walkable = true
+			elif door.kind in ["key", "bombable", "shutter"]: walkable = state.flags.get(door_key(definition, direction), false)
+		mask = (mask << 1) | int(walkable)
+	return mask
 
 func draw_item_objects() -> void:
 	for object in item_objects:

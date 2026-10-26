@@ -7,6 +7,8 @@ extends Resource
 @export var rooms: Array[Resource] = []
 @export var visual_theme: Resource
 @export var audio_bank: Resource
+## Original submenu layout (SubmenuLayout); without it the menu draws placeholders.
+@export var submenu: Resource
 
 @export var loot_tables: Dictionary[StringName, Resource] = {}
 
