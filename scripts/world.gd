@@ -1220,8 +1220,11 @@ func sword_sprite(weapon: Resource, direction: Vector2i) -> StringName:
 	var prefix: String = String(weapon.sprite_prefix) if "sprite_prefix" in weapon and not weapon.sprite_prefix.is_empty() else "sword"
 	return StringName(prefix + "_" + direction_name(direction))
 
+## Items name their sprite; drops placed as room items (five rupees) carry a sprite field.
 func item_sprite(item: Resource) -> StringName:
-	return item.sprite_name() if item.has_method("sprite_name") else item.id
+	if item.has_method("sprite_name"): return item.sprite_name()
+	var sprite: Variant = item.get("sprite")
+	return sprite if sprite is StringName and not sprite.is_empty() else item.id
 
 ## Z_07 StepOutside draws Link behind the background; only the doorway shows him.
 func draw_rising_player() -> void:

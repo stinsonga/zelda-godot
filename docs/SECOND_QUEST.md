@@ -18,7 +18,7 @@ routines check the quest directly. Here a quest is a `WorldDefinition`:
 3. **Dungeon layouts (done).** `LevelBlockUW1Q2` and `LevelBlockUW2Q2` for levels 1-9,
    with `LevelInfoUWQ2Replacements1-9` (start rooms, maps, shortcut and item
    positions).
-4. **Dungeon contents.** Monsters, items, doors, cellars, and old men, checked room
+4. **Dungeon contents (done).** Monsters, items, doors, cellars, and old men, checked room
    by room.
 5. **Verification.** Every level and item reachable; docs.
 
@@ -111,7 +111,35 @@ supported. Each level's way out returns to its second-quest entrance.
 | 9 | $74 | 46 | 5 |
 
 The room counts are those reachable from the start through doors and cellars.
-Step 4 checks the contents room by room.
+They match each level's submenu map (`LevelInfo_SubmenuMapMask`, one bit per
+room), give or take the one or two unmapped rooms both quests have.
+
+## Dungeon contents
+
+Nothing in the dungeon import is keyed to first-quest room numbers. Monsters,
+items, doors, stairs, cellars, statues, dark rooms, and residents all follow the
+level block and level info, so the second quest's come out of the same rules:
+- **Treasures.** Every level 1-8 holds its map, compass, Triforce piece, and heart
+  container. Each unique treasure appears exactly once: the boomerang (level 1),
+  the magical boomerang (2), the recorder (3), the bow (4), the raft and the book
+  (5), the ladder (6), the magical key and the magic rod (7), the red candle (8),
+  and the red ring, silver arrows, and Triforce of Power (9).
+- **Residents.** `InitUnderworldPerson` picks hints by level group only, not by
+  quest. The second quest's old men therefore say what the importer gives them,
+  including its two new hints ("IF YOU GO IN THE DIRECTION OF THE ARROW", "SOUTH
+  OF ARROW MARK HIDES A SECRET"). The bomb seller, the hungry Goriya, and the
+  Triforce gate keep their rules.
+- **Whirlwind.** Its stops are one table, so in the second quest the recorder
+  still sets Link down beside the first quest's level locations, as in the
+  original.
+
+`tests/dungeon_sweep.gd` enters every dungeon room of both quests, runs it for
+120 frames, and checks that each shown monster and room item has a sprite.
+
+The sweep found one bug, in both quests. Five-rupee room items were drawn as a
+placeholder: the drop definition has a `sprite` field but no `sprite_name()`. They
+now use their own steady blue image (item $0F does not flash), as do five-rupee
+drops, which had flashed like single rupees.
 
 `tests/second_quest.gd` checks the variant swap without a ROM. With an import, it
 also checks the worlds, monster rules, file switching, the patched rooms and

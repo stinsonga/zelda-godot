@@ -36,7 +36,8 @@ ITEMS = {0x00: 'bombs', 0x01: 'wooden_sword', 0x02: 'white_sword', 0x03: 'magica
          0x1A: 'heart_container', 0x1B: 'triforce', 0x1C: 'magic_shield', 0x1D: 'boomerang',
          0x1E: 'magical_boomerang', 0x1F: 'blue_potion', 0x20: 'red_potion', 0x22: 'heart'}
 # Sprites that already exist as two-frame drop animations.
-ANIMATED_ITEMS = {'rupee', 'five_rupees', 'heart'}
+# Five rupees (item $0F) is a steady blue rupee: DrawItemBySlot doesn't flash its slot.
+ANIMATED_ITEMS = {'rupee', 'heart'}
 # Tile $25 is a space typed without delay; '_' marks it, because Godot 4.6 text
 # resources decode U+00A0 as U+FFFD.
 TEXT_CHARS = {0x24: ' ', 0x25: '_', 0x28: ',', 0x29: '.', 0x2A: "'", 0x2C: '!',
