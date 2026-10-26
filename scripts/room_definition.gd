@@ -52,6 +52,11 @@ extends Resource
 @export var atlas_cell_size: Vector2i = Vector2i(16, 16)
 @export var tile_indices: PackedInt32Array = PackedInt32Array()
 @export var collision_tiles: PackedByteArray = PackedByteArray()
+## Ladder-eligible water, independent of art and ordinary collision. Fine masks
+## use the same 32 x 22 eight-pixel cells as collision_tiles.
+@export var ladder_allowed: bool = true
+@export var ladder_water: PackedByteArray = PackedByteArray()
+
 @export var spawn: Vector2i = Vector2i(120, 136)
 
 func rows() -> PackedStringArray:
@@ -60,7 +65,7 @@ func rows() -> PackedStringArray:
 func is_solid(cell: Vector2i) -> bool:
 	if cell.x < 0 or cell.x >= 16 or cell.y < 0 or cell.y >= 11:
 		return true
-	return rows()[cell.y][cell.x] == "#"
+	return rows()[cell.y][cell.x] in ["#", "~"]
 
 func is_pixel_solid(pixel: Vector2i) -> bool:
 	if pixel.x < 0 or pixel.y < 0 or pixel.x >= 256 or pixel.y >= 176:
@@ -68,6 +73,12 @@ func is_pixel_solid(pixel: Vector2i) -> bool:
 	if not collision_tiles.is_empty():
 		return collision_tiles[(pixel.y / 8) * 32 + pixel.x / 8] != 0
 	return is_solid(Vector2i(pixel.x / 16, pixel.y / 16))
+
+func is_ladder_water(pixel: Vector2i) -> bool:
+	if pixel.x < 0 or pixel.y < 0 or pixel.x >= 256 or pixel.y >= 176: return false
+	if not ladder_water.is_empty():
+		return ladder_water[(pixel.y / 8) * 32 + pixel.x / 8] != 0
+	return rows()[pixel.y / 16][pixel.x / 16] == "~"
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
@@ -91,6 +102,8 @@ func validation_errors() -> PackedStringArray:
 				errors.append("Atlas tile index out of bounds")
 	if not collision_tiles.is_empty() and collision_tiles.size() != 704:
 		errors.append("Fine collision requires 704 eight-pixel cells")
+	if not ladder_water.is_empty() and ladder_water.size() != 704:
+		errors.append("Ladder water requires 704 eight-pixel cells")
 	if dialogue_character_ticks < 1:
 		errors.append("Dialogue character interval must be positive")
 	var enemy_ids: Dictionary = {}
@@ -129,7 +142,7 @@ func validation_errors() -> PackedStringArray:
 		if line.length() != 16:
 			errors.append("Room rows must have 16 tiles")
 		for tile in line:
-			if tile != "." and tile != "#":
+			if tile not in [".", "#", "~"]:
 				errors.append("Unknown tile: " + tile)
 	for edge in exits:
 		if edge not in ["left", "right", "up", "down"]:

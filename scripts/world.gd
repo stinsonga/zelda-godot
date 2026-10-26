@@ -56,6 +56,7 @@ var held_direction := Vector2i.ZERO
 ## A Like Like or Wallmaster holding Link.
 var captor: RefCounted
 const DIRECTION_NAMES := {Vector2i.UP: "up", Vector2i.DOWN: "down", Vector2i.LEFT: "left", Vector2i.RIGHT: "right"}
+var ladder = preload("res://scripts/ladder.gd").new()
 var lighting = preload("res://scripts/room_lighting.gd").new()
 var simulation_tick := 0
 var entry_walk_remaining := 0
@@ -180,6 +181,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	if not restoring: combat.commit_room(state)
 	transition = null
 	room = target
+	ladder.reset()
 	player.grid_origin = room.grid_origin
 	player.place(at + Vector2i(0, rise))
 	player.facing = facing
@@ -310,7 +312,8 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	else:
 		if captor == null and not secrets.blocks_player(player.pixel_position()):
-			player.step(direction, can_occupy, can_enter_segment)
+			player.step(ladder.constrain(player.pixel_position(), direction), can_occupy, can_enter_segment)
+			ladder.update(player.pixel_position())
 		if secrets.try_push(self, direction):
 			overrides = compute_overrides(room)
 		try_doors(direction)
@@ -769,6 +772,34 @@ func can_enter_segment(at: Vector2i, direction: Vector2i) -> bool:
 	# Underworld residents block only while present (Z_07 checks ObjType+1).
 	if room.cave != null and direction == Vector2i.UP and at.y < CAVE_PERSON_LINE and (room.dungeon_level == 0 or (cave_session != null and cave_session.person_visible())):
 		return false
+	ladder.update(at)
+	if not ladder.active and room.ladder_allowed and state.item_value(&"ladder") > 0 and entry_walk_remaining == 0:
+		var probes := movement_probes(at, direction)
+		var water := probes.any(func(pixel: Vector2i) -> bool: return ladder_water_at(pixel) and is_blocked(pixel))
+		var safe := probes.all(func(pixel: Vector2i) -> bool: return not is_blocked(pixel) or ladder_water_at(pixel))
+		# Original deployment needs one of monster slots 1 through 11 free.
+		var occupied: int = combat.enemies.filter(func(a: RefCounted) -> bool: return a.alive()).size() + combat.rocks.size()
+		if water and safe and occupied < 11:
+			ladder.deploy(at, direction)
+	if ladder.active: return ladder.allows(at, direction, ordinary_segment)
+	return ordinary_segment(at, direction)
+
+func ladder_water_at(pixel: Vector2i) -> bool:
+	if not room.is_ladder_water(pixel): return false
+	if overrides.has(Vector2i(pixel.x / 16, pixel.y / 16)): return false
+	for decoration in room.decorations:
+		if decoration_visible(decoration) and decoration.blocking_area.has_point(pixel): return false
+	return true
+
+func movement_probes(at: Vector2i, direction: Vector2i) -> Array[Vector2i]:
+	var probe := at + Vector2i(0, 11)
+	if direction.x != 0:
+		probe.x += 16 if direction.x > 0 else -8
+		return [probe]
+	probe.y += 8 if direction.y > 0 else -8
+	return [probe, probe + Vector2i(8, 0)]
+
+func ordinary_segment(at: Vector2i, direction: Vector2i) -> bool:
 	# Z_07 GetCollidingTileMoving / GetCollidableTile. At grid points,
 	# horizontal movement checks one leading column at the foot hotspot;
 	# vertical movement checks both columns, eight pixels ahead of it.
@@ -833,6 +864,7 @@ func _draw() -> void:
 		return
 	draw_terrain(room, Vector2.ZERO)
 	draw_pushed_object()
+	draw_ladder()
 	draw_room_objects()
 	draw_item_objects()
 	draw_combat()
@@ -990,6 +1022,16 @@ func draw_cave() -> void:
 		var lines: PackedStringArray = session.visible_text().split("\n")
 		for i in range(lines.size()):
 			draw_hud_text(lines[i], Vector2(32, 104 + (i+session.cave.text_line_offset) * 8))
+
+func draw_ladder() -> void:
+	if not ladder.active: return
+	var at: Vector2 = Vector2(ladder.anchor + Vector2i(0, 3))
+	if visual_theme.sprites.has(&"deployed_ladder"):
+		draw_named_sprite(&"deployed_ladder", at)
+	else:
+		at.y += HUD_HEIGHT
+		for x in [2, 13]: draw_rect(Rect2(at + Vector2(x, 0), Vector2(2, 16)), Color("b88a48"))
+		for y in [2, 7, 12]: draw_rect(Rect2(at + Vector2(2, y), Vector2(13, 2)), Color("e8c078"))
 
 func draw_item_objects() -> void:
 	for object in item_objects:
@@ -1237,6 +1279,9 @@ func draw_terrain(definition: Resource, offset: Vector2) -> void:
 				var source := Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size))
 				draw_clipped_texture(atlas, rect, source)
 				continue
+			if definition.rows()[y][x] == "~":
+				draw_rect(rect.intersection(Rect2(0, HUD_HEIGHT, 256, 176)), floor_tint(Color("3878a8")))
+				continue
 			var texture: Texture2D = visual_theme.wall_texture if wall else visual_theme.floor_texture
 			if texture:
 				draw_clipped_texture(texture, rect, Rect2(Vector2.ZERO, texture.get_size()),Color.WHITE if wall else floor_tint(Color.WHITE))
@@ -1350,7 +1395,7 @@ func enabled_keys(values: Dictionary) -> Array:
 	return keys
 
 func save_game() -> bool:
-	if transition != null or lighting.fading() or (cave_session!=null and cave_session.phase=="feeding") or entry_walk_remaining > 0 or lift_remaining > 0 or rise_remaining > 0 or state.health <= 0 or not state.rupees_settled():
+	if transition != null or ladder.active or lighting.fading() or (cave_session!=null and cave_session.phase=="feeding") or entry_walk_remaining > 0 or lift_remaining > 0 or rise_remaining > 0 or state.health <= 0 or not state.rupees_settled():
 		show_status("WAIT UNTIL LINK IS READY TO SAVE")
 		return false
 	var result: Dictionary = save_store.write_snapshot(snapshot(), world_id)

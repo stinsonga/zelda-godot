@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/room_definition.gd" id="room"]
+[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup"]
+[ext_resource type="Resource" path="res://content/items/ladder.tres" id="ladder"]
+[sub_resource type="Resource" id="ladder_pickup"]
+script = ExtResource("pickup")
+id = &"lab_ladder"
+item = ExtResource("ladder")
+position = Vector2i(64, 125)
+lift_ticks = 0
+[resource]
+script = ExtResource("room")
+id = &"ladder_lab"
+title = "River crossing"
+spawn = Vector2i(64, 125)
+grid_origin = Vector2i(0, 5)
+movement_bounds = Rect2i(0, -3, 241, 161)
+pickups = Array[Resource]([SubResource("ladder_pickup")])
+tiles = "################\n#..............#\n#.......~......#\n#.......~......#\n#..............#\n#~~~~~~~~~~~~~~#\n#..............#\n#.........~~...#\n#.........~~...#\n#..............#\n################"

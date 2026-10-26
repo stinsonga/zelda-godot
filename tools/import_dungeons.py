@@ -376,7 +376,8 @@ def export_levels(prg, output, png, blit_tile, entrances):
                 f'tiles = {json.dumps(chr(10).join("." * 16 for _ in range(11)))}', f'exits = Dictionary[String, String]({json.dumps(exits)})',
                 f'spawn = Vector2i({spawn_point(base)[0]}, {spawn_point(base)[1]})', 'movement_bounds = Rect2i(0, -3, 241, 161)', 'grid_origin = Vector2i(0, 5)',
                 'tile_atlas = ExtResource("atlas")', f'tile_indices = PackedInt32Array({cell_lines(indices)})',
-                f'collision_tiles = PackedByteArray({cell_lines(base)})'] + fields)
+                f'collision_tiles = PackedByteArray({cell_lines(base)})',
+                f'ladder_water = PackedByteArray({cell_lines([int(tile_at(closed, x, y) == 0xF4) for y in range(22) for x in range(32)])})'] + fields)
             texts[room_id(level, room)] = text
         for cellar in cellars:
             tiles, attrs = layouts.cellar(cellar)

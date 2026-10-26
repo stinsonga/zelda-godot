@@ -178,3 +178,7 @@ art and the HUD are unaffected. See [lighting behavior and verification](LIGHTIN
 The ROM-free `scenes/bait_lab.tscn` demonstrates bait and a persistent resident.
 See [BAIT.md](BAIT.md) for item lifetime, feeding timing, dialogue placement, and
 room attraction overrides.
+
+Use `~` tiles for authored ladder-crossable water, or `ladder_water` for fine
+eight-pixel masks. `ladder_allowed` controls room eligibility. The ROM-free
+`scenes/ladder_lab.tscn` demonstrates crossings; see [LADDER.md](LADDER.md).

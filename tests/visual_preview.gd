@@ -17,6 +17,16 @@ func preview() -> void:
 			lab.overrides = lab.compute_overrides(lab.room)
 		lab.queue_redraw()
 		return
+	if args.has("ladder_lab"):
+		var lab = preload("res://scenes/ladder_lab.tscn").instantiate()
+		root.add_child(lab)
+		lab.set_physics_process(false)
+		lab.state.take_item(preload("res://content/items/ladder.tres"))
+		lab.player.place(Vector2i(64,85))
+		lab.player.facing = Vector2i.UP
+		for i in range(5): lab.simulate_tick(Vector2i.UP)
+		lab.queue_redraw()
+		return
 	if args.has("bait_lab"):
 		var lab = preload("res://scenes/bait_lab.tscn").instantiate()
 		root.add_child(lab)

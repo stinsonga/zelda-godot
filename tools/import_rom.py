@@ -546,6 +546,7 @@ def import_rom(prg, output):
         inner = prg[99328 + 128 + room_id] & 3
         outer = prg[99328 + room_id] & 3
         indices, collision = [], [0] * (32 * 22)
+        ladder_water = [0] * 704
         coarse = []
         for y, row in enumerate(layout):
             line = ''
@@ -557,6 +558,7 @@ def import_rom(prg, output):
                 for part, tile in enumerate(parts):
                     blocked = int(tile >= 0x89 and tile not in WALKABLE)
                     collision[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = blocked
+                    ladder_water[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(0x8D <= tile < 0x99)
                     solid.append(blocked)
                 line += '#' if all(solid) else '.'
             coarse.append(line)
@@ -637,6 +639,8 @@ grid_origin = Vector2i(0, 5)
 tile_atlas = ExtResource("2")
 tile_indices = PackedInt32Array({array(indices)})
 collision_tiles = PackedByteArray({array(collision)})
+ladder_allowed = {str(room_id in (0x17, 0x18, 0x19, 0x27, 0x4F, 0x5F)).lower()}
+ladder_water = PackedByteArray({array(ladder_water)})
 '''
         (output / 'rooms' / f'ow_{room_id:02x}.tres').write_text(text)
     for name, text in zip(cave_ids, cave_rooms):
@@ -692,8 +696,8 @@ collision_tiles = PackedByteArray({array(collision)})
             'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['First-quest terrain; Armos, recorder, and ladder secrets and room effects are not imported.',
-                        'Dungeon monsters and bosses are not imported; Zora, Armos, Ghini, and boulders are unimplemented.',
+        'limitations': ['First-quest terrain; Armos and raft interactions and some room effects remain unimplemented.',
+                        'First-quest dungeon encounters are imported; Zora, Armos, Ghini, and boulders are unimplemented.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio
     export_audio(prg, output / 'audio')
