@@ -62,14 +62,17 @@ class EnemyImportTests(unittest.TestCase):
             if behavior == 'nes_octorok': continue
             base = data[0x6e04+kind+1]
             frames = []
-            if behavior == 'walker':
+            if kind == 0x1E:
+                # DrawArmosAndCheckCollisions: four unmirrored front/back frames.
+                frames = [(f'{name}_{i}',base+i,False,False) for i in range(4)]
+            elif behavior == 'walker':
                 for direction in ('up','down','left','right'):
                     for pose in range(2):
                         frame = base + (3 if direction=='up' else 2 if direction=='down' else pose)
                         flip = pose==1 if direction in ('up','down') else direction=='left'
                         frames.append((f'{name}_{direction}_{pose}',frame,False,flip))
             else:
-                frames = [(f'{name}_{i}',base+i,True,False) for i in range(10 if behavior=='burrower' else 2)]
+                frames = [(f'{name}_{i}',base+i,True,False) for i in range(10 if behavior in ('burrower','zora') else 2)]
             for key,frame,mirrored,flip in frames:
                 image = pixels(ROOT/'imported'/f'{key}.png')
                 tile,attr = data[0x6e83+frame],data[0x6f4f+frame]

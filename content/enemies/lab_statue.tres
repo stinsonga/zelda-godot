@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_statue"
+title = "Statue knight"
+behavior = "walker"
+health = 3
+contact_damage = 1
+speed_subpixels = 128
+turn_chance = 128
+targeting = "dominant_axis"
+shooting_enabled = false
+spawn_cloud = false
+drops_rewards = false
+advances_kill_cycle = false
+counts_for_clear = false
+counts_for_persistence = false
+sprite_style = "front_back"
+wake_ticks = 63
+wake_speeds = PackedInt32Array(128, 384)
+sprite = &"lab_statue"
+fallback_color = Color(0.45, 0.5, 0.55, 1)

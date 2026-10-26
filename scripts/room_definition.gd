@@ -50,6 +50,15 @@ extends Resource
 @export var statues: PackedVector2Array = PackedVector2Array()
 @export var provoked_statues: PackedVector2Array = PackedVector2Array()
 @export var statue_damage: int = 1
+## Z_04 CheckZora: a room whose attribute A has $08 keeps one Zora surfacing
+## in its water (`ladder_water`). Null means no Zora.
+@export var zora: Resource
+## Z_01 CheckPassiveTileObjects: statue squares (tiles $C0-$C3) that wake as
+## `armos` when Link presses into them, and the floor each leaves behind (atlas
+## index; -1 draws the placeholder floor).
+@export var armos: Resource
+@export var armos_cells: PackedVector2Array = PackedVector2Array()
+@export var armos_floor_tiles: PackedInt32Array = PackedInt32Array()
 @export var grid_origin: Vector2i = Vector2i.ZERO
 @export var tile_atlas: Texture2D
 @export var atlas_cell_size: Vector2i = Vector2i(16, 16)

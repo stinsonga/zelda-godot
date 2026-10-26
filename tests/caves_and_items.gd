@@ -378,7 +378,8 @@ func check_imported() -> void:
 		var source: Resource = world.rooms[exit.target_room]
 		var entries: Array = source.portals.filter(func(portal: Resource) -> bool: return portal.target_room == id)
 		check(entries.size() == 1 and String(id) == "cave_" + String(source.id).substr(3), "Cave " + String(id) + " must pair with one overworld entrance")
-	check(caves == 59, "All first-quest overworld caves must import")
+	# 59 visible or hidden entrances, plus four reached by Armos stairs.
+	check(caves == 63, "All first-quest overworld caves must import (%d)" % caves)
 	var sword: Resource = world.rooms[&"cave_0a"].cave
 	check(sword.heart_requirement == 5 and sword.wares[1].item.id == &"white_sword" and sword.remember, "White sword cave must need five hearts")
 	check(world.rooms[&"cave_21"].cave.heart_requirement == 12, "Magical sword cave must need twelve hearts")

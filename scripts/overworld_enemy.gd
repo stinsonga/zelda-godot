@@ -19,6 +19,10 @@ var patra: RefCounted
 var ganon: RefCounted
 ## Zelda: 0 waiting, 1 rescued (Link halted for the fanfare), 2 ending.
 var zelda_state := 0
+## Zora: surfaced facing away from Link (frame 3) rather than toward him (2);
+## set when its cycle ends, so the room can raise another.
+var zora_back := false
+var zora_gone := false
 var patra_index := 0
 var patra_state := 0
 ## ObjAngleWhole and ObjAngleFrac as one 13-bit value: 32 whole steps a circle.
@@ -78,6 +82,7 @@ func visible(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "gleeok": return false
 	if actor.definition.behavior == "ganon": return ganon == null or ganon.visible(actor.animation_ticks)
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_active(actor)
+	if actor.definition.behavior == "zora": return phase != 0
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase != 0
@@ -88,6 +93,8 @@ func vulnerable(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "gleeok_head": return not gleeok_detached
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.sword_vulnerable()
 	if actor.definition.behavior in ["zelda", "rupee_stash"]: return false
+	# Burrower_AnimateDrawAndCheckCollisions: a Zora collides in states 2-4.
+	if actor.definition.behavior == "zora": return phase in [2, 3, 4]
 	# UpdatePatra checks monster collisions only once every child is gone.
 	if actor.definition.behavior == "patra": return patra == null or patra.living_children() == 0
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
@@ -106,6 +113,7 @@ func contact_enabled(actor: RefCounted) -> bool:
 	if actor.definition.behavior == "patra_child": return patra == null or patra.child_collides(actor)
 	if actor.definition.behavior == "ganon": return ganon != null and ganon.touches_link()
 	if actor.definition.behavior in ["zelda", "rupee_stash"]: return false
+	if actor.definition.behavior == "zora": return phase in [2, 3, 4]
 	if actor.definition.behavior == "wallmaster": return phase == 1
 	if actor.definition.behavior in ["blue_wizzrobe", "red_wizzrobe"]: return not wizzrobe_hidden
 	return actor.definition.behavior != "burrower" or phase == 3
@@ -170,6 +178,7 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 	# UpdateGuardFire only animates and collides.
 	if actor.definition.behavior == "guard_fire": return false
 	if actor.definition.behavior == "rupee_stash": return false
+	if actor.definition.behavior == "zora": return tick_zora(actor, context)
 	if actor.shove_remaining > 0:
 		actor.source.shove(actor, probe)
 		return false
@@ -778,3 +787,36 @@ func tick_zelda(actor: RefCounted, context: Dictionary) -> void:
 		timer = 0x80
 	elif zelda_state == 1 and timer == 0:
 		zelda_state = 2
+
+## Z_04 UpdateZora over UpdateBurrower: it never moves. States cycle on the
+## Blue Leever tables: a ripple, surfacing to face Link (or away, if it is
+## below him), a fireball ($55) two frames into state 3 after which the timer
+## drops to $20, then submerging. Reaching state 0 removes it, and the room
+## raises another the same frame (CheckZora).
+func tick_zora(actor: RefCounted, context: Dictionary) -> bool:
+	var definition: Resource = actor.definition
+	if timer == 0:
+		if phase == 1:
+			var player: Vector2i = context.get("player", Vector2i.ZERO)
+			zora_back = actor.position().y >= player.y
+		phase = (phase + 1) % 6
+		timer = definition.burrow_times[phase]
+		anim_ticks = 0
+	anim_ticks += 1
+	if anim_ticks >= definition.burrow_animation_ticks[phase]:
+		anim_ticks = 0
+		pose ^= 1
+	if phase == 3 and timer == 0xFD:
+		actor.pending_shots.append({"position": actor.position(), "spread": 0})
+		timer = 0x20
+	if phase == 0:
+		actor.health = 0
+		actor.death_remaining = 0
+		actor.drop_resolved = true
+		zora_gone = true
+	return false
+
+## Frame images: ripple 0/1, surfaced 2 (front) or 3 (back), sinking 8/9.
+func zora_frame() -> int:
+	if phase in [2, 3, 4]: return 3 if zora_back else 2
+	return (8 if phase == 5 else 0) + pose

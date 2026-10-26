@@ -33,6 +33,10 @@ var capture_ticks := 0
 var stun_ticks := 0
 ## The weapon of the killing hit, for HandleMonsterDied's help-drop count.
 var died_from := ""
+## Frames left fading in after waking from the scenery; just_woke is set on
+## the frame the fade ends, for the world to replace the statue's square.
+var wake_remaining := 0
+var just_woke := false
 
 func setup(spawn: Resource) -> void:
 	id = spawn.id
@@ -43,6 +47,7 @@ func setup(spawn: Resource) -> void:
 	rng.seed = spawn.seed_value
 	spawn_remaining = definition.spawn_ticks if spawn.spawn_ticks < 0 else spawn.spawn_ticks
 	cooldown = definition.shoot_cooldown
+	wake_remaining = definition.wake_ticks
 	if definition.behavior != "native":
 		source.setup(definition.nes_type)
 		spawn_remaining += 12
@@ -124,6 +129,10 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 	if health <= 0:
 		death_remaining = maxi(0, death_remaining - 1)
 		return false
+	if wake_remaining > 0:
+		wake_remaining -= 1
+		if wake_remaining == 0: finish_waking()
+		return false
 	animation_ticks += 1
 	invulnerability = maxi(0, invulnerability - 1)
 	if stun_ticks > 0:
@@ -204,13 +213,23 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 		remaining -= amount
 	return false
 
+## InitArmosOrFlyingGhini at timer 0: facing down at a random speed, and three
+## pixels into the walker grid, since the statue stood square-aligned.
+func finish_waking() -> void:
+	just_woke = true
+	facing = Vector2i.DOWN
+	source.grid_offset = 3
+	if not definition.wake_speeds.is_empty():
+		source.move_speed = definition.wake_speeds[0 if source_next_random < 0x80 or definition.wake_speeds.size() == 1 else 1]
+
 func targetable() -> bool:
-	return alive() and family.vulnerable(self)
+	return alive() and wake_remaining == 0 and family.vulnerable(self)
 
 func can_touch_player() -> bool:
 	return alive() and family.contact_enabled(self)
 
 func body_visible() -> bool:
+	if wake_remaining > 0: return wake_remaining % 2 == 0
 	return family.visible(self)
 
 func sprite_name() -> StringName:
@@ -227,6 +246,7 @@ func sprite_name() -> StringName:
 	if definition.behavior == "guard_fire":
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / 6) % 2))
 	if definition.behavior in ["zelda", "rupee_stash"]: return definition.sprite
+	if definition.behavior == "zora": return StringName("%s_%d" % [definition.sprite, family.zora_frame()])
 	# Patra flips horizontally every two frames; children alternate two tiles.
 	if definition.behavior in ["patra", "patra_child"]:
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / 2) % 2))
@@ -241,6 +261,9 @@ func sprite_name() -> StringName:
 		# Shrinking after the recorder flickers big and little every eight frames.
 		var little: bool = definition.size.x == 16 or (family.shrink > 0 and (family.shrink / 8) % 2 == 1)
 		return StringName("%s_%d" % [&"little_digdogger" if little else definition.sprite, (animation_ticks / 6) % 2])
+	if definition.sprite_style == "front_back":
+		# UpdateArmos: sets 0/1 and 2/3 alternate every six frames; up shows the back.
+		return StringName("%s_%d" % [definition.sprite, ((animation_ticks / 6) % 2) * 2 + (1 if facing == Vector2i.UP else 0)])
 	if definition.sprite_style == "frames":
 		return StringName(String(definition.sprite) + "_" + str((animation_ticks / definition.animation_frame_ticks) % 2))
 	var direction := "right" if facing.x > 0 else "left" if facing.x < 0 else "down" if facing.y > 0 else "up"

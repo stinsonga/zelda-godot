@@ -38,6 +38,9 @@ var ending := false
 ## Z_04 Statue_ObjFireballTimer per fireball index, and PersonFireballsEnabled.
 var statue_timers: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
 var person_provoked := false
+## Z_04 ZoraActive: set while the room's Zora lives; a killed Zora keeps it set,
+## so it never returns until the room is entered again.
+var zora_active := false
 const STATUE_START_TIMES := [0x50, 0x80, 0xF0, 0x60]
 ## SetUpCommonCaveObjects: residents stand at ($78, $80).
 const PERSON_POSITION := Vector2i(0x78, 0x80 - 64)
@@ -86,6 +89,7 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	ending = false
 	statue_timers = PackedInt32Array([0, 0, 0, 0])
 	person_provoked = false
+	zora_active = false
 	for actor in enemies:
 		if actor.definition.behavior == "ganon": actor.family.ganon = preload("res://scripts/ganon.gd").new()
 	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
@@ -337,6 +341,8 @@ func tick(world: Node) -> void:
 			touch_player(world, actor)
 	tick_rupee_stash(world)
 	tick_statues(world)
+	tick_zora_spawn(world)
+	if world.has_method("settle_woken_statues"): world.settle_woken_statues()
 	ambush_timer = int(context.ambush_timer)
 	wallmaster_cooldown = int(context.wallmaster_cooldown)
 	split_zols(world)
@@ -421,6 +427,56 @@ func tick_rupee_stash(world: Node) -> void:
 		actor.death_remaining = 0
 		actor.drop_resolved = true
 		encounter_kills = encounter_total
+
+## Z_01 CheckPassiveTileObjects: a statue wakes on its own square, unless the
+## object slots are full or something already stands there.
+func wake_statue(definition: Resource, at: Vector2i) -> RefCounted:
+	if enemies.filter(func(a: RefCounted) -> bool: return a.health > 0).size() + rocks.size() >= 11: return null
+	if enemies.any(func(a: RefCounted) -> bool: return a.health > 0 and a.position() == at): return null
+	var spawn = preload("res://scripts/enemy_spawn.gd").new()
+	spawn.id = StringName("woken_%d_%d" % [at.x, at.y])
+	spawn.enemy = definition
+	spawn.position = at
+	spawn.facing = Vector2i.DOWN
+	spawn.spawn_ticks = 0
+	var actor = Actor.new()
+	actor.setup(spawn)
+	actor.spawn_remaining = 0
+	actor.slot = 11 - enemies.size() % 11
+	enemies.append(actor)
+	return actor
+
+## Z_04 CheckZora: with no Zora up, try the thirteen random bytes as $10-aligned
+## spots (X not 0 or $F0, Y from $50 below $E0, ORed with $0D) and raise one on
+## the first water tile under its foot (X, Y + $0B).
+func tick_zora_spawn(world: Node) -> void:
+	var room: Resource = world.room
+	for actor in enemies.duplicate():
+		if actor.definition.behavior == "zora" and actor.family.zora_gone:
+			enemies.erase(actor)
+			zora_active = false
+	if room.zora == null or zora_active or room.dungeon_level > 0: return
+	if enemies.filter(func(a: RefCounted) -> bool: return a.health > 0).size() + rocks.size() >= 11: return
+	for index in range(13, 0, -1):
+		var random_byte: int = source_random.at(index)
+		var x: int = random_byte & 0xF0
+		if x == 0 or x == 0xF0: continue
+		var y: int = (random_byte << 4) & 0xFF
+		if y < 0x50 or y >= 0xE0: continue
+		var at := Vector2i(x, (y | 0x0D) - 64)
+		if not room.is_ladder_water(at + Vector2i(0, 0x0B)): continue
+		var spawn = preload("res://scripts/enemy_spawn.gd").new()
+		spawn.id = &"zora"
+		spawn.enemy = room.zora
+		spawn.position = at
+		spawn.spawn_ticks = 0
+		var zora = Actor.new()
+		zora.setup(spawn)
+		zora.spawn_remaining = 0
+		zora.slot = 11
+		enemies.append(zora)
+		zora_active = true
+		return
 
 ## Z_04 UpdateStatues: each fireball index waits on its own timer; when it runs
 ## out, random >= $F0 waits 256 more frames, otherwise a start time is chosen and

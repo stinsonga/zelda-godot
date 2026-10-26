@@ -16,7 +16,7 @@ import import_dungeons
 import import_submenu
 from import_caves import (TELEPORT_YS, WHIRLWIND_ROOMS, CAVE_LAYOUT, FIRST_CAVE, SHORTCUT_CAVE, SHORTCUT_LAYOUT, cave_resource, cave_room,
                           cave_types, export_item_sprites, export_people, overworld_entrances, portal_lines,
-                          secret_resource)
+                          secret_resource, SQUARE_FLOOR, SQUARE_STAIRS)
 
 PRG_SHA1 = 'a12d74c73a0481599a5d832361d168f4737bbcf6'
 PRG_SIZE = 131072
@@ -329,7 +329,15 @@ ENEMY_TYPES = {
     13: ('blue_tektite','jumper'), 14: ('red_tektite','jumper'),
     15: ('blue_leever','burrower'), 16: ('red_leever','burrower'),
     26: ('peahat','flyer'),
+    # Never in an encounter list: Z_04 CheckZora raises it in rooms flagged in attribute A.
+    0x11: ('zora','zora'),
+    # Woken from statue squares by Z_01 CheckPassiveTileObjects.
+    0x1E: ('armos','walker'),
 }
+# Z_04 InitArmosOrFlyingGhini: rooms whose Armos at ($X, $80) hides stairs, or in
+# room $24 the power bracelet.
+SECRET_ARMOS = {0x24: 0xE0, 0x0B: 0xB0, 0x1C: 0xB0, 0x22: 0x30, 0x34: 0x40, 0x3D: 0x90, 0x4E: 0xA0}
+BRACELET_ROOM = 0x24
 
 
 def room_enemy_types(prg, room_id):
@@ -408,6 +416,13 @@ def export_overworld_enemies(prg, patterns, palettes, output):
         if behavior == 'nes_octorok':
             fields.update(sprite=f'&"{"blue_octorok" if kind >= 9 else "red_octorok"}"',
                           speed_subpixels=256 if kind in (8,10) else 128,turn_chance=160 if kind>=9 else 112)
+        elif kind == 0x1E:
+            # UpdateArmos runs UpdateGoriya; it fades in $3F frames, then moves at
+            # q-speed $20 or $60. It dies as the dead dummy: no drop, no kill count.
+            fields.update(speed_subpixels=128, turn_chance=0x80, targeting='"dominant_axis"', shooting_enabled='false',
+                          spawn_cloud='false', drops_rewards='false', advances_kill_cycle='false', counts_for_clear='false',
+                          counts_for_persistence='false', sprite_style='"front_back"', wake_ticks=0x3F,
+                          wake_speeds='PackedInt32Array(128, 384)')
         elif behavior == 'walker':
             fields.update(turn_chance=160, projectile_kind=json.dumps('sword' if kind in (1,2) else 'arrow'),
                           projectile_speed_subpixels=768 if kind in (1,2) else 512,
@@ -425,6 +440,14 @@ def export_overworld_enemies(prg, patterns, palettes, output):
                               jump_up_acceleration=prg[0x108D5 + (11 if red else 0)+9],
                               jump_down_acceleration=prg[0x108D5 + (11 if red else 0)+5],
                               jump_wait_style=json.dumps('red' if red else 'blue'))
+            elif behavior == 'zora':
+                # UpdateZora runs UpdateBurrower on the Blue Leever tables; its $55
+                # fireball can be blocked by the magical shield.
+                raw = prg[0x72BA + 0x55]
+                fields.update(spawn_cloud='false', counts_for_clear='false', counts_for_persistence='false',
+                              projectile_kind='"fireball"', projectile_damage=(raw & 15) * 2 + (1 if raw & 240 else 0))
+                for field, offset in [('burrow_times', 6), ('burrow_animation_ticks', 12)]:
+                    fields[field] = 'PackedInt32Array(' + array(list(prg[0x10a53 + offset:0x10a53 + offset + 6])) + ')'
             elif behavior == 'burrower':
                 red = kind == 16
                 # Locate state tables through fixed verified-ROM offsets below.
@@ -439,13 +462,16 @@ def export_overworld_enemies(prg, patterns, palettes, output):
         (output/'enemies'/(name+'.tres')).write_text(text+'\n'.join(f'{key} = {value}' for key,value in fields.items())+'\n')
         if behavior == 'nes_octorok': continue
         base = prg[0x6E04 + kind + 1]
-        if behavior == 'walker':
+        if kind == 0x1E:
+            # DrawArmosAndCheckCollisions: front and back, two animation sets.
+            for frame in range(4): render(f'{name}_{frame}', base + frame)
+        elif behavior == 'walker':
             for direction in ('up','down','left','right'):
                 for pose in range(2):
                     frame = base + (3 if direction=='up' else 2 if direction=='down' else pose)
                     render(f'{name}_{direction}_{pose}',frame,flip_x=(pose==1 if direction in ('up','down') else direction=='left'))
         else:
-            for frame in range(10 if behavior == 'burrower' else 2): render(f'{name}_{frame}',base+frame,mirrored=True)
+            for frame in range(10 if behavior in ('burrower', 'zora') else 2): render(f'{name}_{frame}',base+frame,mirrored=True)
     # Arrow item uses the weapon-image heap rather than the object animation heap.
     for direction in ('up','down','left','right'):
         tile = prg[0x714C + prg[0x7127+2] + int(direction in ('left','right'))]
@@ -601,12 +627,30 @@ def import_rom(prg, output):
         places = [(e['cell'], e['mouth'], False) for e in entrance['visible']]
         if entrance['secret']:
             places.append((entrance['secret']['reveal'], entrance['secret']['kind'] == 'wall', True))
+        # Statues and the Armos secret of this room.
+        armos_cells = [(x, y) for y, row in enumerate(layout) for x, index in enumerate(row) if 0xC0 <= square_tiles(prg, index)[0] <= 0xC3]
+        armos_secret = None
+        if room_id in SECRET_ARMOS and (SECRET_ARMOS[room_id] // 16, 4) in armos_cells:
+            armos_secret = (SECRET_ARMOS[room_id] // 16, 4)
+            item = room_id == BRACELET_ROOM
+            square = SQUARE_FLOOR if item else SQUARE_STAIRS
+            secret_lines = ['[sub_resource type="Resource" id="secret"]', 'script = ExtResource("secret")', 'trigger = "armos"',
+                            f'cell = Vector2i({armos_secret[0]}, {armos_secret[1]})', f'reveal_cell = Vector2i({armos_secret[0]}, {armos_secret[1]})',
+                            f'reveal_tile = {palette_for(*armos_secret) * 64 + square}', f'floor_tile = {palette_for(*armos_secret) * 64 + SQUARE_FLOOR}',
+                            f'reveal_kind = "{"item" if item else "entrance"}"', 'persistent = false']
+            if not item and entrance['destination'] >= FIRST_CAVE and not places:
+                places.append((armos_secret, False, True))
+            elif not item and 1 <= entrance['destination'] <= 9:
+                # A second, Armos-hidden way into the level.
+                portal_lines_out += ['[sub_resource type="Resource" id="armos_stairs"]'] + portal_lines(
+                    (armos_secret[0] * 16, armos_secret[1] * 16 - 3, 1, 1), level_starts[entrance['destination']], (120, 157), (0, -1), walk=16, requires_secret=True)
+                portal_ids.append('SubResource("armos_stairs")')
         if 1 <= entrance['destination'] <= 9 and places:
             # Level 6's entrance is two squares wide; CheckWarps then accepts X multiples of 8.
             cells = sorted(place[0] for place in places)
             cell, hidden = cells[0], places[0][2]
             width = 1 + (cells[-1][0] - cells[0][0]) * 16
-            portal_lines_out = ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
+            portal_lines_out += ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
                 (cell[0] * 16, cell[1] * 16 - 3, width, 1), level_starts[entrance['destination']], (120, 157), (0, -1), walk=16, requires_secret=hidden)
             portal_ids.append('SubResource("entrance")')
         if len(places) > 1 and entrance['destination'] >= FIRST_CAVE:
@@ -619,7 +663,7 @@ def import_rom(prg, output):
             cave_ids.append(f'cave_{room_id:02x}')
             cave_rooms.append(cave_room(room_id, entrance['destination'], dict(entrance, mouth=mouth), cellar, entrances, cave_layouts))
             # CheckWarps: grid-aligned X, Y = 16n + $0D, standing on the entrance square.
-            portal_lines_out = ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
+            portal_lines_out += ['[sub_resource type="Resource" id="entrance"]'] + portal_lines(
                 (cell[0] * 16, cell[1] * 16 - 3, 1, 1), f'cave_{room_id:02x}', (112, 157), (0, -1), walk=48, requires_secret=hidden)
             portal_ids.append('SubResource("entrance")')
         portal_resources = ''
@@ -638,6 +682,21 @@ def import_rom(prg, output):
                 f'dock_position = Vector2i({dock_x}, 61)', f'edge_position = Vector2i({dock_x}, -3)',
                 f'landing_position = Vector2i({dock_x}, 63)']) + '\n'
             portal_field += 'raft_route = SubResource("dock_route")\n'
+        # Z_04 CheckZora: attribute A bit 3.
+        zora = bool(prg[99328 + room_id] & 0x08)
+        if zora: portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/zora.tres" id="zora"]\n' + portal_resources
+        armos_field = ''
+        if armos_cells:
+            portal_resources = '[ext_resource type="Resource" path="res://imported/enemies/armos.tres" id="armos"]\n' + portal_resources
+            armos_field = ('armos = ExtResource("armos")\n' + 'armos_cells = PackedVector2Array(' + ', '.join(f'{x}, {y}' for x, y in armos_cells) + ')\n'
+                           + 'armos_floor_tiles = PackedInt32Array(' + ', '.join(str(palette_for(x, y) * 64 + SQUARE_FLOOR) for x, y in armos_cells) + ')\n')
+        if room_id == BRACELET_ROOM and armos_secret:
+            portal_resources = ('[ext_resource type="Script" path="res://scripts/pickup_definition.gd" id="pickup_script"]\n'
+                                '[ext_resource type="Resource" path="res://content/items/power_bracelet.tres" id="bracelet"]\n') + portal_resources
+            portal_resources += '\n'.join(['[sub_resource type="Resource" id="bracelet_pickup"]', 'script = ExtResource("pickup_script")', 'id = &"item"',
+                                            'item = ExtResource("bracelet")', f'position = Vector2i({SECRET_ARMOS[room_id]}, {0x80 - 64 - 3})',
+                                            'tolerance = Vector2i(8, 8)', 'lift_ticks = 0', 'requires_secret = true']) + '\n'
+            armos_field += 'pickups = Array[Resource]([SubResource("bracelet_pickup")])\n'
         steps = 3 + portal_resources.count('[ext_resource') + portal_resources.count('[sub_resource')
         text = f'''[gd_resource type="Resource" script_class="RoomDefinition" load_steps={steps} format=3]
 [ext_resource type="Script" path="res://scripts/room_definition.gd" id="1"]
@@ -663,6 +722,8 @@ tile_indices = PackedInt32Array({array(indices)})
 collision_tiles = PackedByteArray({array(collision)})
 ladder_allowed = {str(room_id in (0x17, 0x18, 0x19, 0x27, 0x4F, 0x5F)).lower()}
 ladder_water = PackedByteArray({array(ladder_water)})
+{'zora = ExtResource("zora")' if zora else ''}
+{armos_field}
 '''
         (output / 'rooms' / f'ow_{room_id:02x}.tres').write_text(text)
     for name, text in zip(cave_ids, cave_rooms):
@@ -722,8 +783,8 @@ ladder_water = PackedByteArray({array(ladder_water)})
             'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['First-quest terrain; Armos interactions and some room effects remain unimplemented.',
-                        'First-quest dungeon encounters are imported; Zora, Armos, Ghini, and boulders are unimplemented.',
+        'limitations': ['First-quest terrain; Ghini, boulders, pond fairies, and the Lost Woods/Hills remain unimplemented.',
+                        'First-quest dungeon encounters are imported; Zora and Armos are in.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio
     export_audio(prg, output / 'audio')

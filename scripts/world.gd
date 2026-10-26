@@ -78,6 +78,8 @@ var pickup_ticks: Dictionary[String, int] = {}
 var carried_positions: Dictionary = {}
 ## Key doors still opening in this room, by direction: frames left.
 var door_openings: Dictionary = {}
+## Statue squares already woken this visit, by cell: they show floor.
+var woken_statues: Dictionary = {}
 const DOOR_OPEN_TICKS := 9
 var walk_ticks := 0
 var walk_pose := 0
@@ -219,6 +221,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	captor = null
 	carried_positions.clear()
 	door_openings.clear()
+	woken_statues.clear()
 	candle_used = false
 	item_use_remaining = 0
 	rise_remaining = rise * 4
@@ -370,6 +373,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		if secrets.try_push(self, direction):
 			overrides = compute_overrides(room)
 		try_doors(direction)
+	if player.pixel_position() == before and direction != Vector2i.ZERO: try_wake_statue(direction)
 	if player.pixel_position() != before:
 		walk_ticks += 1
 		if walk_ticks >= 6:
@@ -438,6 +442,8 @@ func try_pickups() -> void:
 	for pickup in room.pickups:
 		if pickup.requires_clear and not room_clear():
 			continue
+		if pickup.requires_secret and not secrets.revealed:
+			continue
 		var distance: Vector2i = (player.pixel_position() - pickup_position(pickup)).abs()
 		if distance.x > pickup.tolerance.x or distance.y > pickup.tolerance.y:
 			continue
@@ -453,6 +459,36 @@ func try_pickups() -> void:
 				level_exit_remaining = 192
 			return
 
+## Z_01 CheckPassiveTileObjects: pressing into a statue square wakes it.
+## The touched square is the one ahead of Link's feet; when he straddles two,
+## either may wake.
+func try_wake_statue(direction: Vector2i) -> void:
+	if room.armos == null or room.armos_cells.is_empty(): return
+	var at: Vector2i = player.pixel_position()
+	var points: Array[Vector2i] = []
+	match direction:
+		Vector2i.UP: points = [at + Vector2i(0, 3), at + Vector2i(8, 3)]
+		Vector2i.DOWN: points = [at + Vector2i(0, 19), at + Vector2i(8, 19)]
+		Vector2i.LEFT: points = [at + Vector2i(-8, 11)]
+		_: points = [at + Vector2i(16, 11)]
+	for point in points:
+		var cell := Vector2(point.x / 16, point.y / 16)
+		if cell not in room.armos_cells or woken_statues.has(cell): continue
+		if combat.wake_statue(room.armos, Vector2i(cell) * 16) != null: return
+
+## A woken statue's square turns to floor, or reveals the room's Armos secret.
+func settle_woken_statues() -> void:
+	for actor in combat.enemies:
+		if not actor.just_woke: continue
+		actor.just_woke = false
+		var cell := Vector2(actor.position().x / 16, (actor.position().y) / 16)
+		var index: int = room.armos_cells.find(cell)
+		if index < 0: continue
+		woken_statues[cell] = room.armos_floor_tiles[index] if index < room.armos_floor_tiles.size() else -1
+		if room.secret != null and room.secret.trigger == "armos" and Vector2(room.secret.cell) == cell and not secrets.revealed:
+			secrets.reveal(self)
+		overrides = compute_overrides(room)
+
 ## Ganon's ashes move the room item to where he fell; a carrying monster takes
 ## it along until it finishes dying, and it stays where it was last carried.
 func pickup_position(pickup: Resource) -> Vector2i:
@@ -467,6 +503,9 @@ func pickup_position(pickup: Resource) -> Vector2i:
 ## Doors and secrets replace 16-pixel squares and their collision.
 func compute_overrides(definition: Resource) -> Dictionary:
 	var result: Dictionary = secrets.overrides(definition, state)
+	if definition == room:
+		for cell in woken_statues:
+			if not result.has(Vector2i(cell)): result[Vector2i(cell)] = [woken_statues[cell], PackedByteArray([0, 0, 0, 0]), "floor"]
 	for door in definition.doors:
 		if not door_passable(definition, door): continue
 		var door_cells: PackedInt32Array = door.door_cells()
@@ -1047,7 +1086,7 @@ func draw_room_objects() -> void:
 			sprite_name = StringName(String(sprite_name) + "_" + str(pose))
 		draw_named_sprite(sprite_name, Vector2(decoration.position))
 	for pickup in room.pickups:
-		if not state.has_collected(room.id, pickup.id) and (not pickup.requires_clear or room_clear()):
+		if not state.has_collected(room.id, pickup.id) and (not pickup.requires_clear or room_clear()) and (not pickup.requires_secret or secrets.revealed):
 			var sprite := item_sprite(pickup.item)
 			if not visual_theme.sprites.has(sprite): sprite = StringName(String(sprite) + "_" + str((simulation_tick / 8) % 2))
 			var spot: Vector2 = Vector2(pickup_position(pickup)) + (Vector2(0, 3) if room.dungeon_level > 0 else Vector2.ZERO)

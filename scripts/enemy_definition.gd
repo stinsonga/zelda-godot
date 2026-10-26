@@ -1,7 +1,7 @@
 class_name EnemyDefinition
 extends Resource
 
-@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash") var behavior: String = "native"
+@export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
@@ -15,7 +15,9 @@ extends Resource
 @export var speed_subpixels: int = 128
 @export var sprite: StringName = &"red_octorok"
 ## "directional" sprites are name_direction_pose; "frames" are name_frame, flipped by the renderer.
-@export_enum("directional", "frames") var sprite_style: String = "directional"
+## "front_back": front or back image (back when facing up), alternating two
+## sets every six frames, as Armos draw (DrawArmosAndCheckCollisions).
+@export_enum("directional", "frames", "front_back") var sprite_style: String = "directional"
 @export var animation_frame_ticks: int = 6
 @export var tint: Color = Color.WHITE
 @export var fallback_color: Color = Color("d94b3d")
@@ -135,6 +137,11 @@ extends Resource
 @export var rope_rush_speed: int = 384
 @export var rope_line_up: int = 8
 @export var rope_turn_mask: int = 0x3F
+## Monsters woken from the scenery (Z_04 InitArmosOrFlyingGhini) fade in for
+## wake_ticks frames, drawn every other frame, harmful but not yet hittable,
+## then move at one of wake_speeds chosen by a random byte (< $80: first).
+@export var wake_ticks: int = 0
+@export var wake_speeds: PackedInt32Array = PackedInt32Array()
 @export var collision_size: Vector2i = Vector2i.ZERO
 @export var collision_offset: Vector2i = Vector2i.ZERO
 ## Fireball2 ($56) cannot be blocked, even with the magical shield.
@@ -143,7 +150,7 @@ extends Resource
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
 	if clock_response not in ["source", "freeze", "immune"]: errors.append("Unknown clock response")
-	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash"]: errors.append("Unknown enemy behavior")
+	if behavior not in ["native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora"]: errors.append("Unknown enemy behavior")
 	for kind in invincible_to:
 		if kind not in ["sword", "beam", "boomerang", "arrow", "bomb", "fire", "magic"]: errors.append("Unknown damage type: " + kind)
 	if id.is_empty() or health < 1: errors.append("Enemy needs an ID and positive health")

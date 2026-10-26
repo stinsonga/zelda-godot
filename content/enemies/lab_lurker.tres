@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"lab_lurker"
+title = "Lurker"
+behavior = "zora"
+health = 2
+contact_damage = 1
+spawn_cloud = false
+shooting_enabled = false
+counts_for_clear = false
+counts_for_persistence = false
+projectile_kind = "fireball"
+projectile_damage = 1
+burrow_times = PackedInt32Array(128, 32, 15, 255, 16, 96)
+burrow_animation_ticks = PackedInt32Array(16, 11, 1, 5, 1, 11)
+sprite = &"lab_lurker"
+fallback_color = Color(0.2, 0.55, 0.45, 1)

@@ -61,7 +61,7 @@ func overrides(definition: Resource, state: RefCounted) -> Dictionary:
 		if not moving():
 			result[secret.cell + push_direction] = [secret.object_tile, secret.object_collision, "object"]
 	if secret.reveal_kind != "shutters" and (revealed if current else state.flags.get(flag_key(definition), false)):
-		result[secret.reveal_cell] = [secret.reveal_tile, secret.reveal_collision, "entrance"]
+		result[secret.reveal_cell] = [secret.reveal_tile, secret.reveal_collision, "floor" if secret.reveal_kind == "item" else "entrance"]
 	return result
 
 ## Every tick: bombs and fires against walls and trees, and pushed objects.
@@ -83,7 +83,7 @@ func update(world: Node) -> bool:
 		recorder_pending = false
 		reveal(world)
 		return true
-	if revealed or secret.trigger in ["push", "bracelet_push", "block"]: return false
+	if revealed or secret.trigger in ["push", "bracelet_push", "block", "armos"]: return false
 	var center: Vector2i = secret.cell * 16 + Vector2i(8, 8)
 	for object in world.item_objects:
 		var ready: bool = object.detonating() if secret.trigger == "bomb" else object.burning_out()
