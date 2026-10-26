@@ -35,6 +35,8 @@ var wallmaster_cooldown := 0
 var room_item_position = null
 ## Zelda's rescue finished; the ending (mode $13) is the front end's job.
 var ending := false
+## The world's substitutes for room monsters, by the replaced monster's ID.
+var enemy_variants: Dictionary = {}
 ## Z_04 Statue_ObjFireballTimer per fireball index, and PersonFireballsEnabled.
 var statue_timers: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
 var person_provoked := false
@@ -70,7 +72,7 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 		var spawn: Resource = room.enemies[i]
 		if room.enemy_persistence == "permanent" and state.defeated.has(String(room.id) + "/" + String(spawn.id)): continue
 		var actor = Actor.new()
-		actor.setup(spawn)
+		actor.setup(spawn, enemy_variants.get(spawn.enemy.id))
 		actor.slot = i + 1
 		enemies.append(actor)
 	encounter_total = enemies.size()

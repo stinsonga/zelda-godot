@@ -186,5 +186,6 @@ three need a local import and skip without one.
 
 ## Not yet
 
-- The second quest itself: files are marked, but they play the first quest.
+- The second quest's places: second-quest files get their own world and monster
+  rules, but its overworld and dungeons are still the first quest's (see SECOND_QUEST.md).
 - Menu sounds beyond the shared cues.

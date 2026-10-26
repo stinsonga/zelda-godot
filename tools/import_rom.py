@@ -844,6 +844,15 @@ ladder_water = PackedByteArray({array(ladder_water)})
                 'whirlwinds = [' + ', '.join(f'{{"room": "ow_{prg[WHIRLWIND_ROOMS + i] + 1:02x}", "y": {prg[TELEPORT_YS + i]}}}' for i in range(8)) + ']',
                 'rooms = Array[Resource]([' + ', '.join([f'ExtResource("r{i}")' for i in range(128)] + [f'ExtResource("{name}")' for name in cave_ids + level_room_ids]) + '])']
     (output / 'world.tres').write_text('\n'.join(catalog) + '\n')
+    # The second quest: so far the same places, with its quest-wide monster rules.
+    second = list(catalog)
+    first_sub = next(i for i, line in enumerate(second) if line.startswith('[sub_resource'))
+    second[first_sub:first_sub] = [f'[ext_resource type="Resource" path="res://imported/enemies/{name}_q2.tres" id="{name}_q2"]'
+                                   for name in import_dungeons.SECOND_QUEST_VARIANTS]
+    second = [line.replace('id = &"original_quest_1"', 'id = &"original_quest_2"') for line in second]
+    second += ['quest = 2', 'enemy_variants = Dictionary[StringName, Resource]({' +
+               ', '.join(f'&"{name}": ExtResource("{name}_q2")' for name in import_dungeons.SECOND_QUEST_VARIANTS) + '})']
+    (output / 'world_q2.tres').write_text('\n'.join(second) + '\n')
     (output / 'manifest.json').write_text(json.dumps({
         'format_version': 1, 'revision': 'US PRG0', 'prg_sha1': PRG_SHA1,
         'enemy_coverage': {

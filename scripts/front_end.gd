@@ -6,6 +6,8 @@ extends Node2D
 ## Keys: arrows; Enter is Start, Tab is Select, Z is A, X is B.
 const Files = preload("res://scripts/save_files.gd")
 const Title = preload("res://scripts/title_demo.gd")
+## The imported second quest; without it, second-quest files play the first.
+const SECOND_QUEST_PATH := "res://imported/world_q2.tres"
 ## Z_02 Mode1CursorSpriteYs: three files, then REGISTER and ELIMINATION.
 const FILE_CURSOR_YS := [0x5C, 0x74, 0x8C, 0xA8, 0xB8]
 ## Z_02 ModeEandFSlotCursorYs: three files, then END.
@@ -42,11 +44,7 @@ var pressed := {"start": false, "select": false, "a": false, "b": false}
 
 func _ready() -> void:
 	files = Files.new(files_directory)
-	world = preload("res://scenes/main.tscn").instantiate()
-	world.menus_enabled = true
-	add_child(world)
-	world.menu_choice.connect(_on_menu_choice)
-	world.died.connect(func() -> void: files.add_death(playing_slot))
+	make_world(null)
 	screen = NesScreen.new()
 	add_child(screen)
 	var title_data: Dictionary = Title.load_data()
@@ -87,6 +85,24 @@ func tick(direction: Vector2i, start: bool, select: bool, a: bool = false, b: bo
 		"register": tick_register(direction, start, select, a, b)
 		"eliminate": tick_eliminate(start, select)
 
+func make_world(definition: Resource) -> void:
+	world = preload("res://scenes/main.tscn").instantiate()
+	world.world_definition = definition
+	world.menus_enabled = true
+	add_child(world)
+	world.visible = false
+	world.set_physics_process(false)
+	world.menu_choice.connect(_on_menu_choice)
+	world.died.connect(func() -> void: files.add_death(playing_slot))
+
+## Z_06 InitMode2_Sub0 picks the level blocks by the file's quest: here, the world.
+func use_quest(quest: int) -> void:
+	var wanted := quest if quest == 2 and ResourceLoader.exists(SECOND_QUEST_PATH) else 1
+	if world.quest == wanted: return
+	world.free()
+	make_world(load(SECOND_QUEST_PATH) if wanted == 2 else null)
+	move_child(screen, -1)
+
 func show_title() -> void:
 	mode = "title"
 	screen.visible = true
@@ -123,6 +139,7 @@ func tick_files(start: bool, select: bool) -> void:
 func play(slot: int) -> void:
 	if not files.active(slot): return
 	playing_slot = slot
+	use_quest(files.meta[slot].quest)
 	world.file_info = {"quest": files.meta[slot].quest, "name": files.meta[slot].name, "deaths": files.meta[slot].deaths}
 	if not world.begin_file(files.read_state(slot, world.world_id)): return
 	mode = "playing"
@@ -131,10 +148,12 @@ func play(slot: int) -> void:
 
 func _on_menu_choice(choice: String) -> void:
 	if choice == "save": files.write_state(playing_slot, world.snapshot(), world.world_id)
-	# The ending moves the file on to the second quest and saves it (Z_02 mode $D).
+	# SwitchProfileToSecondQuest, then mode $D saves: three hearts and nothing
+	# else, which a new second-quest game starts with anyway.
 	if choice == "second_quest":
-		files.meta[playing_slot].quest = 2
-		files.write_state(playing_slot, world.snapshot(), world.world_id)
+		files.erase_state(playing_slot)
+		files.meta[playing_slot].merge({"quest": 2, "max_health": 6, "health": 6, "ring": 0}, true)
+		files.save_meta()
 	show_files()
 
 func show_names(next_mode: String) -> void:
@@ -227,6 +246,8 @@ func draw_files() -> void:
 		draw_text_codes(str(entry.deaths).lpad(3), 9, 12 + slot * 3)
 		draw_hearts(entry.max_health / 2, entry.health, 18, 11 + slot * 3)
 		draw_link(Vector2(0x30, 0x58 + slot * 0x18 + 1), RING_TINTS[entry.ring])
+		# Mode1_WriteLinkSprites: a sword $C right of and 3 above a second-quest Link.
+		if entry.quest == 2: draw_quest_sword(Vector2(0x30 + 0x0C, 0x58 + slot * 0x18 + 1 - 3))
 	draw_heart_cursor(Vector2(0x28, FILE_CURSOR_YS[cursor] + 1))
 
 ## Z_02 ModeFTitleTransferBuf, ModeFSaveSlotTemplateTransferBuf, and Z_06
@@ -303,6 +324,12 @@ func draw_heart_cursor(at: Vector2) -> void:
 	var sheet: Texture2D = world.visual_theme.hud_hearts
 	if sheet != null: draw_texture_rect_region(sheet, Rect2(at, Vector2(8, 8)), Rect2(0, 0, sheet.get_width() / 3.0, sheet.get_height()))
 	else: draw_rect(Rect2(at + Vector2(1, 1), Vector2(6, 6)), Color("d82800"))
+
+## The sword tile ($20); the white sword's image stands in for menu palette 7.
+func draw_quest_sword(at: Vector2) -> void:
+	var sprite: Texture2D = world.visual_theme.sprites.get(&"white_sword_up") if world.visual_theme != null else null
+	if sprite != null: draw_texture_rect(sprite, Rect2(at - Vector2(4, 0), Vector2(16, 16)), false)
+	else: draw_rect(Rect2(at + Vector2(3, 1), Vector2(2, 14)), Color.WHITE)
 
 ## Mode1_WriteLinkSprites: Link facing down, in his file's ring color.
 func draw_link(at: Vector2, tint: Color) -> void:

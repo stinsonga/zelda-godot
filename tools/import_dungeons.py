@@ -743,6 +743,30 @@ def write_monsters(prg, output):
         text = [f'[gd_resource type="Resource" script_class="EnemyDefinition" load_steps={len(ext) + 1} format=3]'] + ext
         text += ['[resource]', 'script = ExtResource("1")'] + [f'{key} = {value}' for key, value in fields.items()]
         (output / 'enemies' / f'{name}.tres').write_text('\n'.join(text) + '\n')
+    write_second_quest_variants(prg, output)
+
+
+# Monsters whose rules change in the second quest, as {name: second-quest fields}.
+SECOND_QUEST_VARIANTS = {
+    # Z_04 InitRope: $40 HP instead of $10; UpdateRope cycles the palette with FrameCounter & 3.
+    'rope': {'health': 4, 'sprite_palette_cycle': 'true'},
+    # Z_04 UpdateStalfos: shoots sword shot $57 when Random >= $F8, on the walker's $30-frame timer.
+    'stalfos': {'shooting_enabled': 'true', 'shooting_threshold': 0xF8, 'projectile_kind': '"sword"',
+                'projectile_speed_subpixels': 768, 'projectile_damage': 2, 'projectile_blockable': 'false'},
+}
+
+
+def write_second_quest_variants(prg, output):
+    """imported/enemies/<name>_q2.tres, which the second-quest world substitutes."""
+    kinds = {MONSTERS[kind][0]: kind for kind in MONSTERS}
+    for name, changes in SECOND_QUEST_VARIANTS.items():
+        _, fields = monster_definition(prg, kinds[name])
+        fields.update(changes)
+        fields['id'] = f'&"{name}_q2"'
+        text = ['[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]',
+                '[ext_resource type="Script" path="res://scripts/enemy_definition.gd" id="1"]',
+                '[resource]', 'script = ExtResource("1")'] + [f'{key} = {value}' for key, value in fields.items()]
+        (output / 'enemies' / f'{name}_q2.tres').write_text('\n'.join(text) + '\n')
 
 
 def sprite_piece(patterns, tile, row, blit_tile, mirrored=False, flip_x=False, flip_y=False, narrow=False):
@@ -1086,6 +1110,9 @@ def monster_sprites(prg, level, kinds, output, png, blit_tile):
             for pose in range(2):
                 for direction in ('up', 'down', 'right', 'left'):
                     render(f'{prefix}_{direction}_{pose}', base + pose, flip_x=direction == 'left')
+                    # Second-quest Ropes cycle all four sprite palettes.
+                    for palette in range(4):
+                        render(f'{prefix}_{direction}_{pose}_p{palette}', base + pose, flip_x=direction == 'left', palette=palette)
         else:
             for pose in range(2): render(f'{prefix}_{pose}', base + pose, mirrored=True)
     return names

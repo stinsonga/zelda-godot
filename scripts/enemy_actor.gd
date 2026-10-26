@@ -40,9 +40,10 @@ var wake_remaining := 0
 var defeat_applied := false
 var just_woke := false
 
-func setup(spawn: Resource) -> void:
+## A world may substitute its own variant for the spawn's monster.
+func setup(spawn: Resource, variant: Resource = null) -> void:
 	id = spawn.id
-	definition = spawn.enemy
+	definition = spawn.enemy if variant == null else variant
 	health = definition.health
 	subposition = spawn.position * 256
 	facing = spawn.facing

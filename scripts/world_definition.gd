@@ -2,6 +2,11 @@ class_name WorldDefinition
 extends Resource
 
 @export var id: StringName
+## The original's quest number (1 or 2); custom worlds keep 1.
+@export var quest: int = 1
+## Monster definitions this world substitutes for others, by the replaced ID
+## (the second quest's stronger Ropes and shooting Stalfos).
+@export var enemy_variants: Dictionary[StringName, Resource] = {}
 @export var items: Array[Resource] = []
 @export var start_room: StringName
 @export var rooms: Array[Resource] = []

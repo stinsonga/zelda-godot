@@ -4,6 +4,9 @@ extends Resource
 @export_enum("native", "nes_octorok", "walker", "jumper", "burrower", "flyer", "gel", "rope", "pols_voice", "trap", "wallmaster", "blue_wizzrobe", "red_wizzrobe", "aquamentus", "dodongo", "gohma", "digdogger", "manhandla", "gleeok", "gleeok_head", "moldorm", "moldorm_segment", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash", "zora", "boulder_set", "pond_fairy") var behavior: String = "native"
 @export var nes_type: int = 7
 @export var shooting_enabled: bool = true
+## Z_04 UpdateRope (second quest): the sprite palette follows FrameCounter & 3,
+## drawn from sprites named <sprite>_p0 to _p3.
+@export var sprite_palette_cycle: bool = false
 @export var loot_table: Resource = preload("res://content/enemies/default_loot.tres")
 ## Source preserves original clock exceptions; authored variants can override.
 @export_enum("source", "freeze", "immune") var clock_response: String = "source"

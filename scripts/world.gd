@@ -24,6 +24,8 @@ const ITEM_USE_TICKS := 16
 @export var visual_theme: Resource = preload("res://content/themes/default.tres")
 var audio = preload("res://scripts/game_audio.gd").new()
 var world_id := ""
+## The world definition's quest: 1, or 2 for the original's second quest.
+var quest := 1
 var item_catalog: Dictionary[StringName, Resource] = {}
 var save_store = Saves.new()
 var status_message := ""
@@ -132,12 +134,14 @@ func _ready() -> void:
 		loot_tables = selected_world.loot_tables
 		combat.spawn_lists = selected_world.spawn_lists
 		combat.projectile_limit = selected_world.projectile_limit
+		combat.enemy_variants = selected_world.enemy_variants
+		quest = selected_world.quest
 		legacy_ids = selected_world.legacy_ids
 		world_definition_whirlwinds = selected_world.whirlwinds
 		world_id = String(selected_world.id)
 		submenu_layout = selected_world.submenu
 		item_resources = item_resources + selected_world.items
-	audio.configure(selected_world.audio_bank if selected_world != null else null, selected_world != null and String(selected_world.id) == "original_quest_1")
+	audio.configure(selected_world.audio_bank if selected_world != null else null, selected_world != null and String(selected_world.id).begins_with("original_quest_"))
 	assert(not room_resources.is_empty(), "World must contain rooms")
 	for definition in room_resources:
 		var errors: PackedStringArray = definition.validation_errors()
@@ -1684,6 +1688,9 @@ func draw_combat() -> void:
 			# Dungeon monsters use their level's pattern blocks and palettes.
 			var leveled := StringName("l%d_%s" % [room.dungeon_level, sprite])
 			if room.dungeon_level > 0 and visual_theme.sprites.has(leveled): sprite = leveled
+			if actor.definition.sprite_palette_cycle:
+				var cycled := StringName("%s_p%d" % [sprite, combat.frame_clock & 3])
+				if visual_theme.sprites.has(cycled): sprite = cycled
 			if visual_theme.sprites.has(sprite):
 				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint, Vector2(actor.size()))
 			else:
