@@ -63,6 +63,11 @@ extends Resource
 ## flying Ghini; the stone stays.
 @export var ghost: Resource
 @export var grave_cells: PackedVector2Array = PackedVector2Array()
+## Z_01 CheckMazes: leaving by the next direction of `maze` advances a step and
+## repeats the room, the last step lets Link through with the secret tune,
+## `maze_free_exit` leaves without resetting, and anything else starts over.
+@export var maze: PackedStringArray = PackedStringArray()
+@export var maze_free_exit: String = ""
 @export var grid_origin: Vector2i = Vector2i.ZERO
 @export var tile_atlas: Texture2D
 @export var atlas_cell_size: Vector2i = Vector2i(16, 16)

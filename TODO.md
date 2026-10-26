@@ -19,8 +19,8 @@ timings. A visual room editor would help authors most.
 
 ## Overworld and fidelity
 
-- Lost Woods/Hills. Armos (with their caves and the power bracelet), Zora, Ghini,
-  boulders, and pond fairies are done; see docs/OVERWORLD_ACTORS.md.
+- The overworld is complete: Armos (with their caves and the power bracelet), Zora,
+  Ghini, boulders, pond fairies, and the Lost Woods/Hills; see docs/OVERWORLD_ACTORS.md.
 - Trace item-use timing against the original.
 - Emulator replay comparisons, starting with Octoroks and bosses. Resolve provisional
   push/item poses, Pols Voice jumps, Wizzrobe/pond graphics, and whirlwind flight.

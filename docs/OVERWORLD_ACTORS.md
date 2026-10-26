@@ -100,6 +100,19 @@ two images every four frames, and neither hurts nor can be hurt.
 - Once Link is full, the hearts keep circling for $50 frames. Then he is free, and
   the fairy is spent for the visit.
 
+## Lost Woods and Lost Hills (Z_01 CheckMazes)
+
+Room $61 (the Lost Woods) takes `ForestMazeDirs`: up, left, down, left. Room $1B
+(the Lost Hills) takes `MountainMazeDirs`: up four times. Leaving a maze room:
+- by the next direction of the sequence advances a step and leads back into the
+  same room, until the last step plays the secret tune and lets Link through;
+- by the free direction (east in the woods, west in the hills) leaves normally,
+  keeping the progress;
+- by any other direction starts the sequence over, in the same room.
+
+Entering any other room resets the step. Rooms carry the sequence as `maze` and
+`maze_free_exit`, so authored rooms can be mazes too.
+
 ## Verification
 
 `tests/overworld_actors.gd` covers all five with ROM-free fixtures
@@ -108,11 +121,8 @@ two images every four frames, and neither hurts nor can be hurt.
 the fireball, replacement, no return after a kill, the clock, waking, the fade,
 floor, speed, statues restored on re-entry, stairs and item secrets, ghosts from
 stones, their immunity, their defeat with the Ghini, and boulders: the limit of
-three, the starting half, the fall and removal, and immunity; and the fairy's
-hold, refill rate, hearts, linger, and single use. With an import it checks
+three, the starting half, the fall and removal, and immunity; the fairy's
+hold, refill rate, hearts, linger, and single use; and the maze rules. With an import it checks
 the room counts, the bracelet room, an Armos cave, a graveyard, the boulder rooms, and the two ponds.
 `tests/visual_preview.gd -- pond` renders a refill.
 
-## Not yet
-
-The Lost Woods and Lost Hills.

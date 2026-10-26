@@ -346,6 +346,13 @@ ENEMY_TYPES = {
 # room $24 the power bracelet.
 SECRET_ARMOS = {0x24: 0xE0, 0x0B: 0xB0, 0x1C: 0xB0, 0x22: 0x30, 0x34: 0x40, 0x3D: 0x90, 0x4E: 0xA0}
 BRACELET_ROOM = 0x24
+# Z_01 CheckMazes: ForestMazeDirs in room $61 (right leaves freely) and
+# MountainMazeDirs in room $1B (left leaves freely).
+MAZE_DIRECTIONS = {0x08: 'up', 0x04: 'down', 0x02: 'left', 0x01: 'right'}
+def maze_field(directions, free):
+    return 'maze = PackedStringArray(' + ', '.join(f'"{MAZE_DIRECTIONS[d]}"' for d in directions) + f')\nmaze_free_exit = "{free}"'
+MAZE_TABLES = 0x6D97                # ForestMazeDirs (4), then MountainMazeDirs (4).
+MAZES = {}
 
 
 def room_enemy_types(prg, room_id):
@@ -549,6 +556,8 @@ def export_overworld_enemies(prg, patterns, palettes, output):
 
 def import_rom(prg, output):
     output = Path(output)
+    MAZES[0x61] = maze_field(prg[MAZE_TABLES:MAZE_TABLES + 4], 'right')
+    MAZES[0x1B] = maze_field(prg[MAZE_TABLES + 4:MAZE_TABLES + 8], 'left')
     # Decode everything before touching output, to fail early on unsupported data.
     layouts = [decode_room(prg, i) for i in range(128)]
     output.mkdir(parents=True, exist_ok=True)
@@ -781,6 +790,7 @@ collision_tiles = PackedByteArray({array(collision)})
 ladder_allowed = {str(room_id in (0x17, 0x18, 0x19, 0x27, 0x4F, 0x5F)).lower()}
 ladder_water = PackedByteArray({array(ladder_water)})
 {'zora = ExtResource("zora")' if zora else ''}
+{MAZES.get(room_id, '')}
 {armos_field}
 '''
         (output / 'rooms' / f'ow_{room_id:02x}.tres').write_text(text)
@@ -841,7 +851,7 @@ ladder_water = PackedByteArray({array(ladder_water)})
             'dungeon_rooms_with_monsters': dungeon_coverage['rooms'], 'dungeon_rooms_populated': dungeon_coverage['populated'],
             'mixed_encounters': sum(bool(types := room_enemy_types(prg,i)) and len(set(types)) > 1 and all(t in ENEMY_TYPES for t in types) for i in range(128))},
         'rooms': 128 + len(cave_ids) + len(level_room_ids), 'dungeon_rooms': len(level_room_ids), 'caves': len(cave_ids), 'caves_without_first_quest_entrance': unreachable, 'start_room': f'ow_{start_id:02x}', 'start_position': [120, start_y],
-        'limitations': ['First-quest terrain; the Lost Woods/Hills remain unimplemented.',
+        'limitations': ['First-quest terrain and overworld actors are imported.',
                         'First-quest dungeon encounters are imported; Zora and Armos are in.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
     from render_audio import export_audio

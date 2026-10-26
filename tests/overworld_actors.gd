@@ -34,6 +34,7 @@ func run() -> void:
 	check_ghini()
 	check_boulders()
 	check_pond_fairy()
+	check_maze()
 	world.free()
 	check_imported()
 	print("Overworld actor checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
@@ -310,6 +311,23 @@ func check_pond_fairy() -> void:
 	tick(5)
 	check(world.state.health_units == world.state.HEALTH_UNITS and fairy.family.pond_phase == 3, "She helps once a visit")
 
+func check_maze() -> void:
+	var room: Resource = world.rooms[&"lab_grove"].duplicate()
+	room.id = &"maze_fixture"
+	room.maze = PackedStringArray(["up", "left", "down", "left"])
+	room.maze_free_exit = "right"
+	world.rooms[room.id] = room
+	world.enter_room(room, Vector2i(120, 77), Vector2i.UP)
+	world.maze_step = 0
+	check(world.maze_repeats("up") and world.maze_step == 1, "The right first step repeats the room and advances")
+	check(world.maze_repeats("left") and world.maze_repeats("down") and world.maze_step == 3, "Each right step repeats it again")
+	check(not world.maze_repeats("left") and world.maze_step == 0, "The last step lets Link through")
+	world.maze_repeats("up")
+	check(not world.maze_repeats("right") and world.maze_step == 1, "The free exit leaves without resetting")
+	check(world.maze_repeats("down") and world.maze_step == 0, "A wrong turn starts over in the same room")
+	world.enter_room(world.rooms[&"item_lab"], Vector2i(120, 125), Vector2i.UP)
+	check(not world.maze_repeats("up") and world.maze_step == 0, "Ordinary rooms reset the step")
+
 func check_imported() -> void:
 	if not ResourceLoader.exists("res://imported/enemies/zora.tres"): return
 	world = preload("res://scenes/main.tscn").instantiate()
@@ -334,6 +352,16 @@ func check_imported() -> void:
 	check(cave_room.portals.any(func(p: Resource) -> bool: return p.target_room == &"cave_1c" and p.requires_secret), "Room $1C's Armos hides a cave")
 	var graveyard: Resource = world.rooms[&"ow_21"]
 	var slopes: Array = world.room_resources.filter(func(r: Resource) -> bool: return r.enemies.any(func(e: Resource) -> bool: return e.enemy.behavior == "boulder_set"))
+	# The Lost Woods: up, left, down, left leads west; anything else but east loops.
+	var woods: Resource = world.rooms[&"ow_61"]
+	check(woods.maze == PackedStringArray(["up", "left", "down", "left"]) and woods.maze_free_exit == "right", "The Lost Woods take up, left, down, left")
+	check(world.rooms[&"ow_1b"].maze == PackedStringArray(["up", "up", "up", "up"]) and world.rooms[&"ow_1b"].maze_free_exit == "left", "The Lost Hills take up four times")
+	world.scroll_transitions = false
+	world.enter_room(woods, Vector2i(120, 77), Vector2i.UP)
+	world.maze_step = 0
+	world.player.place(Vector2i(woods.movement_bounds.position.x, 77))
+	world.try_exit(Vector2i.LEFT)
+	check(world.room == woods, "Heading west first leads back into the woods")
 	var ponds: Array = world.room_resources.filter(func(r: Resource) -> bool: return r.enemies.any(func(e: Resource) -> bool: return e.enemy.behavior == "pond_fairy"))
 	check(ponds.size() == 2 and ponds.all(func(r: Resource) -> bool: return r.enemies[0].position == Vector2i(0x78, 0x7D - 64)), "Two ponds hold a fairy at ($78, $7D)")
 	check(ponds.all(func(r: Resource) -> bool: return not r.is_pixel_solid(Vector2i(0x78, 0xAD - 64 + 11))), "Link can reach each pond's edge")

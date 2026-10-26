@@ -80,6 +80,8 @@ var carried_positions: Dictionary = {}
 var door_openings: Dictionary = {}
 ## Statue squares already woken this visit, by cell: they show floor.
 var woken_statues: Dictionary = {}
+## Z_01 MazeStep: progress through the current maze room's sequence.
+var maze_step := 0
 const DOOR_OPEN_TICKS := 9
 var walk_ticks := 0
 var walk_pose := 0
@@ -458,6 +460,22 @@ func try_pickups() -> void:
 				audio.play(&"item_fanfare")
 				level_exit_remaining = 192
 			return
+
+## Z_01 CheckMazes: true when leaving by `edge` should lead back into this room.
+func maze_repeats(edge: String) -> bool:
+	if room.maze.is_empty():
+		maze_step = 0
+		return false
+	if edge == room.maze[maze_step]:
+		if maze_step == room.maze.size() - 1:
+			maze_step = 0
+			audio.play(&"secret")
+			return false
+		maze_step += 1
+		return true
+	if edge == room.maze_free_exit: return false
+	maze_step = 0
+	return true
 
 ## Z_01 CheckPassiveTileObjects: pressing into a statue square wakes it.
 ## The touched square is the one ahead of Link's feet; when he straddles two,
@@ -935,6 +953,7 @@ func try_exit(direction: Vector2i) -> void:
 	if not room.exits.has(edge):
 		return
 	var target: Resource = rooms[StringName(room.exits[edge])]
+	if maze_repeats(edge): target = room
 	var destination := at
 	match edge:
 		"left": destination.x = target.movement_bounds.end.x - 1
