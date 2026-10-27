@@ -182,8 +182,6 @@ Building the solver turned up three bugs, all in both quests:
 - **Pushed rocks and graves stayed in the way.** This was in the solver's own
   model, not the game, and is now fixed there.
 
-**Unresolved: room $0F.** Overworld room $0F (the north-east corner, with a
-100-rupee "IT'S A SECRET TO EVERYBODY" cave) is unreachable in both quests. It
-appears to be unreachable in the original too, but that isn't confirmed; see
-[STATUS.md](STATUS.md). The test pins it and its cave as the only unreachable
-rooms.
+**Room $0F.** The north-east corner looked unreachable at first. It's reached
+through room $1F's false wall (`Z_07 GetCollidingTileMoving`); see
+[STATUS.md](STATUS.md). Every room is now reachable in both quests.

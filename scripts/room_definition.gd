@@ -79,7 +79,15 @@ extends Resource
 ## Ladder-eligible water, independent of art and ordinary collision. Fine masks
 ## use the same 32 x 22 eight-pixel cells as collision_tiles.
 @export var ladder_allowed: bool = true
+## A false wall Link alone walks through vertically (Z_07 GetCollidingTileMoving:
+## room $1F, X $80, Y below $56): with his X at false_wall_x and Y above
+## false_wall_below_y, vertical moves ignore the tiles. -1 means none.
+@export var false_wall_x: int = -1
+@export var false_wall_below_y: int = 0
 @export var ladder_water: PackedByteArray = PackedByteArray()
+## Mountain stairs (overworld tiles $74/$75) per eight-pixel cell: Z_05 InitLinkSpeed
+## halves Link's speed on them. Empty means none.
+@export var stairs_tiles: PackedByteArray = PackedByteArray()
 
 @export var spawn: Vector2i = Vector2i(120, 136)
 
@@ -103,6 +111,10 @@ func is_ladder_water(pixel: Vector2i) -> bool:
 	if not ladder_water.is_empty():
 		return ladder_water[(pixel.y / 8) * 32 + pixel.x / 8] != 0
 	return rows()[pixel.y / 16][pixel.x / 16] == "~"
+
+func is_stairs(pixel: Vector2i) -> bool:
+	if stairs_tiles.is_empty() or pixel.x < 0 or pixel.y < 0 or pixel.x >= 256 or pixel.y >= 176: return false
+	return stairs_tiles[(pixel.y / 8) * 32 + pixel.x / 8] != 0
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
@@ -128,6 +140,8 @@ func validation_errors() -> PackedStringArray:
 		errors.append("Fine collision requires 704 eight-pixel cells")
 	if not ladder_water.is_empty() and ladder_water.size() != 704:
 		errors.append("Ladder water requires 704 eight-pixel cells")
+	if not stairs_tiles.is_empty() and stairs_tiles.size() != 704:
+		errors.append("Stairs tiles require 704 eight-pixel cells")
 	if dialogue_character_ticks < 1:
 		errors.append("Dialogue character interval must be positive")
 	if raft_route != null:

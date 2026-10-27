@@ -66,7 +66,8 @@ func tick(state: RefCounted, start: bool, direction: Vector2i) -> void:
 ## Z_05 UpdateSubmenuSelection: right steps forward, left back, each only when
 ## the input changes; any other input just keeps an occupied slot selected.
 func select(state: RefCounted, direction: Vector2i) -> void:
-	var input := 1 if direction == Vector2i.RIGHT else 2 if direction == Vector2i.LEFT else 4 if direction == Vector2i.DOWN else 8 if direction == Vector2i.UP else 0
+	# The D-pad's bits; with a diagonal held, the horizontal one still moves the cursor.
+	var input := (1 if direction.x > 0 else 2 if direction.x < 0 else 0) | (4 if direction.y > 0 else 8 if direction.y < 0 else 0)
 	if input == last_input:
 		state.selected_item = item_at(state, slot)
 		return

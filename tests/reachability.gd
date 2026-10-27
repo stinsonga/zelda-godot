@@ -34,6 +34,7 @@ func run() -> void:
 		quit(0)
 		return
 	for path in ["res://imported/world.tres", "res://imported/world_q2.tres"]: solve(path)
+	check_false_wall()
 	print("Reachability checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
 
@@ -80,7 +81,7 @@ func open_grid(definition: Resource) -> Dictionary:
 			for direction in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
 				var target: Vector2i = at + direction * 8
 				if target.x < 0 or target.x > 240 or target.y < -3 or target.y > 157: continue
-				if world.movement_probes(at, direction).all(func(probe: Vector2i) -> bool: return not world.is_blocked(probe) or (ladder and world.ladder_water_at(probe))):
+				if world.ordinary_segment(at, direction) or (ladder and world.movement_probes(at, direction).all(func(probe: Vector2i) -> bool: return not world.is_blocked(probe) or world.ladder_water_at(probe))):
 					open.append(direction)
 			grid[at] = open
 	return grid
@@ -153,11 +154,9 @@ func solve(path: String) -> void:
 	for id in reached:
 		if world.rooms[id].enemies.any(func(spawn: Resource) -> bool: return spawn.enemy.behavior == "zelda"): zelda = true
 	check(zelda, "%s: Zelda's room is out of reach" % world.world_id)
-	# Unresolved (docs/STATUS.md): room $0F and its cave have no way in. The original's
-	# own layout routine gives the same tiles, so this appears to be faithful.
+	# Every room is reachable, room $0F through room $1F's false wall.
 	var unreached: Array = world.rooms.keys().filter(func(id: StringName) -> bool: return not reached.has(id)).map(func(id: StringName) -> String: return String(id))
-	unreached.sort()
-	check(unreached == ["cave_0f", "ow_0f"], "%s: unreachable rooms %s" % [world.world_id, unreached])
+	check(unreached.is_empty(), "%s: unreachable rooms %s" % [world.world_id, unreached])
 	print("%s: %d rooms reached in %d passes, %d items" % [world.world_id, reached.size(), passes, items.size()])
 	if OS.get_environment("REACH_DEBUG") != "":
 		var per_level := {}
@@ -198,3 +197,24 @@ func leave(definition: Resource, p: Vector2i) -> Array:
 	if definition.raft_route != null and items.has(&"raft") and p.distance_to(definition.raft_route.dock_position) < 12 and definition.exits.has("up"):
 		out.append([StringName(definition.exits["up"]), definition.raft_route.landing_position])
 	return out
+
+## Walking it for real: up room $1F's false wall at X $80 into room $0F's waterfall,
+## while one column over the rock still stops Link.
+func check_false_wall() -> void:
+	world = preload("res://scenes/main.tscn").instantiate()
+	root.add_child(world)
+	world.set_physics_process(false)
+	world.enter_room(world.rooms[&"ow_1f"], Vector2i(0x80, 77), Vector2i.UP)
+	world.combat.enemies.clear()
+	for i in range(200):
+		if world.room.id == &"ow_0f": break
+		world.state.health = world.state.max_health
+		world.simulate_tick(Vector2i.UP)
+	check(world.room.id == &"ow_0f", "Room $1F's false wall leads up into room $0F")
+	world.enter_room(world.rooms[&"ow_1f"], Vector2i(0x70, 77), Vector2i.UP)
+	world.combat.enemies.clear()
+	for i in range(200):
+		world.state.health = world.state.max_health
+		world.simulate_tick(Vector2i.UP)
+	check(world.room.id == &"ow_1f" and world.player.pixel_position().y > 13, "Beside it, the rock still blocks")
+	world.free()

@@ -380,7 +380,9 @@ func check_rewards() -> void:
 func check_first_encounter(world: Node) -> void:
 	# Cave checks already obtained the sword. Walk through the actual east exit.
 	world.enter_room(world.rooms[&"ow_77"], Vector2i(120, 77), Vector2i.RIGHT)
-	for tick in range(80): world.simulate_tick(Vector2i.RIGHT)
+	# MoveObject stops on each grid point: eight pixels take six frames, so the
+	# 120 pixels to the edge take 90.
+	for tick in range(100): world.simulate_tick(Vector2i.RIGHT)
 	check(world.room.id == &"ow_78" and world.combat.enemies.size() == 4, "First east room must spawn its four original Octoroks")
 	var actors: Array[RefCounted] = world.combat.enemies.duplicate()
 	# Control encounter positions and rolls, keeping actual sword, death, drop,
@@ -539,18 +541,28 @@ func check_scrolling() -> void:
 	reset.pressed = true
 	world._input(reset)
 	check(world.player.pixel_position() == Vector2i(240, 80), "Reset input must not move Link during scrolling")
+	# The NES spends LEAD_TICKS before the visible scroll and TAIL_TICKS after it.
+	var lead: int = world.transition.lead_ticks()
+	var total: int = world.transition.total_ticks()
+	for tick in range(lead): world.simulate_tick(Vector2i.LEFT, true)
+	check(world.transition.distance == 0, "The screen holds still before the scroll")
 	for tick in range(63): world.simulate_tick(Vector2i.LEFT, true)
 	check(world.transition != null and world.transition.distance == 252, "Horizontal scrolling must advance four pixels per tick for 64 ticks")
+	for tick in range(total - lead - 64): world.simulate_tick(Vector2i.LEFT, true)
+	check(world.transition != null and world.transition.distance == 256, "The scrolled screen holds until the room change completes")
 	check(actor.spawn_remaining == 32 and world.combat.player_invulnerability == 48, "Enemy and damage timers must remain frozen during scrolling")
 	check(not world.sword.active() and world.state.health == 5, "Movement and attacks must not cause combat during scrolling")
 	world.simulate_tick(Vector2i.ZERO)
 	check(world.transition == null and world.room.id == &"expansion_field" and world.player.pixel_position() == Vector2i(0, 80), "Horizontal completion must enter the destination exactly once at its matching edge")
 	check(world.state.rupees == 13 and world.state.health == 5, "Scrolling must preserve health and currency")
 	world.try_exit(Vector2i.LEFT)
-	for tick in range(64): world.simulate_tick(Vector2i.ZERO)
+	for tick in range(total): world.simulate_tick(Vector2i.ZERO)
 	check(world.room.id == &"test_field" and world.player.pixel_position() == Vector2i(240, 80), "Left scroll must return to the original room")
+	# InitMode5Play spends one more frame before Link moves.
 	world.simulate_tick(Vector2i.LEFT)
-	check(world.transition == null and world.player.pixel_position().x < 240, "Movement must resume after the completion frame")
+	check(world.transition == null and world.player.pixel_position().x == 240, "Link waits one frame after the room change")
+	world.simulate_tick(Vector2i.LEFT)
+	check(world.player.pixel_position().x < 240, "Movement must resume after the settle frame")
 	var a = preload("res://scripts/room_definition.gd").new()
 	var b = preload("res://scripts/room_definition.gd").new()
 	a.id = &"scroll_a"
@@ -568,13 +580,15 @@ func check_scrolling() -> void:
 		var y := 0 if direction == Vector2i.UP else 160
 		world.enter_room(a, Vector2i(120, y), direction)
 		world.try_exit(direction)
-		world.simulate_tick(Vector2i.ZERO)
+		var vertical_lead: int = world.transition.lead_ticks()
+		var vertical_total: int = world.transition.total_ticks()
+		for tick in range(vertical_lead + 1): world.simulate_tick(Vector2i.ZERO)
 		check(world.transition != null and world.transition.distance == 0, "Vertical scrolling must wait on its first tick")
 		world.simulate_tick(Vector2i.ZERO)
 		check(world.transition.distance == 8, "Vertical scrolling must move eight pixels every other tick")
 		for tick in range(41): world.simulate_tick(Vector2i.ZERO)
 		check(world.transition != null and world.transition.distance == 168, "Vertical scrolling must remain active through tick 43")
-		world.simulate_tick(Vector2i.ZERO)
+		for tick in range(vertical_total - vertical_lead - 43): world.simulate_tick(Vector2i.ZERO)
 		check(world.transition == null and world.room.id == b.id and world.player.pixel_position() == Vector2i(120, 160 - y), "Vertical completion must preserve the horizontal coordinate and use the opposite edge")
 	rows[5] = "################"
 	b.tiles = "\n".join(rows)
@@ -593,18 +607,18 @@ func check_scrolling() -> void:
 		original.set_physics_process(false)
 		original.enter_room(original.rooms[&"ow_77"], Vector2i(240, 77), Vector2i.RIGHT)
 		original.try_exit(Vector2i.RIGHT)
-		for tick in range(64): original.simulate_tick(Vector2i.ZERO)
+		for tick in range(original.transition.total_ticks()): original.simulate_tick(Vector2i.ZERO)
 		check(original.room.id == &"ow_78" and original.combat.enemies.size() == 4, "Original east encounter must initialize after the scroll")
 		check(original.combat.enemies[0].waiting_spawn and original.combat.enemies[3].waiting_spawn, "Incoming edge enemies must wait until after scrolling")
 		original.try_exit(Vector2i.LEFT)
-		for tick in range(64): original.simulate_tick(Vector2i.ZERO)
+		for tick in range(original.transition.total_ticks()): original.simulate_tick(Vector2i.ZERO)
 		check(original.room.id == &"ow_77", "Original west exit must scroll back to the starting screen")
 		original.player.place(Vector2i(120, -3))
 		original.try_exit(Vector2i.UP)
-		for tick in range(44): original.simulate_tick(Vector2i.ZERO)
+		for tick in range(original.transition.total_ticks()): original.simulate_tick(Vector2i.ZERO)
 		check(original.room.id == &"ow_67" and original.player.pixel_position() == Vector2i(120, 157), "Original north exit must preserve the five-pixel Y grid phase")
 		original.try_exit(Vector2i.DOWN)
-		for tick in range(44): original.simulate_tick(Vector2i.ZERO)
+		for tick in range(original.transition.total_ticks()): original.simulate_tick(Vector2i.ZERO)
 		check(original.room.id == &"ow_77" and original.player.pixel_position() == Vector2i(120, -3), "Original south return must retain the aligned upper edge")
 		original.free()
 	scroll_checks_completed = true

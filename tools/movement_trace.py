@@ -17,6 +17,9 @@ SCENARIOS = ROOT/'tools/movement_scenarios.json'
 DEFAULT_OUTPUT = ROOT/'reference-inputs/comparisons/link_movement'
 DIRECTIONS = {'right':1, 'left':2, 'down':4, 'up':8}
 FIELDS = ('room','x','y','direction')
+# Compared on every frame; FIELDS only while both engines are in free play.
+# NES modes 4, 6, and 7 (enter, leave, scroll) are one transition phase.
+PHASE_FIELD = 'phase'
 # Start a fresh file called A, using controller input only. No SRAM/RAM patches.
 BOOT = [([],180),(['start'],1),([],180),(['start'],1),([],180),(['a'],1),([],10),
         (['select'],1),([],10),(['select'],1),([],10),(['select'],1),([],10),
@@ -45,13 +48,22 @@ def expand(scenario):
     for segment in scenario['segments']:
         buttons = segment['buttons']
         count = segment['frames']
-        if not isinstance(buttons,list) or len(buttons)>1 or any(b not in DIRECTIONS for b in buttons):
-            raise ValueError('First movement adapter accepts zero or one cardinal direction per frame')
+        if not isinstance(buttons,list) or len(buttons)>2 or len(set(buttons))!=len(buttons) or any(b not in DIRECTIONS for b in buttons):
+            raise ValueError('Movement adapter accepts up to two distinct directions per frame')
+        if set(buttons) in ({'left','right'},{'up','down'}):
+            raise ValueError('Opposite directions cannot both be held on a D-pad')
         if type(count) is not int or not 1 <= count <= 600:
             raise ValueError('Segment frame count must be 1..600')
         frames.extend([list(buttons) for _ in range(count)])
     if not frames or len(frames)>2400: raise ValueError('Scenario must contain 1..2400 frames')
     return frames
+
+def allowed_rooms(suite, case):
+    """The starting room plus any rooms a case may walk into."""
+    rooms = case.get('rooms', [])
+    if not isinstance(rooms, list) or any(not isinstance(r, str) or not r.startswith('ow_') for r in rooms):
+        raise ValueError('Case rooms must be a list of overworld room IDs')
+    return {suite['room'], *rooms}
 
 def validate_suite(suite):
     if suite.get('schema') != 1 or suite.get('quest') != 1 or suite.get('room') != 'ow_77':
@@ -64,12 +76,13 @@ def validate_suite(suite):
         if not isinstance(case['id'],str) or not case['id'] or case['id'] in ids: raise ValueError('Scenario IDs must be unique and nonempty')
         ids.append(case['id'])
         expand(case)
+        allowed_rooms(suite, case)
     if not ids: raise ValueError('No movement scenarios')
 
 def snapshot(core):
     ram = core.ram
     return {'room':f'ow_{ram[0xEB]:02x}', 'x':int(ram[0x70]), 'y':int(ram[0x84])-64,
-            'direction':int(ram[0x98]),
+            'direction':int(ram[0x98]), 'phase':'play' if int(ram[0x12]) == 5 else 'transition',
             'raw':{'screen_y':int(ram[0x84]), 'fraction':int(ram[0x3A8]), 'grid_offset':int(ram[0x394]),
                    'buttons':int(ram[0xFA]), 'frame_counter':int(ram[0x15]), 'mode':int(ram[0x12]),
                    'submode':int(ram[0x13]), 'level':int(ram[0x10]), 'state':int(ram[0xAC]), 'paused':int(ram[0xE0])}}
@@ -98,13 +111,24 @@ def capture_reference(core_path, rom_path, suite, out):
                 for frame, buttons in enumerate(expand(scenario),1):
                     core.run(buttons)
                     row=snapshot(core)
-                    if row['room'] != suite['room'] or row['raw']['mode'] != 5 or row['raw']['paused'] != 0:
-                        raise ValueError(f"{scenario['id']} frame {frame}: reference left the single-room free-play context")
+                    rooms = allowed_rooms(suite, scenario)
+                    moving_between = len(rooms) > 1 and row['raw']['mode'] in (4, 6, 7)
+                    if row['raw']['paused'] != 0 or not (row['raw']['mode'] == 5 or moving_between):
+                        raise ValueError(f"{scenario['id']} frame {frame}: reference left free play (mode {row['raw']['mode']})")
+                    # RoomId briefly names the next room while InitMode7 lays it out.
+                    if row['phase'] == 'play' and row['room'] not in rooms:
+                        raise ValueError(f"{scenario['id']} frame {frame}: reference reached unlisted room {row['room']}")
                     mask=sum(DIRECTIONS[b] for b in buttons)
-                    if row['raw']['buttons'] != mask:
-                        raise ValueError(f"{scenario['id']} frame {frame}: controller/RAM input phase mismatch")
-                    if row['raw']['frame_counter'] != (previous_frame+1)%256:
-                        raise ValueError(f"{scenario['id']} frame {frame}: NMI frame did not advance once")
+                    advance=(row['raw']['frame_counter']-previous_frame)%256
+                    if row['phase'] == 'play':
+                        if row['raw']['buttons'] != mask:
+                            raise ValueError(f"{scenario['id']} frame {frame}: controller/RAM input phase mismatch")
+                        if advance != 1:
+                            raise ValueError(f"{scenario['id']} frame {frame}: NMI frame did not advance once")
+                    # Laying out the next room can take more than a frame: a lag frame
+                    # leaves FrameCounter alone. Input is ignored until free play.
+                    elif advance not in (0, 1):
+                        raise ValueError(f"{scenario['id']} frame {frame}: frame counter jumped during a transition")
                     previous_frame=row['raw']['frame_counter']
                     row.update(frame=frame,buttons=buttons)
                     rows.append(row)
@@ -138,6 +162,7 @@ def validate_trace(trace, engine):
             if row.get('frame') != frame or row.get('buttons') != buttons: raise ValueError('Trace frame/input phase differs: '+case['id'])
             for field in FIELDS:
                 if field not in row or field not in case['initial']: raise ValueError('Trace lacks comparison fields')
+            if row.get(PHASE_FIELD) not in ('play','transition'): raise ValueError('Trace lacks a play/transition phase')
             if any(type(row[f]) is not int for f in ('x','y','direction')): raise ValueError('Trace positions/direction must be integers')
 
 def compare(reference, native):
@@ -151,7 +176,9 @@ def compare(reference, native):
         if seed_differences: raise ValueError('Initial states differ before replay: '+ref['id'])
         differences=[]
         for expected,observed in zip(ref['frames'],actual['frames']):
-            fields=[f for f in FIELDS if expected[f]!=observed[f]]
+            fields=[PHASE_FIELD] if expected[PHASE_FIELD]!=observed[PHASE_FIELD] else []
+            if expected[PHASE_FIELD]=='play' and not fields:
+                fields=[f for f in FIELDS if expected[f]!=observed[f]]
             if fields:
                 differences.append({'frame':expected['frame'],'fields':fields,'buttons':expected['buttons'],
                                     'nes':expected,'godot':observed,'delta':{'x':observed['x']-expected['x'],'y':observed['y']-expected['y']}})
@@ -159,7 +186,7 @@ def compare(reference, native):
                         'first_difference':differences[0] if differences else None})
     return {'schema':1,'matched':all(r['matched'] for r in results),'suite_sha256':reference['suite_sha256'],
             'rom_prg_sha1':reference['rom_prg_sha1'],'reference_core':reference['core'],
-            'compared_fields':list(FIELDS),'fraction_policy':'NES raw scalar and Godot subposition are diagnostics, not equated', 'cases':results}
+            'compared_fields':[PHASE_FIELD,*FIELDS],'fraction_policy':'NES raw scalar and Godot subposition are diagnostics, not equated', 'cases':results}
 
 def report_text(report):
     lines=[]
@@ -170,7 +197,7 @@ def report_text(report):
             lines.append(f"  First difference: frame {d['frame']}, input {d['buttons'] or ['stop']}, fields {d['fields']}")
             for label,key in [('NES','nes'),('Godot','godot')]:
                 row=d[key]
-                lines.append(f"  {label}: {row['room']} position ({row['x']}, {row['y']}), direction {row['direction']}; diagnostics {row['raw']}")
+                lines.append(f"  {label}: {row['phase']} {row['room']} position ({row['x']}, {row['y']}), direction {row['direction']}; diagnostics {row['raw']}")
             lines.append(f"  Delta: {d['delta']}; {case['different_frames']} differing frames")
     return '\n'.join(lines)+'\n'
 

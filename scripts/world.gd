@@ -31,6 +31,8 @@ var save_store = Saves.new()
 var status_message := ""
 var status_ticks := 0
 var transition: RefCounted
+## Frames of free play in which Link waits after a scroll (InitMode5Play).
+var settle_ticks := 0
 var loot_tables: Dictionary[StringName, Resource] = {}
 var rooms: Dictionary = {}
 var state = preload("res://scripts/game_state.gd").new()
@@ -232,13 +234,21 @@ func _notification(what: int) -> void:
 
 func _physics_process(_delta: float) -> void:
 	status_ticks = maxi(0, status_ticks - 1)
-	var direction: Vector2i = Vector2i.ZERO if held.is_empty() else held.back()
-	simulate_tick(direction, attack_requested, item_requested, start_requested, select_requested)
+	simulate_tick(held_input(), attack_requested, item_requested, start_requested, select_requested)
 	select_requested = false
 	attack_requested = false
 	item_requested = false
 	start_requested = false
 	queue_redraw()
+
+## The D-pad as the NES reads it: up to one horizontal and one vertical direction,
+## the most recently pressed key of each axis.
+func held_input() -> Vector2i:
+	var input := Vector2i.ZERO
+	for key in held:
+		if key.x != 0: input.x = key.x
+		if key.y != 0: input.y = key.y
+	return input
 
 func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: int = 0, restoring: bool = false, rise: int = 0) -> void:
 	var previous: Resource=room
@@ -246,6 +256,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	if not restoring: combat.commit_room(state)
 	curtain = -1
 	transition = null
+	settle_ticks = 0
 	room = target
 	ladder.reset()
 	raft.reset()
@@ -407,6 +418,12 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	if transition != null:
 		if transition.tick():
 			enter_room(transition.target, transition.destination, transition.direction)
+			# Mode 4 ends by setting mode 5; InitMode5Play then spends a frame
+			# (measured in the overworld).
+			if room.dungeon_level == 0: settle_ticks = 1
+		return
+	if settle_ticks > 0:
+		settle_ticks -= 1
 		return
 	# Z_05 UpdateMenu: while the submenu is up, only it (and the meters) update.
 	if submenu.is_open():
@@ -506,8 +523,10 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	else:
 		if captor == null and not secrets.blocks_player(player.pixel_position()):
-			player.step(ladder.constrain(player.pixel_position(), direction), can_occupy, can_enter_segment)
+			player.move_frame(ladder.constrain(player.pixel_position(), direction), can_enter_segment, stairs_ahead)
 			ladder.update(player.pixel_position())
+		# Past movement, diagonal input acts as the direction Link took.
+		if direction.x != 0 and direction.y != 0: direction = player.facing
 		if secrets.try_push(self, direction):
 			overrides = compute_overrides(room)
 		try_doors(direction)
@@ -523,7 +542,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		portal_armed = true
 	if try_portal(direction, before):
 		return
-	try_exit(direction)
+	try_exit(direction, before)
 	if transition != null:
 		return
 	try_pickups()
@@ -1059,6 +1078,13 @@ func can_enter_segment(at: Vector2i, direction: Vector2i) -> bool:
 	if ladder.active: return ladder.allows(at, direction, ordinary_segment)
 	return ordinary_segment(at, direction)
 
+## GetCollidingTileMoving's tile ahead is mountain stairs (overworld only). Vertical
+## probes keep the higher of their two tiles, so a blocking tile beside stairs wins.
+func stairs_ahead(at: Vector2i, direction: Vector2i) -> bool:
+	if room.dungeon_level > 0: return false
+	var probes := movement_probes(at, direction)
+	return probes.any(func(pixel: Vector2i) -> bool: return room.is_stairs(pixel)) and not probes.any(func(pixel: Vector2i) -> bool: return is_blocked(pixel))
+
 func ladder_water_at(pixel: Vector2i) -> bool:
 	if not room.is_ladder_water(pixel): return false
 	if overrides.has(Vector2i(pixel.x / 16, pixel.y / 16)): return false
@@ -1075,6 +1101,8 @@ func movement_probes(at: Vector2i, direction: Vector2i) -> Array[Vector2i]:
 	return [probe, probe + Vector2i(8, 0)]
 
 func ordinary_segment(at: Vector2i, direction: Vector2i) -> bool:
+	if room.false_wall_x >= 0 and direction.y != 0 and at.x == room.false_wall_x and at.y < room.false_wall_below_y:
+		return true
 	# Z_07 GetCollidingTileMoving / GetCollidableTile. At grid points,
 	# horizontal movement checks one leading column at the foot hotspot;
 	# vertical movement checks both columns, eight pixels ahead of it.
@@ -1085,8 +1113,11 @@ func ordinary_segment(at: Vector2i, direction: Vector2i) -> bool:
 	probe.y += 8 if direction.y > 0 else -8
 	return not is_blocked(probe) and not is_blocked(probe + Vector2i(8, 0))
 
-func try_exit(direction: Vector2i) -> void:
+## Z_07 CheckScreenEdge: Link must already stand on the edge when the frame
+## begins (from), so the room changes on the frame after he reaches it.
+func try_exit(direction: Vector2i, from: Vector2i = Vector2i(-1000, -1000)) -> void:
 	var at: Vector2i = player.pixel_position()
+	if from != Vector2i(-1000, -1000) and from != at: return
 	var edge := ""
 	var bounds: Rect2i = room.movement_bounds
 	if at.x == bounds.position.x and direction == Vector2i.LEFT: edge = "left"
@@ -1114,6 +1145,7 @@ func try_exit(direction: Vector2i) -> void:
 	transition.source_position = at
 	transition.destination = destination
 	transition.direction = direction
+	transition.overworld = room.dungeon_level == 0
 	if target.dark_room and lighting_stage()<3:lighting.begin(false,target.light_step_ticks)
 	player.facing = direction
 	# Transient projectiles and loose drops cannot leak into the next room.

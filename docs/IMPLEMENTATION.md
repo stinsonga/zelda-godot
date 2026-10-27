@@ -46,10 +46,18 @@ Confirmed from the disassembly:
 
 Implemented baseline:
 
-- 60 fixed simulation ticks per second; 384 units per tick in 1/256-pixel units.
+- 60 fixed simulation ticks per second. Free movement follows `Z_07 MoveObject`:
+  four quarter-steps of $60 into one fraction byte shared by both axes. A carry
+  moves Link a pixel unless his grid offset is already at +8 or -8
+  (`AddQSpeedToPositionFraction`), so he stops on each grid point for the rest of
+  that frame: eight pixels take six frames. On mountain stairs (overworld tiles
+  $74/$75) `InitLinkSpeed` uses $30 instead.
 - Cardinal movement and most recently pressed direction priority.
-- Perpendicular turns return toward the nearer eight-pixel grid point without
-  snapping sideways. Remaining movement distance carries across the grid point.
+- Turns follow `Z_05 Link_HandleInput`, with the grid offset kept as state as
+  in the original. At a grid point, Link takes the input. Between points,
+  `Link_ModifyDirOnGridLine` keeps his direction at |offset| 4 or more, and
+  otherwise keeps going or turns back toward the grid point he left. Link never
+  snaps sideways, and the turn happens on the frame after he reaches the point.
 - Direction-specific collision probes check the next eight-pixel segment at a
   grid boundary, then permit that segment to complete. Horizontal probes sample
   one leading column at Y + 11; vertical probes sample two columns at Y + 3 or
@@ -57,13 +65,11 @@ Implemented baseline:
 - Original overworld vertical edge coordinates are -3 and 157 relative to the
   play area, preserving the five-pixel Y grid phase through room transitions.
 
-Still provisional: exact diagonal input handling, turn timing, fractional carry,
-special-case collision at doors and screen edges, original room-entry walks,
-NTSC timing, stairs, knockback, and animation. The prototype must not
-be treated as a frame-accurate reproduction yet. The controller preserves fractional movement through grid boundaries; exact NES
-input priorities remain unverified. The first [movement comparison](MOVEMENT_COMPARISON.md)
-now measures grid-boundary and turn differences against Nestopia; these remain
-to be corrected.
+Still provisional: diagonal input handling, special-case collision at doors and
+screen edges, room-entry walks (mode 4 still uses the older continuous step),
+stairs, knockback, and animation. The [movement comparison](MOVEMENT_COMPARISON.md)
+matches the original frame for frame in its eleven starting-room scenarios; wider
+coverage is still to come.
 
 ## Next implementation stages
 

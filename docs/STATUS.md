@@ -3,44 +3,22 @@
 Both quests are playable from the title screen to the ending, as far as the
 importer and tests can show. `tests/reachability.gd` finds every treasure, all
 eight Triforce pieces, Zelda, and every dungeon room reachable in each quest.
-This page records the one problem left open and the work that remains. Details
+This page records the work that remains. Details
 live in the topic documents linked below. The latest session handoff is
 [HANDOFF_2026-10-26.md](HANDOFF_2026-10-26.md).
 
-## Unresolved: overworld room $0F
+## Resolved: overworld room $0F
 
-Room $0F is the north-east corner of the overworld. It holds a cave with a
-100-rupee "IT'S A SECRET TO EVERYBODY" reward. In both quests, nothing in the
-game reaches it.
+Room $0F, the north-east corner with a 100-rupee "IT'S A SECRET TO EVERYBODY"
+cave, looked unreachable. Its waterfall leads down onto solid rock at the top of
+room $1F, and no tile, ladder, raft, or warp gets past it.
 
-**What is known:**
-- Its only opening is a waterfall square ($0A, tiles $74/$75, walkable) at the
-  bottom of the screen. The square below it, at the top of room $1F, is solid
-  rock ($1B, tiles $D8-$DB).
-- The layouts are not the problem. The original's own overworld layout routine
-  (`LayoutRoomOW`), run on the CPU emulator for all 128 rooms, gives exactly the
-  tiles the importer decodes.
-- No other way in exists in the ROM's tables:
-  - **From $0E:** its right edge is water, and so is $0F's left column.
-  - **From $1F:** Link can't reach its top edge through the rock.
-    `Z_07 CheckScreenEdge` only changes screens from the edge itself.
-  - **Ladder:** it works only in `LadderRoomsOW` ($17, $18, $19, $27, $4F, $5F).
-  - **Raft:** it sails only from the docks in rooms $3F and $55 (`UpdateDock`).
-  - **Warps:** no cave stairs and no whirlwind stop lands in $0F.
-- "WALK INTO THE WATERFALL!" (the level 4 old man) is about room $0E's
-  waterfall. That waterfall leads up from $1E to the cave with the letter, and it
-  works.
-
-**Conclusion so far.** $0F appears unreachable in the original as well, but this
-isn't confirmed.
-
-**To settle it:** check a reference map, or try to walk into $0F in an emulator.
-- If there is a way in, find the mechanism in the source, add it, and drop the
-  room from the pinned list.
-- If there is none, note it as original behaviour here and in SECOND_QUEST.md.
-
-`tests/reachability.gd` currently fails if any room other than $0F and its cave
-becomes unreachable.
+The answer was a special case in `Z_07 GetCollidingTileMoving`. In room $1F,
+when Link moves vertically at X $80 with Y below $56, every tile counts as
+walkable: a false wall straight up into $0F's waterfall. Rooms now carry it as
+`false_wall_x` / `false_wall_below_y`, and the importer sets it for $1F.
+`tests/reachability.gd` reaches every room in both quests, and walks Link up the
+passage while the rock beside it still blocks.
 
 ## Remaining work
 
@@ -84,10 +62,16 @@ These are recorded approximations, each small:
   - A drained pond keeps its water colour.
 - **Unverified rocks.** The shortcut-room rocks in $1D and $49 haven't been
   checked against an emulator.
-- **Movement.** A headless Nestopia/Godot harness now compares 200 frames across
-  four starting-room scenarios. It finds one-pixel grid-boundary differences and
-  an earlier turn in Godot. Next: trace and correct boundary/fractional carry,
-  then expand coverage to input priority and enemies. See
+- **Movement.** A headless Nestopia/Godot harness compares 1,509 frames across
+  seventeen scenarios, and all of them match. They cover `MoveObject`'s grid-point
+  stop, the stateful grid offset, diagonal input, and overworld room changes in
+  every direction, with the original's frames around the scroll. Mountain-stairs speed ($30 on tiles
+  $74/$75) is translated from `InitLinkSpeed` but not yet checked against the
+  emulator, since no scenario reaches stairs. Next:
+  - monster comparisons (matching spawn order and RNG), which the remaining
+    movement checks depend on;
+  - then dungeon transitions and doorways (unmeasured; they keep the bare scroll),
+    and routes to stairs and room $1F's false wall, all past monsters. See
   [MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md) for setup, safeguards and findings.
 
 ### 3. Expansion tools

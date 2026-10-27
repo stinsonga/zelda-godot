@@ -24,16 +24,18 @@ func bits(vector: Vector2i) -> int:
 	if vector == Vector2i.UP: return 8
 	return 0
 func input_direction(buttons: Array) -> Vector2i:
-	if buttons.is_empty(): return Vector2i.ZERO
-	match String(buttons[0]):
-		"right": return Vector2i.RIGHT
-		"left": return Vector2i.LEFT
-		"down": return Vector2i.DOWN
-		"up": return Vector2i.UP
-	return Vector2i.ZERO
+	var input := Vector2i.ZERO
+	for button in buttons:
+		match String(button):
+			"right": input.x = 1
+			"left": input.x = -1
+			"down": input.y = 1
+			"up": input.y = -1
+	return input
 func snapshot(world: Node) -> Dictionary:
 	var at: Vector2i = world.player.pixel_position()
-	return {"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),
+	var moving_between: bool = world.transition != null or world.entry_walk_remaining > 0
+	return {"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),"phase":"transition" if moving_between else "play",
 		"raw":{"subposition_x":world.player.subposition.x,"subposition_y":world.player.subposition.y,
 		"entry_walk_remaining":world.entry_walk_remaining,"curtain":world.curtain}}
 func fail(message: String) -> void:
@@ -65,7 +67,7 @@ func run() -> void:
 		var frames: Array = []
 		for recorded_frame in recorded.frames:
 			var buttons: Array = recorded_frame.buttons
-			if buttons.size() > 1 or (not buttons.is_empty() and input_direction(buttons) == Vector2i.ZERO): world.free(); fail("Unsupported movement input"); return
+			if buttons.size() > 2 or (not buttons.is_empty() and input_direction(buttons) == Vector2i.ZERO): world.free(); fail("Unsupported movement input"); return
 			world.simulate_tick(input_direction(buttons))
 			var row := snapshot(world)
 			row["frame"] = recorded_frame.frame

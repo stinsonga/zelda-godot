@@ -73,20 +73,27 @@ func run() -> void:
 	check_original()
 	print("Raft checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
+func finish_scroll() -> void:
+	for i in range(300):
+		if world.transition == null: return
+		ticks(Vector2i.ZERO,1)
+
 func check_scroll() -> void:
 	world.scroll_transitions = true
 	world.enter_room(world.rooms[&"raft_lab_dock"],Vector2i(96,61),Vector2i.UP)
 	ticks(Vector2i.ZERO,65)
 	check(world.transition != null and world.room.id == &"raft_lab_dock", "Outbound uses normal screen scrolling")
-	ticks(Vector2i.ZERO,44)
+	# Overworld scrolls take the original's frames before and after the scroll.
+	finish_scroll()
 	check(world.transition == null and world.room.id == &"raft_lab_island", "Island scroll completes")
 	world.player.place(Vector2i(96,157))
 	world.player.facing = Vector2i.DOWN
-	ticks(Vector2i.DOWN,1)
+	ticks(Vector2i.DOWN,2)
 	check(world.transition != null, "Returning to water uses normal scrolling")
-	ticks(Vector2i.ZERO,44)
+	finish_scroll()
 	check(world.transition == null and world.raft.active and not world.raft.outbound, "Arrival starts inbound ride after scrolling")
-	ticks(Vector2i.ZERO,66)
+	# One more frame: InitMode5Play's settle frame comes before the inbound ride.
+	ticks(Vector2i.ZERO,67)
 	check(world.player.pixel_position() == Vector2i(96,63) and not world.raft.active, "Scrolled return lands correctly")
 func check_editing() -> void:
 	world.scroll_transitions = false

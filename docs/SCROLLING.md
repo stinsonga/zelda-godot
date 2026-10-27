@@ -8,7 +8,8 @@ The outgoing room remains current until the scroll completes. Movement, attacks,
 reset input, combat, damage timers, pickups, and enemy spawning pause during the
 transition. Incoming enemies initialize on completion, preserving their full
 spawn delays. Rocks, beams, and loose drops clear at the start of a valid scroll.
-A blocked destination prevents the transition and leaves ongoing combat intact.
+As in `Z_07 CheckScreenEdge`, the room changes on the frame after Link reaches
+the edge, and the next room is not checked.
 
 `RoomTransition` owns source and target resources, source/destination positions,
 direction, elapsed ticks, and scroll distance. The renderer clips terrain and
@@ -25,10 +26,27 @@ overworld frame. Traversing 176 pixels takes 44 simulation ticks. Link's on-scre
 position moves in the opposite direction and clamps to the destination edge,
 matching the source's edge-limited position updates.
 
-This implements the visible scroll phase, not the NES's preceding nametable
-transfers, palette transition steps, or every original room-entry walk. Relative
-vertical timing starts with a waiting tick instead of inheriting the global NES
-frame parity. Cave portals still use their existing immediate room change and
+Around the visible scroll, the NES spends further frames in the overworld:
+- mode 6 (leaving);
+- `InitMode7`, which lays out the next room one row per frame;
+- the other `UpdateMode7Scroll` submodes;
+- mode 4 (entering).
+
+Then, because mode 4 ends by setting mode 5, `InitMode5Play` spends one more
+frame before Link can move. `RoomTransition` reproduces these as lead and tail
+ticks, measured against the NES with the movement harness:
+
+| Direction | Frames from leaving to free play |
+|---|---|
+| Left or right | 104 |
+| Up | 85 |
+| Down | 83 |
+
+The emulator comparison matches these on every frame
+([MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md)). The split between lead,
+scroll, and tail is approximate in the vertical cases, whose visible scroll
+takes 45 (up) or 43 (down) frames depending on frame parity; only the totals are
+checked. Dungeon transitions keep the bare scroll until they are measured. Cave portals still use their existing immediate room change and
 automatic entry walk. Dungeon transitions and maze rules remain future work.
 
 ## Verification

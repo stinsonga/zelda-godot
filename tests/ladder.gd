@@ -93,7 +93,8 @@ func run() -> void:
 		world.enter_room(load("res://imported/rooms/l1_23.tres"),Vector2i(32,53),Vector2i.RIGHT)
 		world.combat.enemies.clear()
 		world.combat.player_invulnerability = 10000
-		ticks(Vector2i.RIGHT,22)
+		# 32 pixels at six frames per eight-pixel segment (MoveObject), plus slack.
+		ticks(Vector2i.RIGHT,26)
 		check(world.player.pixel_position().x >= 64 and not world.ladder.active, "Original dungeon F4 water supports a complete crossing")
 	world.free()
 	print("Ladder checks: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)

@@ -81,6 +81,11 @@ def square_tiles(prg, index):
     return list(range(first, first + 4))
 
 
+# Z_07 GetCollidingTileMoving: in room $1F, Link moving vertically at X $80 with
+# Y below $56 finds every tile walkable, a false wall up to room $0F's waterfall.
+FALSE_WALL = (0x1F, 0x80, 0x56)
+# Z_05 InitLinkSpeed: mountain stairs halve Link's quarter speed to $30.
+MOUNTAIN_STAIRS = (0x74, 0x75)
 OW_ATTRS_RAM = 0x687E               # LevelBlockAttrsA in RAM; the ROM block at 99328 is copied there.
 Q2_ATTR_OFFSETS = 0x1815F           # Z_06 LevelBlockAttrsBQ2ReplacementOffsets, then the values.
 
@@ -690,6 +695,7 @@ def import_rom(prg, output):
             outer = qprg[99328 + room_id] & 3
             indices, collision = [], [0] * (32 * 22)
             ladder_water = [0] * 704
+            stairs = [0] * 704
             coarse = []
             for y, row in enumerate(layout):
                 line = ''
@@ -702,6 +708,7 @@ def import_rom(prg, output):
                         blocked = int(tile >= 0x89 and tile not in WALKABLE)
                         collision[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = blocked
                         ladder_water[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(0x8D <= tile < 0x99)
+                        stairs[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(tile in MOUNTAIN_STAIRS)
                         solid.append(blocked)
                     line += '#' if all(solid) else '.'
                 coarse.append(line)
@@ -831,7 +838,9 @@ def import_rom(prg, output):
     tile_indices = PackedInt32Array({array(indices)})
     collision_tiles = PackedByteArray({array(collision)})
     ladder_allowed = {str(room_id in (0x17, 0x18, 0x19, 0x27, 0x4F, 0x5F)).lower()}
+{f'false_wall_x = {FALSE_WALL[1]}{chr(10)}false_wall_below_y = {FALSE_WALL[2] - 64}' if room_id == FALSE_WALL[0] else ''}
     ladder_water = PackedByteArray({array(ladder_water)})
+    {f'stairs_tiles = PackedByteArray({array(stairs)})' if any(stairs) else ''}
     {'zora = ExtResource("zora")' if zora else ''}
     {MAZES.get(room_id, '')}
     {armos_field}
