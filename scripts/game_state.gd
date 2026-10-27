@@ -120,7 +120,27 @@ func take_damage(half_hearts: int) -> void:
 	# Z_01: any damage to Link resets the special-drop counters.
 	reset_help_drops()
 	var shift := item_value(&"ring")
-	health_units = maxi(0, health_units - ((half_hearts * HEALTH_UNITS) >> shift))
+	var amount := (half_hearts * HEALTH_UNITS) >> shift
+	if health_units <= 0: return
+	# Z_01 Link_BeHarmed works on HeartValues' full hearts and HeartPartial
+	# ($FF = a full heart): health_units = full * 256 + partial + 1. Borrowing
+	# a heart counts the partial as full at $FF, so it loses one unit each time.
+	var full := (health_units - 1) >> 8
+	var partial := (health_units - 1) & 255
+	var low := amount & 255
+	while partial < low:
+		low -= partial
+		if full == 0:
+			health_units = 0
+			return
+		full -= 1
+		partial = 255
+	partial -= low
+	if full < (amount >> 8):
+		health_units = 0
+		return
+	full -= amount >> 8
+	health_units = full * 256 + partial + 1
 
 func tick_rupees(frame: int) -> bool:
 	if rupees == 0: rupees_to_subtract = 0

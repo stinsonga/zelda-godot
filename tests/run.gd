@@ -292,9 +292,14 @@ func check_rewards() -> void:
 	world.player.place(Vector2i(80, 77))
 	world.state.health = 3
 	world.combat.rewards.append(reward)
-	for tick in range(31): world.combat.tick(world)
-	check(world.state.health == 3 and not reward.available(), "Fresh drops must wait 32 ticks before collection")
-	world.combat.tick(world)
+	# Item_ObjItemLifetime counts down on odd frames from the frame after the drop
+	# appears, and TryTakeItem waits for it to go below $F0: 31 to 34 frames.
+	var waited := 0
+	while not world.combat.rewards.is_empty() and waited < 40:
+		world.combat.tick(world)
+		world.combat.advance_frame()
+		waited += 1
+	check(waited >= 31 and waited <= 34, "Fresh drops must wait for their lifetime to fall below $F0 (%d)" % waited)
 	check(world.state.health == 5 and world.combat.rewards.is_empty(), "Heart must restore one heart and disappear exactly once")
 	reward.take(world.state)
 	check(world.state.health == 5, "A collected reward cannot apply twice")
@@ -312,7 +317,9 @@ func check_rewards() -> void:
 	world.state.rupees = 253
 	world.combat.rewards.append(reward)
 	world.combat.tick(world)
-	check(world.state.rupees == 255, "Currency must clamp at the original 255-rupee limit")
+	# Rupees arrive through RupeesToAdd, one per two frames, stopping at 255.
+	for frame in range(20): world.state.tick_rupees(frame)
+	check(world.state.rupees == 255 and world.state.rupees_to_add == 0, "Currency must clamp at the original 255-rupee limit")
 	reward = preload("res://scripts/dropped_reward.gd").new()
 	reward.definition = preload("res://content/items/rupee.tres")
 	reward.position = Vector2i(180, 80)
@@ -330,9 +337,9 @@ func check_rewards() -> void:
 	world.combat.rewards.append(reward)
 	world.simulate_tick(Vector2i.ZERO, true)
 	for tick in range(3): world.simulate_tick(Vector2i.ZERO)
-	check(world.state.rupees == 0, "Invisible sword startup must not collect a distant reward")
+	check(world.state.rupees + world.state.rupees_to_add == 0, "Invisible sword startup must not collect a distant reward")
 	world.simulate_tick(Vector2i.ZERO)
-	check(world.state.rupees == 1, "Extended sword must collect rewards outside Link's direct reach")
+	check(world.state.rupees + world.state.rupees_to_add == 1, "Extended sword must collect rewards outside Link's direct reach")
 	for direction in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.UP, Vector2i.DOWN]:
 		var sword = preload("res://scripts/sword_action.gd").new()
 		sword.start(world.state.equipped_weapon, direction)

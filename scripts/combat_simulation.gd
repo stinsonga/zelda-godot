@@ -421,7 +421,7 @@ func tick(world: Node) -> void:
 					rock.alive = false
 	rocks = rocks.filter(func(rock: RefCounted) -> bool: return rock.alive)
 	for reward in rewards:
-		reward.tick(bounds, source_random.at(reward.source_slot + 1))
+		reward.tick(bounds, source_random.at(reward.source_slot + 1), frame_counter)
 		if world.state.health > 0 and reward.available():
 			var touched: bool = reward.touches(world.player.pixel_position())
 			if world.sword.visible():
@@ -429,7 +429,7 @@ func tick(world: Node) -> void:
 			if touched:
 				reward.take(world.state)
 				world.audio.play(reward.pickup_sound())
-	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and reward.age < reward.definition.lifetime_ticks)
+	rewards = rewards.filter(func(reward: RefCounted) -> bool: return not reward.collected and not reward.expired())
 	world.tick_shutter_audio()
 	world.update_ambient_audio()
 

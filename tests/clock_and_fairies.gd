@@ -26,9 +26,12 @@ func run() -> void:
 	world.combat.enemies.clear()
 	var clock: RefCounted = world.combat.rewards[0]
 	world.player.place(Vector2i(80,122))
-	for i in range(31): world.simulate_tick(Vector2i.ZERO)
-	check(not world.state.clock_active and not clock.collected, "Clock cannot be picked up during its initial delay")
-	world.simulate_tick(Vector2i.ZERO)
+	# Item_ObjItemLifetime must fall below $F0 first: 31 to 34 frames by parity.
+	var waited := 0
+	while not clock.collected and waited < 40:
+		world.simulate_tick(Vector2i.ZERO)
+		waited += 1
+	check(waited >= 31 and waited <= 34, "Clock cannot be picked up during its initial delay (%d)" % waited)
 	check(world.state.clock_active and clock.collected, "Clock pickup activates room effect")
 	var hp: int = world.state.health
 	check(not world.combat.hurt_player(world,4,world.player.pixel_position()) and world.state.health == hp, "Clock prevents damage")

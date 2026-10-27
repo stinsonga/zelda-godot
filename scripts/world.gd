@@ -409,7 +409,8 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	# The NES's lag frames during a room change skip the random and timer updates.
 	if transition == null or not transition.lags_next(): combat.advance_frame()
-	if state.tick_rupees(simulation_tick):
+	# World_ChangeRupees counts on even FrameCounter values.
+	if state.tick_rupees(combat.frame_counter):
 		audio.play(&"heart")
 	state.sword_block_ticks = maxi(0, state.sword_block_ticks - 1)
 	if state.health <= 0:

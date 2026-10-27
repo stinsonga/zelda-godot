@@ -50,6 +50,12 @@ func snapshot(world: Node) -> Dictionary:
 	monsters.append_array(shots)
 	var beam = world.combat.beam
 	if beam != null and beam.flying(): monsters.append(["beam", beam.position.x, beam.position.y])
+	var items: Array = []
+	for reward in world.combat.rewards:
+		if not reward.collected: items.append(["item", String(reward.definition.id), reward.position.x, reward.position.y])
+	items.sort()
+	monsters.append_array(items)
+	monsters.append(["link", world.state.rupees, world.state.item_value(&"bombs"), world.state.health_units])
 	# Each monster's internals, named like the reference's per-slot diagnostics.
 	var internals := {}
 	for actor in world.combat.enemies:
@@ -63,7 +69,7 @@ func snapshot(world: Node) -> Dictionary:
 			"meta": actor.spawn_remaining, "shoot": source.shoot_timer, "wants": int(source.wants_to_shoot), "turn": source.turn_timer,
 			"init": int(actor.initializing), "waiting": int(actor.waiting_spawn)}
 	return {"objects":monsters,"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),"phase":"transition" if moving_between else "play",
-		"raw":{"objects":internals,"inv":world.combat.player_invulnerability,"shove":world.combat.shove_remaining,"grid_offset":world.player.grid_offset,"fraction":world.player.fraction,
+		"raw":{"objects":internals,"items":world.combat.rewards.map(func(r: RefCounted) -> Array: return [String(r.definition.id), r.lifetime, r.age]),"kill_cycle":world.state.kill_cycle,"help_count":world.state.help_drop_count,"inv":world.combat.player_invulnerability,"shove":world.combat.shove_remaining,"grid_offset":world.player.grid_offset,"fraction":world.player.fraction,
 		"subposition_x":world.player.subposition.x,"subposition_y":world.player.subposition.y,
 		"entry_walk_remaining":world.entry_walk_remaining,"curtain":world.curtain,"random":Array(world.combat.source_random.bytes),"edge_timer":world.combat.edge_timer,"edge_cell":world.combat.edge_cursor,"frame_clock":world.combat.frame_clock}}
 func fail(message: String) -> void:
@@ -115,6 +121,12 @@ func run() -> void:
 		var sword_items := ["res://content/items/wooden_sword.tres", "res://content/items/white_sword.tres", "res://content/items/magical_sword.tres"]
 		var sword := int(recorded.initial.get("sword", 0))
 		if sword > 0: world.state.take_item(load(sword_items[sword - 1]))
+		# Rupees, bombs, and health after any setup (the reference's link entry).
+		for entry in recorded.initial.get("objects", []):
+			if entry[0] == "link":
+				world.state.rupees = int(entry[1])
+				world.state.slots[&"bombs"] = int(entry[2])
+				world.state.health_units = int(entry[3])
 		# SpawnCycle ($524): where spawn lists resume, carried across rooms.
 		world.state.spawn_cycle = int(recorded.initial.get("spawn_cycle", 0))
 		world.combat.frame_counter = int(raw.get("frame_counter", 0))

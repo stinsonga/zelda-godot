@@ -35,7 +35,10 @@ func initialize_facing(actor: RefCounted, target: Vector2i) -> void:
 func choose_movement(actor: RefCounted, probe: Callable, random_byte: int, moving: Vector2i = Vector2i(2, 2)) -> Vector2i:
 	var original: Vector2i = actor.facing
 	if moving == Vector2i(2, 2): moving = original
-	if moving != Vector2i.ZERO and probe.call(actor.position(), moving): return moving
+	# CheckBoundary stores a walkable moving direction back into ObjDir.
+	if moving != Vector2i.ZERO and probe.call(actor.position(), moving):
+		actor.facing = moving
+		return moving
 	var perpendicular := Vector2i.UP if random_byte & 128 else Vector2i.DOWN
 	if original.y != 0: perpendicular = Vector2i.LEFT if random_byte & 128 else Vector2i.RIGHT
 	var candidates: Array = [perpendicular, -perpendicular, -original]

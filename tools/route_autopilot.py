@@ -13,7 +13,10 @@ Waypoints (a JSON list):
   {"button": "up", "exit": true}
       hold the button until a room change completes (mazes repeat rooms);
   {"idle": 300}
-      release everything for that many frames.
+      release everything for that many frames;
+  {"fight": 600}
+      for that many frames, walk toward the nearest dropped item, or else the
+      nearest monster, swinging at monsters ahead (needs the sword).
 While moving, the autopilot presses A (fresh presses only) when a monster is
 within reach ahead, if Link has a sword.
 
@@ -52,6 +55,20 @@ def monster_ahead(snapshot, button):
         if 0 < ahead < 28 and across < 12: return True
     return False
 
+def fight_buttons(snapshot, last):
+    """One frame of a crude fight: chase items, then monsters; swing when one is ahead."""
+    lx, ly = snapshot['x'], snapshot['y']
+    items = [o for o in snapshot['objects'] if o[0] == 'item']
+    monsters = [o for o in snapshot['objects'] if isinstance(o[0], int)]
+    targets = items or monsters
+    if not targets: return []
+    target = min(targets, key=lambda o: abs(o[2] - lx) + abs(o[3] - ly))
+    dx, dy = target[2] - lx, target[3] - ly
+    button = ('right' if dx > 0 else 'left') if abs(dx) >= abs(dy) else ('down' if dy > 0 else 'up')
+    buttons = [button]
+    if monsters and any(monster_ahead(snapshot, b) for b in [button]) and 'a' not in last: buttons.append('a')
+    return buttons
+
 def drive(core, plan, delay, limit, sword):
     """Returns (ok, inputs, rooms, reason)."""
     inputs = [[] for _ in range(delay)]
@@ -66,6 +83,10 @@ def drive(core, plan, delay, limit, sword):
         if 'idle' in w:
             if idle >= w['idle']: step, idle = step + 1, 0; continue
             buttons, idle = [], idle + 1
+        elif 'fight' in w:
+            if idle >= w['fight']: step, idle = step + 1, 0; continue
+            idle += 1
+            buttons = fight_buttons(r, inputs[-1] if inputs else []) if r['phase'] == 'play' else []
         else:
             if w.get('exit'):
                 if r['phase'] == 'transition': exiting = True

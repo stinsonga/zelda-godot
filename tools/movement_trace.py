@@ -29,6 +29,8 @@ OBJECTS_FIELD = 'objects'
 # by type and position without their slot, since Godot keeps them in a list.
 MONSTER_TYPES_END = 0x53
 SHOT_TYPES = {0x53, 0x5B}
+# Dropped item IDs by the names Godot's rewards use (import_rom.py).
+DROP_NAMES = {0x22: 'heart', 0x18: 'rupee', 0x0F: 'five_rupees', 0x00: 'bomb_drop', 0x21: 'clock', 0x23: 'fairy'}
 # Start a fresh file called A, using controller input only. No SRAM/RAM patches.
 BOOT = [([],180),(['start'],1),([],180),(['start'],1),([],180),(['a'],1),([],10),
         (['select'],1),([],10),(['select'],1),([],10),(['select'],1),([],10),
@@ -104,7 +106,13 @@ def objects(ram):
                     for slot in range(1, 12) if ram[0x34F+slot] in SHOT_TYPES])
     # Link's sword shot (slot $0E) while it flies (state $10), not while it spreads ($11).
     beam = [['beam', int(ram[0x70+14]), int(ram[0x84+14])-64]] if ram[0xAC+14] & 0xF1 == 0x10 else []
-    return monsters + shots + beam
+    # Dropped items ($60) take the dead monster's slot; Item_ObjItemId is $AC+X.
+    items = sorted([['item', DROP_NAMES.get(int(ram[0xAC+slot]), hex(ram[0xAC+slot])), int(ram[0x70+slot]), int(ram[0x84+slot])-64]
+                    for slot in range(1, 12) if ram[0x34F+slot] == 0x60])
+    # What pickups change: InvRupees, InvBombs, and health in Godot's units
+    # (full hearts in HeartValues' low nibble * 256, plus HeartPartial + 1).
+    link = [['link', int(ram[0x66D]), int(ram[0x658]), (ram[0x66F] & 0x0F) * 256 + ram[0x670] + 1]]
+    return monsters + shots + beam + items + link
 
 # Per-slot NES fields kept as diagnostics (not compared), named like Godot's.
 OBJECT_DIAGNOSTICS = {'state':0xAC, 'timer':0x28, 'shove':0xC0, 'shove_distance':0xD3, 'inv':0x4F0,
@@ -127,7 +135,9 @@ def snapshot(core):
             'raw':{'screen_y':int(ram[0x84]), 'fraction':int(ram[0x3A8]), 'grid_offset':int(ram[0x394]),
                    'buttons':int(ram[0xFA]), 'frame_counter':int(ram[0x15]), 'mode':int(ram[0x12]),
                    'submode':int(ram[0x13]), 'level':int(ram[0x10]), 'state':int(ram[0xAC]), 'paused':int(ram[0xE0]),
-                   'inv':int(ram[0x4F0]), 'shove':int(ram[0xC0]), 'objects':object_diagnostics(ram)}}
+                   'inv':int(ram[0x4F0]), 'shove':int(ram[0xC0]), 'objects':object_diagnostics(ram),
+                   'kill_cycle':int(ram[0x52A]), 'kill_count':int(ram[0x627]), 'help_count':int(ram[0x50]),
+                   'help_value':int(ram[0x51]), 'rupees_to_add':int(ram[0x67D])}}
 
 def capture_reference(core_path, rom_path, suite, out):
     from import_rom import read_rom, PRG_SHA1
@@ -214,7 +224,7 @@ def capture_reference(core_path, rom_path, suite, out):
 # What a cached capture depends on besides its inputs: the code that records it.
 import inspect as _inspect
 CAPTURE_SOURCE = hashlib.sha256(''.join(_inspect.getsource(f) for f in (objects, object_diagnostics, snapshot, capture_reference, setup_frames, expand)).encode()
-                                + json.dumps([BOOT, BUTTONS, sorted(SHOT_TYPES), MONSTER_TYPES_END, OBJECT_DIAGNOSTICS]).encode()).hexdigest()
+                                + json.dumps([BOOT, BUTTONS, sorted(SHOT_TYPES), MONSTER_TYPES_END, OBJECT_DIAGNOSTICS, sorted(DROP_NAMES.items())]).encode()).hexdigest()
 
 def validate_trace(trace, engine):
     if trace.get('schema') != 1 or trace.get('engine') != engine: raise ValueError('Unsupported trace schema or engine')
@@ -278,7 +288,7 @@ def differing_slots(expected, observed):
     nes={o[0]:o for o in expected.get(OBJECTS_FIELD,[]) if isinstance(o[0],int)}
     godot={o[0]:o for o in observed.get(OBJECTS_FIELD,[]) if isinstance(o[0],int)}
     slots=sorted(s for s in set(nes)|set(godot) if nes.get(s)!=godot.get(s))
-    others=[k for k in ('shot','beam') if [o for o in expected.get(OBJECTS_FIELD,[]) if o[0]==k]!=[o for o in observed.get(OBJECTS_FIELD,[]) if o[0]==k]]
+    others=[k for k in ('shot','beam','item','link') if [o for o in expected.get(OBJECTS_FIELD,[]) if o[0]==k]!=[o for o in observed.get(OBJECTS_FIELD,[]) if o[0]==k]]
     return slots,others
 
 def inspect_text(reference, native, case_ids=None, before=12, extra_slots=()):

@@ -1,7 +1,7 @@
 # Movement comparison against the NES
 
-The harness runs twenty-four controller sequences starting in first-quest room
-`ow_77`, 10,541 compared frames:
+The harness runs twenty-six controller sequences starting in first-quest room
+`ow_77`, 16,072 compared frames:
 - walking and stopping, reversing, and turning between grid boundaries;
 - approaching obstacles on three sides and backing away;
 - turns before and after halfway in each direction;
@@ -17,7 +17,8 @@ The harness runs twenty-four controller sequences starting in first-quest room
   Leevers and Zora of room $48;
 - sword swings standing and walking;
 - a 3,834-frame sword fight west through the Moblin rooms and the Lost Woods
-  (room $61) to the Lynels and Peahats of room $60.
+  (room $61) to the Lynels and Peahats of room $60;
+- sword fights in rooms $78 and $68 that drop and pick up items.
 
 Each frame records a phase: free play (NES mode 5), or a transition between
 rooms (modes 6, 7, and 4). The phase is compared on every frame; room, position,
@@ -360,6 +361,24 @@ Fixes found on the way:
   for that frame. Arrows and other shots from $55 up ignore tiles; blocked
   arrows spark for three frames. Monster shots are half width (middle X + 4).
 - **Peahats** have no cloud but still appear on their first update, flying up.
+
+### Drops and pickups
+
+Dropped items ($60, in the dead monster's slot) are compared by kind and
+position, and a `link` entry compares rupees, bombs, and health on every frame.
+Health is in Godot's units: full hearts * 256 + `HeartPartial` + 1. Findings:
+- **Heart arithmetic.** `Link_BeHarmed` borrows a heart by counting the partial
+  as full at $FF, so each borrow loses one unit; Godot now does the same.
+- **Item lifetime.** `Item_ObjItemLifetime` starts at $FF the frame the monster
+  becomes an item; `InitObject` takes the next frame, and from then it counts
+  down on odd `FrameCounter` values. `TryTakeItem` refuses the item until it is
+  below $F0 (31 or 32 frames), and it vanishes at 0.
+- **Rupees** are credited to `RupeesToAdd` and counted in one at a time on even
+  frames (`World_ChangeRupees`).
+- **Walkers** store a walkable moving direction back into their facing at each
+  grid point (`CheckBoundary`), which undoes the turn after hitting Link.
+The fights so far drop rupees and a heart. Bombs, five rupees, clocks, and the
+help drops (ten kills without damage; a fairy at sixteen) are not yet covered.
 
 **Further routes.** Mountain stairs and room $1F's false wall are several
 screens away through monster rooms. The bootstrap has no sword, so a route must
