@@ -29,6 +29,8 @@ var shot_out := false
 var split_pending := false
 ## Set on the frame a monster comes in from the edge: it is initialized, not updated.
 var initializing := false
+## Whether the monster's init (Z_07 InitObject) has run; the spawn cloud starts then.
+var cloud_started := false
 ## Like Like and Wallmaster: ticks spent holding Link; 0 when free.
 var capture_ticks := 0
 ## The boomerang stuns monsters for $A0 frames; clocks last for the visit.
@@ -58,6 +60,28 @@ func setup(spawn: Resource, variant: Resource = null) -> void:
 		spawn_remaining += 12
 		if definition.behavior != "nes_octorok": source.move_speed = definition.speed_subpixels
 		if not definition.spawn_cloud: spawn_remaining = 0
+
+## Z_07 InitObject: the cloud waits for ObjTimer, then AnimateAndDrawMetaObject
+## takes three six-frame steps. Most monsters start the timer at their slot; the
+## family's own init can set it instead (InitSlowOctorockOrGhini: (slot + 1) * $10;
+## InitTektite: its direction * 4). The last step leaves the timer at 6.
+## The monster appears on the frame of the last step: init frame + T + 12, which
+## this countdown (starting on the init frame) reaches with T + 13.
+const CLOUD_STEPS := 13
+func start_cloud(target: Vector2i) -> void:
+	if definition.behavior == "native" or not definition.spawn_cloud: return
+	spawn_remaining = slot + CLOUD_STEPS
+	# Z_04 InitWalker faces by ChaseTarget on this frame.
+	if definition.behavior in ["nes_octorok", "walker"]:
+		facing = Vector2i.ZERO
+		source.initialize_facing(self, target)
+	if definition.behavior == "nes_octorok":
+		spawn_remaining = (slot + 1) * 0x10 + CLOUD_STEPS
+	elif definition.behavior in ["jumper"] and family != null and family.has_method("initialize"):
+		# The family's init runs now, on the monster's first frame.
+		family.initialize(self)
+		spawn_remaining = family.timer + CLOUD_STEPS
+		family.timer = 6
 
 func position() -> Vector2i:
 	return Vector2i(floori(subposition.x / 256.0), floori(subposition.y / 256.0))
@@ -156,6 +180,9 @@ func affected_by_clock() -> bool:
 func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Callable(), can_shoot: bool = true, context: Dictionary = {}) -> bool:
 	if waiting_spawn: return false
 	if spawn_remaining > 0:
+		if not cloud_started:
+			cloud_started = true
+			start_cloud(target)
 		spawn_remaining -= 1
 		return false
 	if health <= 0:

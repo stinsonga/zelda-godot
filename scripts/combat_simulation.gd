@@ -919,7 +919,11 @@ func update_edge_spawns(world: Node) -> void:
 
 func tick_source_rock(world: Node, rock: RefCounted) -> void:
 	rock.age += 1
-	if rock.age == 1: return
+	# A shot takes a free object slot. Slots update from $B down, so one above its
+	# shooter is passed over the frame it is fired, initialized (InitObject) the
+	# next frame, and moves only on the third. A shot given a lower slot would move
+	# a frame sooner; slots are not modelled.
+	if rock.age <= 2: return
 	if rock.bounce_remaining > 0:
 		var displacement := Vector2i(1, -2)
 		if rock.bounce_direction == Vector2i.DOWN: displacement = Vector2i(-1, 2)

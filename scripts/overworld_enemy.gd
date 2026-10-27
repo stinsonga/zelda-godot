@@ -68,6 +68,7 @@ func initialize(actor: RefCounted) -> void:
 		var index: int = actor.source_next_random & 3
 		jump_direction = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(1,1), Vector2i(-1,-1)][index]
 		timer = [4,8,20,40][index]
+		actor.facing = jump_direction
 	elif actor.definition.behavior in ["flyer", "patra"]:
 		# InitPatra: facing up at flying speed $1F. Woken flyers keep facing down.
 		if actor.definition.wake_ticks == 0: actor.facing = Vector2i.UP

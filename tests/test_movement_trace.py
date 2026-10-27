@@ -67,11 +67,11 @@ class MovementTraceTests(unittest.TestCase):
     def test_ambiguous_or_invalid_inputs_rejected(self):
         for buttons,frames in [(['up','down'],1),(['left','right'],1),(['up','up'],1),(['up','right','left'],1),(['a'],1),([],True),([],0),([],1.5)]:
             with self.assertRaises(ValueError):m.expand({'segments':[{'buttons':buttons,'frames':frames}]})
-    def test_authored_suite_has_eighteen_cases(self):
+    def test_authored_suite_has_nineteen_cases(self):
         suite=m.read_json(m.SCENARIOS); m.validate_suite(suite)
-        self.assertEqual(len(suite['cases']),18)
-        self.assertEqual(len({c['id'] for c in suite['cases']}),18)
-        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),1821)
+        self.assertEqual(len(suite['cases']),19)
+        self.assertEqual(len({c['id'] for c in suite['cases']}),19)
+        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),2467)
     def test_generated_output_cannot_enter_shared_content(self):
         with self.assertRaises(ValueError):m.output_directory(ROOT/'content/capture')
         with tempfile.TemporaryDirectory() as folder:

@@ -68,10 +68,10 @@ These are recorded approximations, each small:
   every direction, with the original's frames around the scroll. Mountain-stairs speed ($30 on tiles
   $74/$75) is translated from `InitLinkSpeed` but not yet checked against the
   emulator, since no scenario reaches stairs. Next:
-  - monster comparisons. Room $78's Octoroks now match the NES on every frame:
-    edge spawns, walker turns, shared fractions, and the wrapped spawn distance.
-    Other families (Moblins, Lynels, Leevers, Tektites, Peahats, then the
-    dungeons) each need the same tracing. The remaining movement checks depend
+  - monster comparisons. Octoroks (rooms $78 and $67, edge and spawn-list,
+    including their rocks) and Tektites (room $76) match the NES on every frame.
+    Other families (Moblins, Lynels, Leevers, Peahats, then the dungeons) each
+    need the same tracing. The remaining movement checks depend
     on these;
   - then dungeon transitions and doorways (unmeasured; they keep the bare scroll),
     and routes to stairs and room $1F's false wall, all past monsters. See

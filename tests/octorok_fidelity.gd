@@ -152,6 +152,9 @@ func run() -> void:
 	rock.direction = Vector2i.LEFT
 	world.combat.tick_source_rock(world, rock)
 	check(rock.position().x == 96, "Newly emitted source rock must wait for its next update")
+	# Its init frame (InitObject) comes next; it moves on the third.
+	world.combat.tick_source_rock(world, rock)
+	check(rock.position().x == 96, "and spends a frame being initialized")
 	world.combat.tick_source_rock(world, rock)
 	check(rock.position().x == 93, "Source rock must move three pixels per update")
 	world.combat.tick_source_rock(world, rock)

@@ -22,8 +22,10 @@ FIELDS = ('room','x','y','direction')
 PHASE_FIELD = 'phase'
 # Monster slots 1-11, compared in free play for cases that set "objects": true.
 OBJECTS_FIELD = 'objects'
-# Object types from $5D on are not monsters (Z_07 UpdateObject_JumpTable).
-MONSTER_TYPES_END = 0x5D
+# Monster types end where shots begin ($53, the flying rock). Shots are compared
+# by type and position without their slot, since Godot keeps them in a list.
+MONSTER_TYPES_END = 0x53
+SHOT_TYPES = {0x53}
 # Start a fresh file called A, using controller input only. No SRAM/RAM patches.
 BOOT = [([],180),(['start'],1),([],180),(['start'],1),([],180),(['a'],1),([],10),
         (['select'],1),([],10),(['select'],1),([],10),(['select'],1),([],10),
@@ -86,8 +88,11 @@ def validate_suite(suite):
 def objects(ram):
     """Active monsters by slot: ObjType ($34F+X), ObjX, ObjY - 64, ObjDir.
     Slots still in their spawn cloud (ObjMetastate, $405+X, nonzero) are left out."""
-    return [[slot, int(ram[0x34F+slot]), int(ram[0x70+slot]), int(ram[0x84+slot])-64, int(ram[0x98+slot])]
-            for slot in range(1, 12) if 0 < ram[0x34F+slot] < MONSTER_TYPES_END and ram[0x405+slot] == 0]
+    monsters = [[slot, int(ram[0x34F+slot]), int(ram[0x70+slot]), int(ram[0x84+slot])-64, int(ram[0x98+slot])]
+                for slot in range(1, 12) if 0 < ram[0x34F+slot] < MONSTER_TYPES_END and ram[0x405+slot] == 0]
+    shots = sorted([['shot', int(ram[0x34F+slot]), int(ram[0x70+slot]), int(ram[0x84+slot])-64]
+                    for slot in range(1, 12) if ram[0x34F+slot] in SHOT_TYPES])
+    return monsters + shots
 
 def snapshot(core):
     ram = core.ram

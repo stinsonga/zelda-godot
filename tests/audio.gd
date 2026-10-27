@@ -70,7 +70,8 @@ func run() -> void:
 	rock.speed_subpixels = 768
 	rock.subposition = Vector2i(96, 77) * 256
 	rock.direction = Vector2i.LEFT
-	for tick in range(3): world.combat.tick_source_rock(world, rock)
+	# Fired, initialized, then two moves bring it to the shield.
+	for tick in range(4): world.combat.tick_source_rock(world, rock)
 	check(audio.history.back() == &"parry", "Successful shield parry must emit its cue")
 	var spawn = preload("res://scripts/enemy_spawn.gd").new()
 	spawn.id = &"audio_enemy"

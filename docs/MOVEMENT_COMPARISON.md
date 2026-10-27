@@ -185,6 +185,24 @@ Tracing further found three more differences, and the case now matches on all
   screen (Link at X 0, the spawn at X 240) counts as within $22, so the spawn is
   refused.
 
+Two more rooms then matched once three more rules were added:
+- **Spawn clouds** (room $76, Tektites; room $67, Octoroks). `InitObject` and the
+  family's init run on the monster's first frame and set the cloud's timer:
+  - the slot number, for most monsters;
+  - (slot + 1) * $10, for Octoroks;
+  - the starting direction * 4, for Tektites (chosen at random from
+    `TektiteStartingDirs`).
+
+  The cloud then takes three six-frame steps and leaves the timer at 6. Godot had
+  given every cloud the slot number plus 12, and started the Tektites' timer
+  after it. Spawn-list walkers now also face by `ChaseTarget` on that frame
+  (`InitWalker`). The comparison records diagonal facings (Tektites' 5 and 10).
+- **Rocks** ($53) are compared by position without a slot. A fired rock sits two
+  frames before moving: it takes a free slot above its shooter, which updates
+  from $B down, so it is passed over that frame and initialized on the next. A
+  rock given a lower slot would move a frame sooner; slot allocation is not
+  modelled.
+
 The random bytes line up frame for frame. Zelda's NMI scrambles them before
 running the frame's logic, as Godot's tick does, and both skip the two lag
 frames.

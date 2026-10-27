@@ -768,9 +768,10 @@
         },
         {
           "buttons": [],
-          "frames": 4
+          "frames": 200
         }
-      ]
+      ],
+      "objects": true
     },
     {
       "id": "exit_up_and_back",
@@ -794,7 +795,8 @@
           "buttons": [],
           "frames": 4
         }
-      ]
+      ],
+      "objects": true
     },
     {
       "id": "diagonal_from_grid",
@@ -912,6 +914,25 @@
         {
           "buttons": [],
           "frames": 120
+        }
+      ]
+    },
+    {
+      "id": "octoroks_north",
+      "rooms": [
+        "ow_67"
+      ],
+      "objects": true,
+      "segments": [
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 150
+        },
+        {
+          "buttons": [],
+          "frames": 300
         }
       ]
     }

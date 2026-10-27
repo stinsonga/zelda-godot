@@ -17,12 +17,9 @@ func direction(bits: int) -> Vector2i:
 		4: return Vector2i.DOWN
 		8: return Vector2i.UP
 	return Vector2i.ZERO
+## ObjDir bits; jumpers face diagonals (Tektites' 5 is down-right, 10 up-left).
 func bits(vector: Vector2i) -> int:
-	if vector == Vector2i.RIGHT: return 1
-	if vector == Vector2i.LEFT: return 2
-	if vector == Vector2i.DOWN: return 4
-	if vector == Vector2i.UP: return 8
-	return 0
+	return (1 if vector.x > 0 else 2 if vector.x < 0 else 0) | (4 if vector.y > 0 else 8 if vector.y < 0 else 0)
 func input_direction(buttons: Array) -> Vector2i:
 	var input := Vector2i.ZERO
 	for button in buttons:
@@ -41,6 +38,14 @@ func snapshot(world: Node) -> Dictionary:
 			var p: Vector2i = actor.position()
 			monsters.append([actor.slot, actor.definition.nes_type, p.x, p.y, bits(actor.facing)])
 	monsters.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	# Shots by type and position, as the reference lists them ($53 flying rock).
+	var shots: Array = []
+	for rock in world.combat.rocks:
+		if rock.kind == "rock":
+			var p: Vector2i = rock.position()
+			shots.append(["shot", 0x53, p.x, p.y])
+	shots.sort()
+	monsters.append_array(shots)
 	return {"objects":monsters,"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),"phase":"transition" if moving_between else "play",
 		"raw":{"subposition_x":world.player.subposition.x,"subposition_y":world.player.subposition.y,
 		"entry_walk_remaining":world.entry_walk_remaining,"curtain":world.curtain,"random":Array(world.combat.source_random.bytes),"edge_timer":world.combat.edge_timer,"edge_cell":world.combat.edge_cursor,"frame_clock":world.combat.frame_clock}}
