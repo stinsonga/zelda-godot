@@ -1,0 +1,158 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "id": "lantern_vault",
+  "rooms": [
+    {
+      "connections": {
+        "up": {
+          "kind": "key",
+          "target": "hall"
+        }
+      },
+      "enemies": [],
+      "id": "entry",
+      "map_position": [
+        0,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "entry_key",
+          "item": "key",
+          "position": [
+            64,
+            77
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Entrance"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "key",
+          "target": "entry"
+        },
+        "right": {
+          "kind": "shutter",
+          "target": "vault"
+        }
+      },
+      "enemies": [
+        {
+          "id": "guard_a",
+          "position": [
+            80,
+            61
+          ],
+          "type": "crawler"
+        },
+        {
+          "id": "guard_b",
+          "position": [
+            176,
+            93
+          ],
+          "type": "crawler"
+        }
+      ],
+      "id": "hall",
+      "map_position": [
+        0,
+        -1
+      ],
+      "pickups": [],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Guard hall"
+    },
+    {
+      "connections": {
+        "left": {
+          "kind": "shutter",
+          "target": "hall"
+        }
+      },
+      "enemies": [],
+      "id": "vault",
+      "map_position": [
+        1,
+        -1
+      ],
+      "pickups": [
+        {
+          "id": "reward",
+          "item": "rupee",
+          "position": [
+            120,
+            77
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "The vault"
+    }
+  ],
+  "schema": 1,
+  "start_room": "entry",
+  "title": "Lantern vault"
+}

@@ -611,7 +611,9 @@ def pair_collision(codes):
     return pairs if pairs != separate else []
 
 
-def import_rom(prg, output):
+def import_rom(prg, output, progress=None):
+    notify = progress or (lambda fraction, message: None)
+    notify(0.0, "Decoding overworld layouts")
     output = Path(output)
     MAZES[0x61] = maze_field(prg[MAZE_TABLES:MAZE_TABLES + 4], 'right')
     MAZES[0x1B] = maze_field(prg[MAZE_TABLES + 4:MAZE_TABLES + 8], 'left')
@@ -682,6 +684,7 @@ def import_rom(prg, output):
     level_room_ids, level_starts, dungeon_sprites, dungeon_coverage = export_levels(prg, output, png, blit_tile, level_entrances)
     combat_names += dungeon_sprites
     # The second quest's levels, entered from its own overworld.
+    notify(0.20, "Decoding second-quest dungeons and sprites")
     q2_prg = second_quest_prg(prg)
     q2_entrances = overworld_entrances(q2_prg, [decode_room(q2_prg, i) for i in range(128)], square_tiles, 2)
     q2_level_room_ids, q2_level_starts, q2_sprites, _ = export_levels(q2_prg, output, png, blit_tile, level_entrance_map(q2_prg, q2_entrances, 2), 'q2')
@@ -870,6 +873,7 @@ def import_rom(prg, output):
             (rooms_dir / f'{name}.tres').write_text(text)
         return cave_ids, unreachable
 
+    notify(0.38, "Writing overworld rooms, caves and secrets")
     cave_ids, unreachable = write_overworld(prg, 1, output / 'rooms', level_starts)
     q2_cave_ids, _ = write_overworld(q2_prg, 2, output / 'q2' / 'rooms', q2_level_starts)
     import_submenu.write_layout(q2_prg, output / 'q2' / 'submenu.tres', {level: import_dungeons.level_info(q2_prg, level) for level in range(1, 10)})
@@ -944,9 +948,11 @@ def import_rom(prg, output):
         'limitations': ['First-quest terrain and overworld actors are imported.',
                         'First-quest dungeon encounters are imported; Zora and Armos are in.',
                         'RGB colors approximate NES output.']}, indent=2) + '\n')
+    notify(0.48, "Extracting title, story and ending graphics")
     import_title.export(prg, output, png, COLORS)
     from render_audio import export_audio
-    export_audio(prg, output / 'audio')
+    export_audio(prg, output / 'audio', progress=lambda fraction, message: notify(0.5+fraction*0.5, message))
+    notify(1.0, "Extraction finished")
     print(f'Imported 128 overworld rooms, {len(cave_ids)} caves, terrain, player, item, and common overworld enemy sprites into {output}')
 
 

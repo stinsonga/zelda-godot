@@ -1,135 +1,170 @@
-# Original ROM import
+# Importing original ROM assets
 
-The importer supports the US PRG0 revision used by the disassembly. It verifies
-both the iNES header and the complete PRG SHA-1 before writing output. Different
-headers, revisions, modified payloads, trainers, and trailing data are rejected.
+The game and Dungeon Workshop share one import backend. Supply your own NES
+ROM; no ROM or original assets are distributed with this repository. The
+supported revision is **US PRG0**, with a 128 KiB PRG payload, CHR RAM and mapper 1.
+The importer checks the iNES header, exact file size and full PRG SHA-1:
+`a12d74c73a0481599a5d832361d168f4737bbcf6`. Modified payloads, other revisions,
+trainers and trailing data are rejected before extraction.
 
-From the repository root:
+## Import through Dungeon Workshop
+
+Launch the separate editor project:
 
 ```sh
-python3 godot/tools/import_rom.py 'godot/reference-inputs/Legend of Zelda_ The (U) (PRG 0).nes'
+/Applications/Godot.app/Contents/MacOS/Godot --path editor
 ```
 
-The tool uses Python's standard library only. Paths are explicit; it does not
-need the disassembly checkout to run. After extracting `godot/` to its own repo,
-run `python3 tools/import_rom.py path/to/your.nes` from that project directory.
+1. Choose **Import ROM…** in the top toolbar.
+2. Browse to your `.nes` file. It can live outside the repository; it is never
+   copied or modified. Keeping it in ignored `reference-inputs/` is convenient.
+3. Set the Python executable if needed. The default is `python3`; an absolute
+   executable path also works. Install Python 3.9 or later. Extraction uses only
+   the standard library and needs neither the disassembly nor an emulator install.
+4. **Validate ROM** checks compatibility without changing assets. **Import /
+   replace generated library** also validates, then performs the full extraction.
+5. Follow the progress message and log. Audio rendering can take a while;
+   progress describes extraction stages and cues, not a time estimate. The editor
+   stays responsive. Close hides the dialog while the worker continues. The
+   editor's normal close action waits for the import to finish.
+6. Successful import switches to **Assets** and refreshes the library. Search by
+   name and filter sprites, tiles or interface images. Select an entry to enlarge
+   it. This browser reads the PNGs directly, without loading game resource scripts.
 
-Output goes to `godot/imported/`, which is ignored by Git. Re-running the importer
-**overwrites generated resources**. Keep custom edits in copies under `content/`.
-The ROM itself stays where supplied and is never modified or copied to output.
+The GUI also asks the game Godot executable to prepare imported textures, so the
+main game can use the new resources. This is a source-project workflow: keep
+`editor/` inside the game repository. A standalone exported editor is not yet
+supported. Close running game previews before replacing their imported library.
 
-Open the project in Godot after import so it processes PNG textures. The main
-scene automatically uses `imported/world.tres` when available, otherwise it uses
-the original two-room test fixture. In the World Inspector, turn off
-`use_imported_world` to run that fixture deliberately. A `world_definition`
-resource assigned explicitly takes precedence over auto-detection.
+The browser currently previews individual image files/directions/palettes. It
+**does not yet apply a selected monster skin or atlas tile to an authored room**.
+Those appearance controls are separate from importing; see the
+[asset-library plan](../editor/ASSET_LIBRARY_PLAN.md).
 
-## Imported content
+## Command line
 
-- All 128 first-quest overworld static terrain layouts and the starting sword cave.
-- A 256-by-256 atlas: 16-pixel cells, 16 columns, 64 slots per palette. Each
-  palette uses the first 56 slots; the remaining eight are reserved.
-- Per-room visual indices (16 by 11 cells, row-major).
-- Per-room eight-pixel collision masks (32 by 22 cells, row-major).
-- Eight Link walking frames, in right/left/down/up order, two poses each.
-- HUD glyphs and a HUD scaffold. Sword ownership, health, and rupees are functional; other counters
-  and the map rectangle still use placeholder state.
-- `manifest.json` records revision, payload hash, start room, and limitations.
+From the Godot repository, use the staged entry point:
 
-The initial room and position are read from original level info: room `ow_77`,
-position `(120, 77)` relative to the play area. The player retains the original
-Y grid phase of five pixels. Rendering adds the original two-pixel overworld
-sprite offset independently of collision.
+```sh
+python3 tools/import_assets.py "/path/to/your.nes"
+```
 
-## Editing and expansion
+Optional commands:
 
-Open an imported room `.tres` in the Godot Inspector to inspect its layout,
-collision, spawn, and exits. For persistent changes:
+```sh
+# Check the ROM without replacing assets.
+python3 tools/import_assets.py "/path/to/your.nes" --validate-only
 
-1. Copy the room resource into `content/rooms/`. Edit `tile_indices` to change
-   visible tiles and `collision_tiles` independently to change walkability.
-   Imported rooms use these fine collision masks instead of the coarse `tiles`
-   text. Both must be edited deliberately when a terrain change affects movement.
-2. Copy `imported/world.tres` into `content/` and replace the room entry with
-   your edited copy. Keep its ID to replace an existing room, or give it a new
-   ID and add exits to create a new one. IDs are not restricted to hexadecimal
-   overworld coordinates.
-3. Assign the copied world resource to World's `world_definition` in the main
-   scene. Keep the world start ID and destination IDs valid.
+# Also prepare Godot's texture cache, as the GUI does.
+python3 tools/import_assets.py "/path/to/your.nes" --godot /Applications/Godot.app/Contents/MacOS/Godot
+```
 
-Worlds use a resource array, not a hardcoded 128-room engine limit. Imported
-exits connect cardinal neighbors; collision prevents traversal through solid
-boundaries. Overworld edges now scroll. Cave entry has its automatic walk; general forced
-entry walks remain unimplemented. See [scrolling notes](SCROLLING.md).
+`--project /path/to/game` overrides the destination game project; it must contain
+`project.godot` and the game scripts. Do not point it at `editor/` or the original
+disassembly. Output always goes to that game's `imported/`. If `--godot` is
+omitted, open the game project in Godot once to process the PNGs before playing.
+No separate emulator core is required for graphics or audio extraction.
 
-To replace artwork, assign a new atlas to a copied room. For 32-pixel artwork in
-the same slot arrangement, set `atlas_cell_size` to `(32, 32)`. The displayed
-logical cell stays 16 pixels. The player's sheet can likewise contain larger
-frames; it is divided into eight equal-width poses and drawn at logical 16 by 16.
-Collision masks remain unchanged by graphical replacements.
+The lower-level `tools/import_rom.py ROM [--output ...]` remains available for
+development. It writes directly and does not provide the new staging, backup,
+job status or editor-catalog workflow. Prefer `import_assets.py` for normal use.
 
-This is an Inspector-editable intermediate format, not yet a tile-painting UI.
+## Replacement, backups and failures
 
-## Decoder source references
+Generated files live under ignored `imported/`. Each run builds a fresh library
+in `reference-inputs/import-jobs/<job>/assets/` first. Only a completed extraction
+with required world/audio files, a matching manifest and an image catalog is
+activated. The previous library is moved to that job's `previous-import/`.
+A failed activation restores the previous directory. A failed extraction leaves
+the active library untouched; partial staging files remain ignored for diagnosis.
 
-Offsets in the tool exclude the iNES header and are tied to the verified payload:
+The job directory contains:
+
+- `status.json`: current state, stage percentage, revision, message and results.
+- `import.log`: extraction output or failure details.
+- `godot.log`: texture-preparation output when requested.
+- `previous-import/`: the old generated library after successful replacement.
+
+The GUI links these paths in its result message. Jobs, logs, catalogs, backups
+and imported images all stay outside the public content boundary. Old finished
+jobs/backups can be removed manually when no longer needed. Do not store custom
+work in generated `imported/`; a future import replaces that directory completely.
+
+Only one staged import may run per game project. It owns
+`reference-inputs/import-jobs/import.lock/owner.json`. Normal success/failure
+releases the lock. After a force-kill or machine crash, inspect that owner/job
+and confirm the process has stopped before removing a stale lock. If a crash
+occurred during activation and `imported/` is absent, restore the job's
+`previous-import/` to `imported/` first. Keep the backup until recovery is verified.
+
+If extraction succeeds but Godot cache preparation fails, the assets remain
+installed and the dialog reports a warning. Open the game project in Godot and
+inspect `godot.log`; rerendering the ROM is not necessary just to repair its cache.
+If Python cannot start, enter its absolute path. If a worker exits without a final
+status, the GUI reports that condition and points to the job folder.
+
+## Imported output and authored content
+
+The import includes both quest worlds, overworld terrain, caves, all nine
+levels and cellars, enemy definitions and sprites, items, HUD/submenu graphics,
+title/story/ending data, palettes and rendered sound/music. Topic documents
+record runtime fidelity and implementation limits: [STATUS.md](STATUS.md),
+[DUNGEONS.md](DUNGEONS.md), [SECOND_QUEST.md](SECOND_QUEST.md), [AUDIO.md](AUDIO.md).
+Import coverage does not imply cycle-accurate gameplay or audio.
+
+`imported/manifest.json` records the revision and content coverage.
+`imported/editor_catalog.json` indexes 978 images in the current importer build,
+with symbolic IDs, relative PNG paths, dimensions, categories and source
+fingerprint. This count may change as extraction grows. Catalogs contain local
+metadata, not embedded image pixels. Game resources still use `res://imported/`.
+
+Custom content belongs in the authored pack/resource workflow described in
+[Dungeon Workshop](../editor/README.md) and [EXTENDING.md](EXTENDING.md).
+Do not copy imported rooms, graphics or original dialogue into `content/`.
+ROM-derived edits and future editable copies must stay in ignored local folders.
+The current JSON room editor does not round-trip imported `.tres` rooms.
+
+Artwork and collision remain separate: existing RoomDefinition resources have
+`tile_atlas`, `atlas_cell_size`, `tile_indices`, eight-pixel collision masks and
+water masks. Higher-resolution replacement atlases can keep the logical 16-pixel
+room geometry. A future texture painter must preserve that distinction.
+
+## Decoder references
+
+Offsets exclude the iNES header and are tied to the verified payload.
 
 | Data / behavior | Disassembly reference |
 | --- | --- |
-| Pattern ranges, room layouts, level attributes and info | `src/bins.xml` |
+| Pattern ranges, room layouts and level attributes | `src/bins.xml` |
 | Pattern memory destinations | `Z_02.asm`: `CommonPatternVramAddrs`; `Z_03.asm`: `PatternBlockPpuAddrs` |
-| Column heap pointers | `Z_06.asm`: `ColumnDirectoryOW` |
-| Column start bits and two-square repeats | `Z_05.asm`: `LayoutRoomOW`, `LayoutRoomOrCaveOW` |
-| Metatile construction and tile objects | `Z_05.asm`: `PrimarySquaresOW`, `SecondarySquaresOW`, `WriteSquareOW`, `CheckTileObject` |
-| Interior versus exterior palette regions | `Z_05.asm`: `FillPlayAreaAttrs` |
-| Terrain walkability threshold and exceptions | `Z_05.asm`: `ObjectRoomBoundsOW`; `Z_07.asm`: `WalkableTiles`, `GetCollidableTile` |
-| Link frame tiles, pair arrangement and flipping | `Z_01.asm`: `ObjAnimFrameHeap`, `Anim_WriteHorizontallyFlippableSpritePair` |
-| Walking poses, small shield, and sprite offset | `Z_07.asm`: `SetUpWalkingSprites`, `Link_EndMoveAndAnimate` |
+| Column pointers and layout routines | `Z_06.asm`: `ColumnDirectoryOW`; `Z_05.asm`: `LayoutRoomOW`, `LayoutRoomOrCaveOW` |
+| Metatiles and objects | `Z_05.asm`: `PrimarySquaresOW`, `SecondarySquaresOW`, `WriteSquareOW`, `CheckTileObject` |
+| Collision probes | `Z_07.asm`: `GetCollidingTileMoving`, `GetCollidableTile` |
+| Link frames | `Z_01.asm`: `ObjAnimFrameHeap`, `Anim_WriteHorizontallyFlippableSpritePair` |
 
-NES colors are palette indices rather than RGB. The importer uses an approximate
-RGB palette; matching a specific emulator's colors is a separate presentation
-choice.
-
-## Scope limits
-
-The import covers the first-quest overworld, its reachable caves, and all nine
-levels. See [caves and secrets](CAVES_AND_SECRETS.md), [dungeons](DUNGEONS.md), and
-[dungeon monsters](DUNGEON_MONSTERS.md) for what each part covers. Armos, the
-maze rules, some room effects, the second quest, and special overworld
-monsters remain unfinished. Recorder, stepladder, raft, and first-quest bosses are
-implemented; see [stepladder](LADDER.md) for water masks and crossing rules. Collision now follows the original direction-dependent hotspot probes at grid
-boundaries. Full frame-by-frame fidelity, multi-button input priorities, and
-special collision rules for doorways and room effects still need implementation.
+The ROM does not store RGB colors; the importer uses an approximate NES RGB
+palette. Matching a particular emulator's colors remains a presentation choice.
 
 ## Verification
 
 ```sh
-python3 -m unittest discover -s godot/tests -p 'test_*.py'
-/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/run.gd
+python3 -m unittest discover -s tests -p 'test_*.py'
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path editor --script res://tests/run.gd --log-file /tmp/editor-tests.log
 ```
 
-The Python checks include invalid input rejection, bitplane order, the known
-starting-room landmarks, and decoding every overworld room. The local-ROM check
-skips when no ROM is present. Godot checks the two-room fixture and, when imported
-resources are present, validates all 128 rooms, the original spawn and cliffs,
-walking east into the adjacent room and back west, the north exit, and a
-synthetic bush passage that checks on-grid wall stops, turning away from walls,
-solid side bushes, and reversing through the gap.
+The staged-import tests are ROM-free and cover invalid-ROM preservation,
+extraction failure, activation rollback, locking, catalog validation, backup
+retention and cache warnings. Editor checks cover missing libraries, filtering,
+raw-PNG previews and catalog path rejection. The optional integration test runs
+the real GUI controller and Python worker:
 
-All ROM-derived output, including room resources and decoded dialogue, belongs
-inside the ignored local asset boundary. See [source-only sharing](ASSET_BOUNDARY.md).
+```sh
+# Bad-input rejection and real-ROM validation only.
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path editor --script res://tests/import_workflow.gd --log-file /tmp/import-test.log -- --rom "/path/to/your.nes"
 
-The importer now also exports repeated Octorok encounters, directional enemy
-sprites, half-width rocks, heart/rupee graphics, and original Octorok drop rows.
-See [combat support and limitations](COMBAT.md). ROM-derived reward tables remain
-in `imported/world.tres`, while native item effects live under `content/items/`.
+# Also rebuild the ignored local library and verify automatic thumbnail refresh.
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path editor --script res://tests/import_workflow.gd --log-file /tmp/import-test.log -- --rom "/path/to/your.nes" --import-local-art
+```
 
-The importer also generates all sword-beam palette variants and burst pieces.
-See [sword beam notes](SWORD_BEAM.md).
-
-The title, story, and ending go into `imported/title/` (`tools/import_title.py`):
-an index atlas of the demo's pattern tables, the prebuilt nametables, palettes,
-and the tables the original reads each frame. See [the front end](FRONT_END.md).
-
-Audio is also rendered from the verified ROM into ignored `imported/audio/`.
-See [audio extraction and fidelity](AUDIO.md).
+The full workflow has been exercised on this Mac with the supplied local ROM,
+including Godot texture preparation, backup retention and a monster-image preview.

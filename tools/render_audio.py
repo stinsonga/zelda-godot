@@ -272,10 +272,11 @@ LOOP_PHRASES = {'overworld': 10, 'cave': 16, 'dungeon': 16, 'ending': 21}
 # square-1 script offset resetting instead (Z_00 PlaySinglePhraseSong).
 LOOP_NOTE_OFFSETS = {'level_9': 0x60A}
 
-def export_audio(prg, destination):
+def export_audio(prg, destination, progress=None):
     destination = Path(destination); destination.mkdir(parents=True, exist_ok=True)
     manifest = {'format':1,'sample_rate':RATE,'cues':{}}
-    for name,(address,request,seconds) in CUES.items():
+    for index, (name,(address,request,seconds)) in enumerate(CUES.items()):
+        if progress: progress(index/len(CUES), "Rendering audio: " + name)
         driver, apu = Driver(prg), Apu()
         driver.m[address] = request
         samples = array.array('h'); loop_start = loop_end = 0
@@ -313,6 +314,7 @@ def export_audio(prg, destination):
         if repeat_ticks: manifest['cues'][name]['repeat_ticks'] = repeat_ticks
         print(f'Audio: {name} ({len(samples)/RATE:.2f}s)')
     (destination/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    if progress: progress(1.0, "Audio rendering finished")
     return manifest
 
 if __name__ == '__main__':

@@ -4,6 +4,15 @@ This directory contains the Godot reproduction and all supporting work. The
 original disassembly outside this directory is reference material and should
 remain unchanged.
 
+## Dungeon editor
+
+The separate [Dungeon Workshop](editor/README.md) project edits ROM-free rooms,
+enemies, pickups and doors, with undo/redo and game playtesting. Launch it with:
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --path editor
+```
+
 ## Goals
 
 - Reproduce the original game's movement, combat, timing, and room behavior.
@@ -68,7 +77,8 @@ editing, the custom-enemy lab, source references, checks, and fidelity limits.
 See [cave and sword behavior](docs/CAVE_AND_SWORD.md) for controls, editable
 content definitions, fidelity notes, and verification.
 
-See [ROM import and content editing](docs/IMPORTING.md) for the importer command,
+Use **Import ROM…** in Dungeon Workshop, or `python3 tools/import_assets.py /path/to/your.nes`.
+See [ROM import and content editing](docs/IMPORTING.md) for validation, backups,
 asset replacement, and how to expand the world.
 
 See [implementation notes](docs/IMPLEMENTATION.md) for editing instructions,

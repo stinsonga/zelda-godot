@@ -13,7 +13,7 @@ to toggle mute for this session.
 Run the ordinary importer to include audio:
 
 ```sh
-python3 tools/import_rom.py 'reference-inputs/Legend of Zelda_ The (U) (PRG 0).nes'
+python3 tools/import_assets.py 'reference-inputs/Legend of Zelda_ The (U) (PRG 0).nes'
 ```
 
 For audio alone, run `tools/render_audio.py` with the same ROM argument.

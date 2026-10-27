@@ -81,9 +81,19 @@ These are recorded approximations, each small:
 
 ### 3. Expansion tools
 
-The extension model is documented in [EXTENDING.md](EXTENDING.md). Missing:
-- an in-editor tile-painting tool for rooms (rooms are edited as Inspector
-  data today; [IMPORTING.md](IMPORTING.md));
+The extension model is documented in [EXTENDING.md](EXTENDING.md).
+[Dungeon Workshop](../editor/README.md) now provides a separate GUI project for
+ROM-free room painting, spawns, editable enemy variants, pickups, reciprocal
+doors, undo/redo, validation, saving JSON packs and game playtests. Its Dungeon
+tab adds a draggable room map, guided adjacent-room creation, door visualization
+and non-blocking layout/connectivity warnings. Import ROM… now wraps the existing
+decoder with background progress, validation, staging/backups and a searchable
+local thumbnail browser; appearance assignment is still pending. The sample
+Lantern vault exercises keys, combat, shutters and a reward. Structural validation
+does not prove progression solvability. Missing:
+- an advanced placement inspector, atlas/collision layers and importing/editable
+  copies of existing resources; the optional ROM asset-library plan is in
+  [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
 - authoring helpers for dungeons, doors, and cellars, which are built by hand
   from the lab fixtures today;
 - automatic ID remapping when content is renamed, so older saves keep loading

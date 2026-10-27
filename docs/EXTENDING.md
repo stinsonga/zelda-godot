@@ -5,6 +5,15 @@ New rooms, dungeons, caves, items, and monster variants are Godot resources
 Nothing here needs a ROM. This guide covers each kind of content, the rules
 that keep the project shareable, and how to test what you add.
 
+## Visual authoring
+
+[Dungeon Workshop](../editor/README.md) is a separate Godot project under
+`editor/`. It paints ROM-free dungeon packs and playtests them through the same
+game engine. Its shared versioned JSON contract compiles into the resource types
+described below; existing `.tres` content is unchanged. This first editor covers
+terrain, spawns, basic enemies, pickups and reciprocal doors. It does not yet
+import existing rooms or prove generated dungeons solvable.
+
 ## The content boundary
 
 - `content/` holds only hand-authored material: your own rooms, definitions,

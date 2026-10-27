@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
-DIRECTORIES = ('scripts', 'scenes', 'content', 'docs', 'tests', 'tools')
+DIRECTORIES = ('scripts', 'scenes', 'content', 'docs', 'tests', 'tools', 'editor')
 FILES = ('project.godot', 'README.md', 'TODO.md', '.gitignore')
 
 
@@ -22,7 +22,7 @@ def prepare(destination):
         source_files.append(ROOT / name)
     for directory in DIRECTORIES:
         source_files.extend(path for path in (ROOT / directory).rglob('*')
-                            if path.is_file() and '__pycache__' not in path.parts
+                            if path.is_file() and '__pycache__' not in path.parts and '.godot' not in path.parts
                             and path.suffix not in ('.pyc', '.nes', '.pck', '.zip'))
     if any(path.is_symlink() for path in source_files):
         raise ValueError('Symlinks in source folders must be reviewed before packaging')
