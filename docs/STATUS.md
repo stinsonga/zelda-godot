@@ -4,8 +4,7 @@ Both quests are playable from the title screen to the ending, as far as the
 importer and tests can show. `tests/reachability.gd` finds every treasure, all
 eight Triforce pieces, Zelda, and every dungeon room reachable in each quest.
 This page records the work that remains. Details
-live in the topic documents linked below. The latest session handoff is
-[HANDOFF_2026-10-26.md](HANDOFF_2026-10-26.md).
+live in the topic documents linked below.
 
 ## Resolved: overworld room $0F
 

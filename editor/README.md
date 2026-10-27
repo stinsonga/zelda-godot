@@ -5,10 +5,10 @@ inside the game repository: Play launches the sibling game project with a
 snapshot of the current pack. The editor has its own project settings, window,
 cache and user-data directory.
 
-Launch on this machine:
+From the repository root (`godot` is your Godot 4.6 executable):
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --path editor
+godot --path editor
 ```
 
 For development, import `editor/project.godot` in Godot. Running the game project's

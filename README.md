@@ -1,106 +1,123 @@
-# Godot reproduction
+# NES Zelda reproduction in Godot
 
-This directory contains the Godot reproduction and all supporting work. The
-original disassembly outside this directory is reference material and should
-remain unchanged.
+A faithful reimplementation of the original NES *The Legend of Zelda* (1986) in
+Godot 4.6, translated routine by routine from a community disassembly and checked
+frame by frame against an emulator. Both quests are playable from the title screen
+to the ending. Rooms, enemies, items and dungeons are ordinary Godot resources, so
+the game can also be extended or modded.
 
-## Dungeon editor
+> **No game content is included.** This repository contains no ROM, graphics,
+> audio, maps or text from the original game. To play the original game you must
+> supply your own legally obtained ROM; an importer turns it into local resources
+> that stay out of version control. Without it, the project runs small
+> hand-authored test rooms. This project is not affiliated with or endorsed by
+> Nintendo. *The Legend of Zelda* is a trademark of Nintendo.
 
-The separate [Dungeon Workshop](editor/README.md) project edits ROM-free rooms,
-enemies, pickups and doors, with undo/redo and game playtesting. Launch it with:
+## Requirements
+
+- [Godot 4.6](https://godotengine.org/download) (the standard build, not .NET).
+- Python 3.9 or later, for the importer and tests (standard library only).
+- Optionally, your own **US PRG0** ROM (the importer checks it; other revisions
+  are rejected).
+
+The commands below assume a `godot` command. On macOS, Godot lives at
+`/Applications/Godot.app/Contents/MacOS/Godot`; add an alias or use that path.
+
+## Setup
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --path editor
+git clone https://github.com/stinsonga/zelda-godot.git
+cd zelda-godot
+
+# Optional: import your ROM. Keep it anywhere; the ignored reference-inputs/
+# folder is convenient. It is read, never copied or modified.
+python3 tools/import_assets.py "/path/to/your.nes" --godot /path/to/godot
 ```
 
-## Goals
+The import writes everything to the ignored `imported/` folder and takes a minute
+or two (most of it is rendering audio). `--godot` also prepares Godot's texture
+cache; without it, open the project in the Godot editor once before playing.
+`--validate-only` checks a ROM without importing it. See
+[docs/IMPORTING.md](docs/IMPORTING.md) for details, and
+[docs/ASSET_BOUNDARY.md](docs/ASSET_BOUNDARY.md) for what stays local.
 
-- Reproduce the original game's movement, combat, timing, and room behavior.
-- Make rooms, enemies, items, secrets, and progression easy to extend or modify.
-- Separate presentation from gameplay so graphics can be replaced later,
-  including higher-resolution artwork.
+## Running
 
-## Project boundary
+```sh
+godot --path .
+```
 
-Keep the Godot project, import tools, documentation, and project-specific tests
-inside this directory. Do not write generated files into the original source
-directories.
+Or open `project.godot` in the Godot editor and press F5. With an import, the game
+starts at the title screen; without one, in the test rooms.
 
-Tools may read the disassembly or an explicitly supplied ROM, but the playable
-project should use resources within this directory. Keep reference input paths
-configurable rather than depending on this repository's parent layout. Do not
-commit supplied ROMs.
+| Action | Keys |
+| --- | --- |
+| Move | Arrow keys or WASD |
+| Sword (A) | Z or Space |
+| B item | X or Shift |
+| Start (submenu) | Enter |
+| Select | Tab |
+| Native save / load | F5 / F9 |
+| Mute | M |
 
-This directory is intended to become a standalone Git repository later. For now,
-it remains part of the existing repository; there is no nested Git repository.
+## Building for desktop
 
-## Initial milestone
+Godot exports need its export templates and an export preset per platform.
 
-Build the starting overworld screen, sword cave, player movement and collision,
-sword combat, one enemy, and a screen transition. Also add a custom room and an
-enemy variant through the editable content system to verify expansion support.
+1. Open the project in the Godot editor (`godot --path . --editor`).
+2. **Editor → Manage Export Templates → Download and Install** (once per Godot
+   version).
+3. **Project → Export → Add…** and choose **macOS**, **Windows Desktop** or
+   **Linux**. On the **Resources** tab, keep *Export all resources in the
+   project*, and add `editor/*, tests/*, tools/*, docs/*, reference-inputs/*`
+   to *Filters to exclude files/folders*.
+4. **Export Project**, into the ignored `exports/` folder, for example
+   `exports/macos/Zelda.zip`, `exports/windows/Zelda.exe` or
+   `exports/linux/Zelda.x86_64`.
 
-## Run the foundation
+Once a preset exists (it is saved to `export_presets.cfg`), you can rebuild from
+the command line:
 
-Open `project.godot` in Godot 4.6 and press F6 with `scenes/main.tscn` open,
-or press F5 to run the project.
+```sh
+godot --headless --path . --export-release "macOS" exports/macos/Zelda.zip
+godot --headless --path . --export-release "Windows Desktop" exports/windows/Zelda.exe
+godot --headless --path . --export-release "Linux" exports/linux/Zelda.x86_64
+```
 
-- Move: arrow keys or WASD.
-- Use the sword after collecting it: Z or Space.
-- Use the B item: X or Shift. Choose the B item: C or Tab.
-- Save: F5. Load: F9.
-- Reset to the current room's spawn: R.
-- Walk through open screen edges to visit neighboring rooms.
+The preset name must match the one shown in the Export dialog. Unsigned macOS
+builds need right-click **Open** the first time.
 
-After a ROM import, the project starts in the original overworld with original
-tiles and animated Link sprites. It contains all 128 static overworld terrain
-layouts, fixed-tick cardinal movement, collision, and scrolling room transitions.
-Without imported resources, it falls back to the two placeholder test rooms.
-Octoroks, rocks, shield blocking, sword damage, knockback, health, heart drops,
-and rupee drops work, as do sword beams, sound, and the common overworld enemies.
-All 59 reachable first-quest caves work: gifts, shops, hints, the money-making
-game, the letter, and secret money. Bombs, candles, and gravestones reveal hidden
-entrances. See [caves, items, and secrets](docs/CAVES_AND_SECRETS.md); the
-no-ROM `scenes/item_lab.tscn` demonstrates editable custom caves and items.
-All nine first-quest dungeons are connected, with doors, keys, cellars, push
-blocks, items, and the level map. See [dungeon foundations](docs/DUNGEONS.md).
-Stalfos, Goriyas, Gels, Zols, Keese, and Ropes fight in the rooms that hold only
-them; see [dungeon monsters](docs/DUNGEON_MONSTERS.md).
+A build includes whatever is in `imported/`, so a build made after importing
+contains material derived from your ROM. Keep such builds for your own use and
+don't distribute them.
 
-At full health (or half a heart missing), swinging also fires a sword beam.
-See [sword beam rules](docs/SWORD_BEAM.md) for timing and fidelity notes.
+## Tests
 
-Get the sword, walk east to fight the four Octoroks, and collect rewards. At zero
-health, press Enter to retry. See [combat and rewards](docs/COMBAT.md) for content
-editing, the custom-enemy lab, source references, checks, and fidelity limits.
+```sh
+# Python: importer, comparison harness and content checks.
+python3 -m unittest discover -s tests -p 'test_*.py'
 
-See [cave and sword behavior](docs/CAVE_AND_SWORD.md) for controls, editable
-content definitions, fidelity notes, and verification.
+# Godot: one suite, or all of them.
+godot --headless --path . --script res://tests/run.gd
+for t in tests/*.gd; do godot --headless --path . --script "res://$t"; done
+```
 
-Use **Import ROM…** in Dungeon Workshop, or `python3 tools/import_assets.py /path/to/your.nes`.
-See [ROM import and content editing](docs/IMPORTING.md) for validation, backups,
-asset replacement, and how to expand the world.
+Some checks only run when `imported/` exists. The optional emulator comparison
+(`tools/movement_trace.py`) needs a locally built reference emulator; see
+[docs/MOVEMENT_COMPARISON.md](docs/MOVEMENT_COMPARISON.md).
 
-See [implementation notes](docs/IMPLEMENTATION.md) for editing instructions,
-source references, fidelity limitations, next steps, and the verification command.
+## Dungeon Workshop
 
-## Source-only sharing
+`editor/` is a separate Godot project for authoring ROM-free rooms, enemies,
+pickups and doors, with undo/redo and playtesting in the game. Run it with
+`godot --path editor`. See [editor/README.md](editor/README.md).
 
-Locally supplied ROMs live under the ignored `reference-inputs/` folder. All
-ROM-derived assets and resources live under the ignored `imported/` folder.
-The project runs placeholder rooms without them. See [asset boundary and source
-packaging](docs/ASSET_BOUNDARY.md) before publishing or extracting this folder.
+## Documentation
 
-Overworld room edges now scroll with source-based timing. See [scrolling notes](docs/SCROLLING.md) for behavior and fidelity limits.
-
-Save/load now persists inventory, health, currency, collected items, defeated enemies, progression flags, and location. See [save controls and storage](docs/SAVING.md).
-
-Imported overworld enemies now respawn using the original six-entry room history and kill counts. See [room persistence and custom policies](docs/ROOM_PERSISTENCE.md).
-
-Sound effects and room music are implemented; press **M** to mute. Local ROM imports
-include audio; clean source projects use original placeholder tones. See
-[audio setup and fidelity notes](docs/AUDIO.md).
-
-Common overworld enemies and mixed encounters are implemented. Run
-`scenes/enemy_gallery.tscn` for the source-only family and variant gallery.
-See [enemy behaviors and editable variants](docs/MORE_ENEMIES.md).
+- [docs/STATUS.md](docs/STATUS.md): what is done and what remains.
+- [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md): structure and editing rooms.
+- [docs/EXTENDING.md](docs/EXTENDING.md): adding rooms, enemies, items and dungeons.
+- [docs/MOVEMENT_COMPARISON.md](docs/MOVEMENT_COMPARISON.md): how behaviour is
+  checked against the original, and what that found.
+- Topic notes in [docs/](docs/): combat, dungeons, caves, scrolling, audio,
+  saving, the front end, the second quest and more.

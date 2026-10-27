@@ -9,10 +9,10 @@ trainers and trailing data are rejected before extraction.
 
 ## Import through Dungeon Workshop
 
-Launch the separate editor project:
+Launch the separate editor project from the repository root:
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --path editor
+godot --path editor
 ```
 
 1. Choose **Import ROM…** in the top toolbar.
@@ -57,7 +57,7 @@ Optional commands:
 python3 tools/import_assets.py "/path/to/your.nes" --validate-only
 
 # Also prepare Godot's texture cache, as the GUI does.
-python3 tools/import_assets.py "/path/to/your.nes" --godot /Applications/Godot.app/Contents/MacOS/Godot
+python3 tools/import_assets.py "/path/to/your.nes" --godot /path/to/godot
 ```
 
 `--project /path/to/game` overrides the destination game project; it must contain
