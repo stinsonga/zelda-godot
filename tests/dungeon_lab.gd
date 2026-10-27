@@ -216,7 +216,8 @@ func check_key_doors() -> void:
 	world.state.slots[&"keys"] = 2
 	world.player.place(Vector2i(120, 45))
 	var held := 0
-	for i in range(world.DOOR_OPEN_TICKS + 30):
+	# Link waits at the threshold while the door opens, then walks on.
+	for i in range(world.DOOR_OPEN_TICKS + 200):
 		world.simulate_tick(Vector2i.UP)
 		if world.room.id != &"lab_dungeon_entry": break
 		if i < world.DOOR_OPEN_TICKS - 1 and not world.door_passable(world.room, door): held += 1

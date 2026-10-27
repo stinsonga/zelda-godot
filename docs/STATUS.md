@@ -62,8 +62,8 @@ These are recorded approximations, each small:
   - A drained pond keeps its water colour.
 - **Unverified rocks.** The shortcut-room rocks in $1D and $49 haven't been
   checked against an emulator.
-- **Movement.** A headless Nestopia/Godot harness compares 16,072 frames across
-  twenty-six scenarios, and all of them match, including sword fights, drops,
+- **Movement.** A headless Nestopia/Godot harness compares 16,622 frames across
+  twenty-seven scenarios, and all of them match, including sword fights, drops,
   and pickups. They cover `MoveObject`'s grid-point
   stop, the stateful grid offset, diagonal input, and overworld room changes in
   every direction, with the original's frames around the scroll. Mountain-stairs speed ($30 on tiles
@@ -75,9 +75,9 @@ These are recorded approximations, each small:
     the sword, its shot, hits, kills, rupee and heart drops, and pickups. Blue
     Leevers, Ghini, Peahats once they land, the rarer drops, and the other
     dungeon monsters each need the same tracing;
-  - dungeon room changes match the NES horizontally, including the walk-in
-    past the doorway (so shutters close behind Link). Vertical ones are
-    estimated from the source; measuring them needs a key;
+  - dungeon room changes match the NES in all four directions, including the
+    walk-in past the doorway (so shutters close behind Link) and opening a
+    locked door with a key;
     and routes to stairs and room $1F's false wall, all past monsters. See
   [MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md) for setup, safeguards and findings.
 

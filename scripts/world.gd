@@ -552,14 +552,14 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		combat.tick(self)
 		return
 	else:
-		if captor == null and not secrets.blocks_player(player.pixel_position()):
+		# Z_05 TouchDoor runs as Link moves into a doorway, from where he stands.
+		if captor == null and not secrets.blocks_player(player.pixel_position()) and not try_doors(direction):
 			player.move_frame(ladder.constrain(player.pixel_position(), direction), can_enter_segment, stairs_ahead)
 			ladder.update(player.pixel_position())
 		# Past movement, diagonal input acts as the direction Link took.
 		if direction.x != 0 and direction.y != 0: direction = player.facing
 		if secrets.try_push(self, direction):
 			overrides = compute_overrides(room)
-		try_doors(direction)
 	if player.pixel_position() == before and direction != Vector2i.ZERO: try_wake_statue(direction)
 	if player.pixel_position() != before:
 		walk_ticks += 1
@@ -769,10 +769,14 @@ func key_count_text() -> String:
 	return "XA" if state.item_value(&"magic_key") > 0 else "X%d" % state.item_value(&"keys")
 
 ## A door still opening (TriggeredDoorCmd) blocks Link but spends nothing more.
-func try_doors(direction: Vector2i) -> void:
+## Returns true when the door holds Link this frame: the frame he spends the key
+## (TouchDoorKey's BlockAtWall) and every frame until it has opened.
+func try_doors(direction: Vector2i) -> bool:
 	var at: Vector2i = player.pixel_position()
 	for door in room.doors:
-		if door.kind != "key" or direction != door.direction or state.flags.get(door_key(room, door.direction), false) or not door.in_doorway(at): continue
+		if door.kind != "key" or direction != door.direction or not door.in_doorway(at): continue
+		if door_openings.has(door.direction): return true
+		if state.flags.get(door_key(room, door.direction), false): continue
 		if state.item_value(&"magic_key") == 0:
 			if state.item_value(&"keys") == 0: continue
 			state.slots[&"keys"] -= 1
@@ -780,6 +784,8 @@ func try_doors(direction: Vector2i) -> void:
 		# UpdateDoors: the open command steps now and again after DoorTimer 8.
 		door_openings[door.direction] = DOOR_OPEN_TICKS
 		overrides = compute_overrides(room)
+		return true
+	return false
 
 ## A shutter transition has one sample even when several doors change together.
 func tick_shutter_audio() -> void:

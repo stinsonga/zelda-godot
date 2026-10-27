@@ -77,9 +77,9 @@ class MovementTraceTests(unittest.TestCase):
             with self.assertRaises(ValueError):m.expand({'segments':[{'buttons':buttons,'frames':frames}]})
     def test_authored_suite_pins_its_cases(self):
         suite=m.read_json(m.SCENARIOS); m.validate_suite(suite)
-        self.assertEqual(len(suite['cases']),26)
-        self.assertEqual(len({c['id'] for c in suite['cases']}),26)
-        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),16072)
+        self.assertEqual(len(suite['cases']),27)
+        self.assertEqual(len({c['id'] for c in suite['cases']}),27)
+        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),16622)
     def test_inspect_shows_the_differing_slot_with_internals(self):
         ref,native=self.traces()
         ref['suite']['cases'][0]['objects']=True

@@ -55,7 +55,7 @@ func snapshot(world: Node) -> Dictionary:
 		if not reward.collected: items.append(["item", String(reward.definition.id), reward.position.x, reward.position.y])
 	items.sort()
 	monsters.append_array(items)
-	monsters.append(["link", world.state.rupees, world.state.item_value(&"bombs"), world.state.health_units])
+	monsters.append(["link", world.state.rupees, world.state.item_value(&"bombs"), world.state.health_units, world.state.item_value(&"keys")])
 	# Each monster's internals, named like the reference's per-slot diagnostics.
 	var internals := {}
 	for actor in world.combat.enemies:
@@ -127,6 +127,7 @@ func run() -> void:
 				world.state.rupees = int(entry[1])
 				world.state.slots[&"bombs"] = int(entry[2])
 				world.state.health_units = int(entry[3])
+				if entry.size() > 4: world.state.slots[&"keys"] = int(entry[4])
 		# SpawnCycle ($524): where spawn lists resume, carried across rooms.
 		world.state.spawn_cycle = int(recorded.initial.get("spawn_cycle", 0))
 		world.combat.frame_counter = int(raw.get("frame_counter", 0))

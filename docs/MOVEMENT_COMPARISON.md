@@ -1,7 +1,7 @@
 # Movement comparison against the NES
 
-The harness runs twenty-six controller sequences starting in first-quest room
-`ow_77`, 16,072 compared frames:
+The harness runs twenty-seven controller sequences starting in first-quest room
+`ow_77`, 16,622 compared frames:
 - walking and stopping, reversing, and turning between grid boundaries;
 - approaching obstacles on three sides and backing away;
 - turns before and after halfway in each direction;
@@ -18,7 +18,8 @@ The harness runs twenty-six controller sequences starting in first-quest room
 - sword swings standing and walking;
 - a 3,834-frame sword fight west through the Moblin rooms and the Lost Woods
   (room $61) to the Lynels and Peahats of room $60;
-- sword fights in rooms $78 and $68 that drop and pick up items.
+- sword fights in rooms $78 and $68 that drop and pick up items;
+- level 1's locked door up from l1_73 to l1_63, and back down.
 
 Each frame records a phase: free play (NES mode 5), or a transition between
 rooms (modes 6, 7, and 4). The phase is compared on every frame; room, position,
@@ -203,10 +204,16 @@ Measured in level 1, left and right, from the frame Link reaches the edge (A):
   reset at 16 on the way. The fraction it leaves decides his next step;
 - mode 5 settles for a frame, as in the overworld.
 
-Vertical dungeon changes are not measured: the nearest vertical door in level 1
-is locked and the bootstrap has no key. Godot scrolls a row every fourth frame
-(`ScrollWorld`), and borrows the overworld's per-direction differences for the
-lead, tail and lag frames.
+Vertical changes were measured in `level_1_vertical_doors`, whose setup takes
+the sword, fights l1_74's Stalfos for the key they carry, and returns to l1_73.
+Up (l1_73 to l1_63) takes 130 frames to the end of the walk: lead 35 with lag
+frames at 31-33, then 88 of scrolling a row every fourth frame, then 7. Down
+takes 126: lead 34 with lag at 6-8, a three-frame shorter scroll, then 7.
+
+Opening the locked door matched once `TouchDoorKey` was followed: Link touches
+the door when he moves into the doorway from where he stands (so the frame after
+he reaches it), spends the key, and is held that frame and until the door's
+open command finishes (`UpdateDoors`, eight frames after its first step).
 
 ## Monsters
 

@@ -51,8 +51,7 @@ checked.
 Dungeon room changes scroll at half speed: 128 frames across, a row every fourth
 frame vertically. They have their own lead, tail and lag frames, and end with
 Link walking in past the doorway (`RoomTransition.DUNGEON_*`,
-`PlayerController.walk_in_frame`). The horizontal ones match the emulator; the
-vertical ones are estimated. Cave portals still use their existing immediate room
+`PlayerController.walk_in_frame`). All four directions match the emulator. Cave portals still use their existing immediate room
 change and automatic entry walk. Maze rules remain future work.
 
 ## Verification

@@ -9,14 +9,16 @@ is plain authored input like any other.
 Waypoints (a JSON list):
   {"room": "ow_63", "axis": "x", "value": 112, "button": "left"}
       hold the button until Link stands at that grid coordinate in that room
-      (grid points are exact: Link always stops on them);
+      (grid points are exact: Link always stops on them); without "button",
+      head toward the value along the axis;
   {"button": "up", "exit": true}
       hold the button until a room change completes (mazes repeat rooms);
   {"idle": 300}
       release everything for that many frames;
   {"fight": 600}
       for that many frames, walk toward the nearest dropped item, or else the
-      nearest monster, swinging at monsters ahead (needs the sword).
+      nearest monster, or else the room's own item (slot $13, such as a key a
+      monster carried), swinging at monsters ahead (needs the sword).
 While moving, the autopilot presses A (fresh presses only) when a monster is
 within reach ahead, if Link has a sword.
 
@@ -55,12 +57,13 @@ def monster_ahead(snapshot, button):
         if 0 < ahead < 28 and across < 12: return True
     return False
 
-def fight_buttons(snapshot, last):
-    """One frame of a crude fight: chase items, then monsters; swing when one is ahead."""
+def fight_buttons(snapshot, last, room_item=None):
+    """One frame of a crude fight: chase items, then monsters, then the room
+    item; swing when a monster is ahead."""
     lx, ly = snapshot['x'], snapshot['y']
     items = [o for o in snapshot['objects'] if o[0] == 'item']
     monsters = [o for o in snapshot['objects'] if isinstance(o[0], int)]
-    targets = items or monsters
+    targets = items or monsters or ([['room_item', 0, room_item[0], room_item[1]]] if room_item else [])
     if not targets: return []
     target = min(targets, key=lambda o: abs(o[2] - lx) + abs(o[3] - ly))
     dx, dy = target[2] - lx, target[3] - ly
@@ -86,15 +89,19 @@ def drive(core, plan, delay, limit, sword):
         elif 'fight' in w:
             if idle >= w['fight']: step, idle = step + 1, 0; continue
             idle += 1
-            buttons = fight_buttons(r, inputs[-1] if inputs else []) if r['phase'] == 'play' else []
+            ram = core.ram
+            # The room item (slot $13) while active (state 0) and on screen.
+            room_item = (int(ram[0x70+0x13]), int(ram[0x84+0x13]) - 64) if ram[0x34F+0x13] and ram[0xAC+0x13] == 0 and 0 < ram[0x84+0x13] < 0xF0 else None
+            buttons = fight_buttons(r, inputs[-1] if inputs else [], room_item) if r['phase'] == 'play' else []
         else:
             if w.get('exit'):
                 if r['phase'] == 'transition': exiting = True
                 elif exiting: exiting, step = False, step + 1; continue
             elif r['phase'] == 'play' and r['room'] == w['room'] and r[w['axis']] == w['value']:
                 step += 1; continue
-            buttons = [w['button']]
-            if sword and monster_ahead(r, w['button']) and not (inputs and 'a' in inputs[-1]): buttons.append('a')
+            button = w.get('button') or (('right' if w['value'] > r['x'] else 'left') if w['axis'] == 'x' else ('down' if w['value'] > r['y'] else 'up'))
+            buttons = [button]
+            if sword and monster_ahead(r, button) and not (inputs and 'a' in inputs[-1]): buttons.append('a')
         core.run(buttons)
         inputs.append(buttons)
     return False, inputs, rooms, 'out of frames'

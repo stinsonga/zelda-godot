@@ -109,9 +109,9 @@ def objects(ram):
     # Dropped items ($60) take the dead monster's slot; Item_ObjItemId is $AC+X.
     items = sorted([['item', DROP_NAMES.get(int(ram[0xAC+slot]), hex(ram[0xAC+slot])), int(ram[0x70+slot]), int(ram[0x84+slot])-64]
                     for slot in range(1, 12) if ram[0x34F+slot] == 0x60])
-    # What pickups change: InvRupees, InvBombs, and health in Godot's units
-    # (full hearts in HeartValues' low nibble * 256, plus HeartPartial + 1).
-    link = [['link', int(ram[0x66D]), int(ram[0x658]), (ram[0x66F] & 0x0F) * 256 + ram[0x670] + 1]]
+    # What pickups change: InvRupees, InvBombs, health in Godot's units (full
+    # hearts in HeartValues' low nibble * 256, plus HeartPartial + 1), InvKeys.
+    link = [['link', int(ram[0x66D]), int(ram[0x658]), (ram[0x66F] & 0x0F) * 256 + ram[0x670] + 1, int(ram[0x66E])]]
     return monsters + shots + beam + items + link
 
 # Per-slot NES fields kept as diagnostics (not compared), named like Godot's.
