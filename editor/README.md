@@ -19,8 +19,9 @@ For development, import `editor/project.godot` in Godot. Running the game projec
 **Import ROM…** runs the existing decoder in a background Python process, with
 revision validation, progress, logs, staging and a previous-import backup. On
 success, **Assets** refreshes its searchable sprite/tile/interface thumbnails.
-This is optional; the editor works without a ROM. The browser previews art only
-and does not yet assign it to authored rooms or monsters. Full instructions:
+This is optional; the editor works without a ROM. Grouped sprite sets can now
+be assigned to enemy variants, and atlas cells can be painted with the separate
+Art brush. Local choices stay outside shared packs; see [LOCAL_APPEARANCE.md](LOCAL_APPEARANCE.md). Import instructions:
 [IMPORTING.md](../docs/IMPORTING.md).
 
 ## First dungeon
@@ -59,7 +60,8 @@ Choose **New** for a blank room or **Open** to load an authored JSON pack.
    to return to editing. The preview starts with a wooden sword.
 
 Saving and playing require a valid pack. Invalid painting can be undone or fixed;
-validation lists errors in the bottom panel. Save uses a temporary file and
+validation lists errors in the bottom panel. Shared packs remain ROM-free; changed local appearance saves separately under
+ignored `reference-inputs/editor-overrides/`. Save uses a temporary file and
 rename so a failed write preserves the old pack. Destructive document changes
 and closing a dirty document ask before discarding edits. Opening rejects invalid
 packs rather than partially loading them.
@@ -98,8 +100,8 @@ model keys, bombs, combat, one-way shutters or within-room walkability and do no
 prove the dungeon solvable. Structurally invalid packs still cannot save/play.
 
 Use **Import ROM…** to validate and extract your local ROM, then browse
-its thumbnails in **Assets**. The room and map canvases still use authored
-placeholders; applying skins and atlas tiles is the next step. See
+its thumbnails in **Assets**. The room canvas supports optional local sprites and painted atlas cells; the map
+retains its schematic view. See [LOCAL_APPEARANCE.md](LOCAL_APPEARANCE.md),
 [IMPORTING.md](../docs/IMPORTING.md) and [ASSET_LIBRARY_PLAN.md](ASSET_LIBRARY_PLAN.md).
 
 ## Shared format and runtime
@@ -134,8 +136,9 @@ This is the first usable editing loop, not the complete editor. Next:
   silently breaking saves. Unique IDs for independently authored packs matter.
 - A visual inspector/selection tool for moving individual placements and their
   stable IDs; room filters, enemy variants' names, and more item/enemy properties.
-- Atlas/palette and collision layers, with explicit provenance and an editable-copy
-  workflow for any locally imported content. Asset swapping is not implemented here.
+- Authored replacement libraries, more sprite layouts and an editable-copy
+  workflow for locally imported rooms. The current local Art layer and terrain
+  collision layer are separate; only supported ROM sprite sets/atlases resolve.
 - Secrets, push blocks, cellars, caves, more item types and advanced doors.
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.

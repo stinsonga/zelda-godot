@@ -4,8 +4,8 @@ The editor should use locally imported ROM art for monster selectors, tile
 palettes, room painting and playtests. This is optional presentation layered over
 the authored content model. The editor and its examples must still launch with
 no ROM. The local catalog, import dialog and searchable PNG preview browser are now
-implemented. The room/map canvases still use placeholder art; applying local
-appearance remains the next milestone.
+implemented. Grouped sprite selection, atlas painting and matching game previews are now
+implemented. See [LOCAL_APPEARANCE.md](LOCAL_APPEARANCE.md). The map remains schematic.
 
 ## What already exists locally
 
@@ -29,23 +29,24 @@ catalog. It should reuse the importer output rather than import the ROM again.
 
 1. **Local catalog and visual browser — implemented.** The staged importer produces an
    ignored `imported/editor_catalog.json` containing symbolic asset IDs, display
-   names, categories, PNG paths relative to imported/, frame rectangles, palette
-   variants and source fingerprint. Discover this optional catalog at editor
+   names, categories, PNG paths relative to imported/, dimensions and source
+   fingerprint. The shared resolver derives frame/direction groups from these
+   IDs; per-level palettes remain separate choices. Discover this optional catalog at editor
    startup and show a clear missing-import state when absent. Resolve only
    validated paths inside the selected library. No arbitrary `.tres` scripts
    need to run just to show a thumbnail.
-2. **Monster selection thumbnails.** Group directions, frames and per-level
+2. **Monster selection thumbnails — implemented for 16×16 sets.** Group directions, frames and per-level
    palettes into one monster entry; show an enlarged/animated preview and a
    palette choice. Keep the behavior template and appearance explicit: choosing
    a skeleton picture must not silently convert a custom walker's behavior or
    overwrite its health and speed. A preview-only browser is useful first,
    followed by an explicit Apply appearance action.
-3. **Tile palette and visual layer.** Show the 16-pixel logical atlas tiles at
+3. **Tile palette and visual layer — implemented for one ROM atlas per room.** Show the 16-pixel logical atlas tiles at
    useful magnification, with level/palette selection and brush previews. Add a
    visual tile layer separate from collision. Wall corners, door frames and
    floor variants need actual tile selection, rather than applying one wall
    texture to every `#`. Collision painting remains explicit.
-4. **Matching game previews.** Resolve the same asset IDs in the runtime adapter
+4. **Matching game previews — implemented.** Resolve the same asset IDs in the runtime adapter
    so Play room looks like the editor. Door state and lighting still belong to
    the game; art selection does not change those rules. Missing optional art
    must fall back to authored placeholders and retain a visible unresolved-art
@@ -58,7 +59,7 @@ catalog. It should reuse the importer output rather than import the ROM again.
 ## Keep local appearance separate from public content
 
 The first ROM-art integration should use a local appearance overlay, for example
-`imported/editor-overrides/<pack-id>.json`, keyed by stable room/enemy IDs.
+`reference-inputs/editor-overrides/<pack-id>.json`, keyed by stable room/enemy IDs.
 The shared pack retains its authored tiles and enemy settings; the overlay maps
 those IDs to local sprite/palette/tile choices. The editor and game both resolve
 that overlay. Preview/export must say whether local appearance is active.
@@ -85,6 +86,6 @@ separate throughout.
 - Replacing a library changes presentation while room collision and enemy stats
   remain identical.
 
-The import/catalog/browser stage is implemented and verified. Next: grouped
-monster thumbnails and explicit appearance selection, followed by the separate
-visual tile layer and matching runtime overlays.
+The import/catalog/browser, grouped sprite assignment, separate visual tile
+layer and matching runtime overlays are implemented and verified. Next: authored
+replacement libraries, richer sprite layouts and imported-room editable copies.

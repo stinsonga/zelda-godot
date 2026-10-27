@@ -88,11 +88,14 @@ doors, undo/redo, validation, saving JSON packs and game playtests. Its Dungeon
 tab adds a draggable room map, guided adjacent-room creation, door visualization
 and non-blocking layout/connectivity warnings. Import ROM… now wraps the existing
 decoder with background progress, validation, staging/backups and a searchable
-local thumbnail browser; appearance assignment is still pending. The sample
+local thumbnail browser. Grouped 16×16 sprite sets and room atlas tiles can now
+be assigned through a separate local Art layer, saved in ignored
+reference-inputs/editor-overrides/ and resolved in game previews. Behavior and
+collision remain authored pack data. See [LOCAL_APPEARANCE.md](../editor/LOCAL_APPEARANCE.md). The sample
 Lantern vault exercises keys, combat, shutters and a reward. Structural validation
 does not prove progression solvability. Missing:
-- an advanced placement inspector, atlas/collision layers and importing/editable
-  copies of existing resources; the optional ROM asset-library plan is in
+- an advanced placement inspector, authored replacement libraries, richer sprite
+  layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
 - authoring helpers for dungeons, doors, and cellars, which are built by hand
   from the lab fixtures today;

@@ -1,5 +1,6 @@
 extends RefCounted
 ## Runtime adapter: the editor's data contract builds the existing game resources.
+const Appearance = preload("res://editor/shared/appearance.gd")
 const Contract = preload("res://editor/shared/room_pack.gd")
 const Room = preload("res://scripts/room_definition.gd")
 const World = preload("res://scripts/world_definition.gd")
@@ -8,13 +9,17 @@ const Spawn = preload("res://scripts/enemy_spawn.gd")
 const Door = preload("res://scripts/door_definition.gd")
 const Pickup = preload("res://scripts/pickup_definition.gd")
 const DIRECTIONS := {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}
-static func compile(pack: Dictionary) -> Dictionary:
+static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root: String = "") -> Dictionary:
 	var errors := Contract.validate(pack)
 	if not errors.is_empty(): return {"errors":errors}
+	var library = Appearance.new()
+	var art_errors := Appearance.validate(appearance,pack) if not appearance.is_empty() else PackedStringArray()
+	if not art_errors.is_empty(): appearance = {}
+	if Appearance.has_choices(appearance): library.configure(library_root if not library_root.is_empty() else ProjectSettings.globalize_path("res://"))
 	var world = World.new()
 	world.id = StringName("authored/" + pack.id)
 	world.start_room = StringName(pack.start_room)
-	world.visual_theme = load("res://content/themes/default.tres")
+	world.visual_theme = load("res://content/themes/default.tres").duplicate(true)
 	var definitions: Dictionary = {}
 	for id in pack.enemy_types:
 		var source: Dictionary = pack.enemy_types[id]
@@ -27,6 +32,14 @@ static func compile(pack: Dictionary) -> Dictionary:
 		enemy.contact_damage = int(source.contact_damage)
 		enemy.shooting_enabled = false
 		enemy.fallback_color = Color("ec7967")
+		if appearance.get("enemy_sprites",{}).has(id):
+			var group: String = appearance.enemy_sprites[id]
+			if library.enemy_texture(group) != null:
+				enemy.sprite = StringName("__editor_" + id)
+				enemy.sprite_style = "directional"
+				for direction in ["down","up","right","left"]:
+					for pose in range(2): world.visual_theme.sprites[StringName("%s_%s_%d" % [enemy.sprite,direction,pose])] = library.enemy_texture(group,direction,pose)
+				for pose in range(8): world.visual_theme.sprites[StringName("%s_%d" % [enemy.sprite,pose])] = library.enemy_texture(group,"down",pose)
 		definitions[id] = enemy
 	for source in pack.rooms:
 		var room = Room.new()
@@ -41,6 +54,9 @@ static func compile(pack: Dictionary) -> Dictionary:
 		room.shutter_trigger = int(source.shutter_trigger)
 		room.enemy_persistence = "reset"
 		room.music = &""
+		room.tile_atlas = library.room_texture(source,appearance)
+		if room.tile_atlas != null:
+			for index in range(176): room.tile_indices.append(index)
 		for edge in source.connections:
 			var link: Dictionary = source.connections[edge]
 			room.exits[edge] = link.target
@@ -64,4 +80,5 @@ static func compile(pack: Dictionary) -> Dictionary:
 			room.pickups.append(pickup)
 		errors.append_array(room.validation_errors())
 		world.rooms.append(room)
-	return {"errors":errors,"world":world}
+	art_errors.append_array(library.warnings)
+	return {"errors":errors,"world":world,"appearance_warnings":art_errors}

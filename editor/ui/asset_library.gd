@@ -1,5 +1,15 @@
 extends VBoxContainer
-## Preview-only optional library. Reads JSON/PNGs; never loads game .tres scripts.
+## Optional local library. Art choices emit symbolic IDs, never mutate packs.
+const Appearance = preload("../shared/appearance.gd")
+const Preview = preload("asset_preview.gd")
+signal enemy_chosen(group_id: String)
+signal tile_chosen(atlas_id: String, index: int)
+var library = Appearance.new()
+var selected_entry: Dictionary = {}
+var enemy_apply: Button
+var tile_apply: Button
+var frame_clock := 0.0
+var direction: OptionButton
 var game_root := ""
 var entries: Array = []
 var shown: Array = []
@@ -8,7 +18,7 @@ var search: LineEdit
 var category: OptionButton
 var summary: Label
 var list: ItemList
-var preview: TextureRect
+var preview: Control
 var details: Label
 var refresh_button: Button
 func _ready() -> void:
@@ -43,17 +53,31 @@ func _ready() -> void:
 	right.custom_minimum_size.x = 250
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(right)
-	preview = TextureRect.new()
+	preview = Preview.new()
 	preview.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(preview)
+	preview.tile_selected.connect(func(index):
+		if not selected_entry.is_empty(): details.text = String(selected_entry.path) + "\nSelected tile: " + str(index))
+	direction = OptionButton.new()
+	for value in ["down","up","right","left"]: direction.add_item(value)
+	right.add_child(direction)
+	direction.item_selected.connect(func(_i): update_frame())
 	details = Label.new()
 	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(details)
+	enemy_apply = Button.new()
+	enemy_apply.text = "Use sprite set for selected enemy variant"
+	enemy_apply.disabled = true
+	enemy_apply.pressed.connect(func(): enemy_chosen.emit(selected_entry.id))
+	right.add_child(enemy_apply)
+	tile_apply = Button.new()
+	tile_apply.text = "Paint selected atlas tile in Room"
+	tile_apply.disabled = true
+	tile_apply.pressed.connect(func(): tile_chosen.emit(selected_entry.id,preview.selected_tile))
+	right.add_child(tile_apply)
 	var note := Label.new()
-	note.text = "Local ROM-derived images • Preview only. Applying monster skins and painting atlas tiles are the next asset milestones."
+	note.text = "ROM art choices are local. Enemy stats and terrain collision stay in the shared pack."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(note)
 func checked_path(relative: String) -> String:
@@ -63,6 +87,7 @@ func checked_path(relative: String) -> String:
 func load_catalog(root_path: String) -> void:
 	game_root = root_path
 	entries.clear()
+	library.configure(root_path)
 	var filename := game_root.path_join("imported/editor_catalog.json")
 	if not FileAccess.file_exists(filename):
 		catalog_message = "No editor image catalog. Use Import ROM… to create the local library."
@@ -101,22 +126,44 @@ func populate() -> void:
 	if list == null: return
 	list.clear()
 	shown.clear()
+	selected_entry = {}
+	enemy_apply.disabled = true
+	tile_apply.disabled = true
+	preview.tile_mode = false
 	preview.texture = null
 	details.text = "Select an image to preview it."
 	var filter := search.text.to_lower()
 	var kind := category.get_item_text(category.selected)
 	var matches := 0
+	var choices: Array = []
+	for group in library.groups.values(): choices.append(group)
 	for entry in entries:
+		if entry.category != "sprites" or entry.get("width") != 16 or entry.get("height") != 16: choices.append(entry)
+	choices.sort_custom(func(a,b): return String(a.name) < String(b.name))
+	for entry in choices:
 		if kind != "all" and entry.category != kind: continue
 		if not filter.is_empty() and filter not in String(entry.name).to_lower() and filter not in String(entry.path).to_lower(): continue
 		matches += 1
 		if shown.size() >= 250: continue
 		shown.append(entry)
-		list.add_item(entry.name,texture(entry.path))
+		list.add_item(entry.name,library.enemy_texture(entry.id) if entry.has("frames") else texture(entry.path))
 		list.set_item_tooltip(list.item_count-1,entry.path)
-	summary.text = catalog_message + (" • %d matches (first 250 shown; refine filter)" % matches if matches > 250 else " • %d matches" % matches)
+	summary.text = catalog_message + (" • %d choices (first 250 shown; refine filter)" % matches if matches > 250 else " • %d choices" % matches)
 func select_image(index: int) -> void:
 	if index < 0 or index >= shown.size(): return
-	var entry: Dictionary = shown[index]
-	preview.texture = texture(entry.path)
-	details.text = String(entry.path) + ("\n%d × %d pixels" % [preview.texture.get_width(),preview.texture.get_height()] if preview.texture != null else "\nImage is missing or unreadable; reimport to restore it.")
+	selected_entry = shown[index]
+	preview.selected_tile = 0
+	preview.tile_mode = selected_entry.category == "tiles"
+	enemy_apply.disabled = not selected_entry.has("frames")
+	tile_apply.disabled = not preview.tile_mode
+	frame_clock = 0.0
+	update_frame()
+	if preview.tile_mode: details.text += "\nClick an atlas cell, then choose Paint."
+func _process(delta: float) -> void:
+	if selected_entry.is_empty() or not selected_entry.has("frames"): return
+	frame_clock += delta
+	update_frame()
+func update_frame() -> void:
+	if selected_entry.is_empty(): return
+	preview.texture = library.enemy_texture(selected_entry.id,direction.get_item_text(direction.selected),int(frame_clock/0.1)) if selected_entry.has("frames") else texture(selected_entry.path)
+	details.text = String(selected_entry.name) + ("\n%d × %d pixels" % [preview.texture.get_width(),preview.texture.get_height()] if preview.texture != null else "\nImage is missing or unreadable; reimport to restore it.")

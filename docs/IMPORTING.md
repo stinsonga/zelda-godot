@@ -36,10 +36,11 @@ main game can use the new resources. This is a source-project workflow: keep
 `editor/` inside the game repository. A standalone exported editor is not yet
 supported. Close running game previews before replacing their imported library.
 
-The browser currently previews individual image files/directions/palettes. It
-**does not yet apply a selected monster skin or atlas tile to an authored room**.
-Those appearance controls are separate from importing; see the
-[asset-library plan](../editor/ASSET_LIBRARY_PLAN.md).
+The browser groups supported sprite frames/directions and can assign a set to
+an enemy variant. Atlas cells can be selected and painted using the separate
+Art brush. These choices do not change behavior or collision and save only to
+ignored `reference-inputs/editor-overrides/`, which survives reimport. See
+[local appearance](../editor/LOCAL_APPEARANCE.md) for controls and limits.
 
 ## Command line
 

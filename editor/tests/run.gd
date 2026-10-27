@@ -37,7 +37,7 @@ func run() -> void:
 	# duplicate/delete, and a saved pack that is subsequently played by the game.
 	var ui = preload("../ui/main.tscn").instantiate()
 	root.add_child(ui)
-	ui.replace_pack(sample,"")
+	ui.replace_pack(sample,"",false)
 	ui.importer.popup_centered()
 	await process_frame
 	await process_frame
@@ -82,14 +82,14 @@ func run() -> void:
 	check(ui.pack.rooms.size() == 4 and ui.current().connections.is_empty(),"Copied room has fresh identity and no links")
 	ui.delete_room()
 	check(ui.pack.rooms.size() == 3,"Delete removes copied room")
-	ui.replace_pack(sample,"")
+	ui.replace_pack(sample,"",false)
 	ui.current_id = "hall"
 	ui.refresh()
 	ui.delete_room()
 	check(Pack.validate(ui.pack).is_empty() and ui.find_room("entry").connections.is_empty(),"Delete removes incoming links")
 	ui.undo()
 	check(ui.pack == sample,"Undo delete restores all links")
-	ui.replace_pack(sample,"")
+	ui.replace_pack(sample,"",false)
 	check(ui.forbidden_destination(ui.game_root.path_join("imported/test.json")),"ROM import directory cannot be a save destination")
 	check(ui.save_to("/tmp/zelda-editor-playable.json"),"Editor saves playable pack")
 	check(not ui.dirty(),"Saving clears dirty flag")
@@ -98,7 +98,7 @@ func run() -> void:
 	ui.flush_text_edits()
 	check(ui.pack.title == "Edited title" and ui.pack.id == "my_unique_pack" and ui.dirty(),"Pending text edits are committed before saving or closing")
 
-	ui.replace_pack(sample,"")
+	ui.replace_pack(sample,"",false)
 	check(Pack.layout_warnings(ui.pack).is_empty(),"Sample graph is adjacent and potentially connected")
 	ui.dungeon_map.size = Vector2(800,600)
 	ui.dungeon_map.fit_to_rooms()
@@ -150,11 +150,11 @@ func run() -> void:
 	check(ui.current().map_position == [3,-3] and ui.current().connections.is_empty(),"Create at empty map cell keeps connections explicit")
 	check(Pack.layout_warnings(ui.pack).size() == 1,"Isolated room produces a connectivity warning")
 	ui.undo()
-	ui.replace_pack(sample,"")
+	ui.replace_pack(sample,"",false)
 	ui.find_room("entry").connections.up.kind = "wall"
 	ui.find_room("hall").connections.down.kind = "wall"
 	check(Pack.layout_warnings(ui.pack).size() == 2,"Wall doors do not count as potential paths")
-	ui.replace_pack(sample,"")
+	ui.replace_pack(sample,"",false)
 	var roundtrip := Pack.read(filename)
 	check(Pack.layout_warnings(roundtrip.pack).is_empty(),"Layout checks accept JSON floating-point coordinates")
 

@@ -3,6 +3,9 @@ signal stroke_started
 signal cell_clicked(cell: Vector2i, erase: bool)
 signal stroke_finished
 var room: Dictionary = {}
+var visual_texture: Texture2D
+var enemy_textures: Dictionary = {}
+var show_collision := false
 var painting := false
 var last_cell := Vector2i(-1,-1)
 var hover := Vector2i(-1,-1)
@@ -53,12 +56,17 @@ func _draw() -> void:
 	if room.is_empty(): return
 	var rect := geometry()
 	var step := rect.size/Vector2(16,11)
+	if visual_texture != null: draw_texture_rect(visual_texture,rect,false)
 	for y in range(11):
 		for x in range(16):
 			var cell := Rect2(rect.position+Vector2(x,y)*step,step)
-			draw_rect(cell,COLORS.get(room.tiles[y][x],Color.MAGENTA))
+			if visual_texture == null: draw_rect(cell,COLORS.get(room.tiles[y][x],Color.MAGENTA))
+			if show_collision and room.tiles[y][x] in ["#","~"]:
+				draw_rect(cell,Color(1,0.15,0.1,0.28))
+				draw_line(cell.position,cell.end,Color(1,0.3,0.2,0.7),1)
 			draw_rect(cell,Color("172633"),false,1)
 	for edge in room.connections:
+		if visual_texture != null: continue
 		var p := Vector2(7.5,0.5)
 		match edge:
 			"down": p = Vector2(7.5,10.5)
@@ -69,8 +77,12 @@ func _draw() -> void:
 		label_at(String(room.connections[edge].kind).left(1).to_upper(),at+Vector2(-5,5),Color("111b26"))
 	for enemy in room.enemies:
 		var at := rect.position + (Vector2(enemy.position[0],enemy.position[1]+3)+Vector2(8,8))/16.0*step
-		draw_circle(at,minf(step.x,step.y)*0.32,Color("ec7967"))
-		label_at("E",at+Vector2(-5,5),Color("1d2128"))
+		if enemy_textures.has(enemy.type):
+			var top := rect.position + Vector2(enemy.position[0],enemy.position[1])/16.0*step
+			draw_texture_rect(enemy_textures[enemy.type],Rect2(top,step),false)
+		else:
+			draw_circle(at,minf(step.x,step.y)*0.32,Color("ec7967"))
+			label_at("E",at+Vector2(-5,5),Color("1d2128"))
 	for pickup in room.pickups:
 		var at := rect.position + (Vector2(pickup.position[0],pickup.position[1]+3)+Vector2(8,8))/16.0*step
 		draw_rect(Rect2(at-step*0.23,step*0.46),Color("e5c46a"))
