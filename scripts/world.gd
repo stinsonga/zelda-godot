@@ -175,6 +175,8 @@ func _ready() -> void:
 		if definition.cave != null:
 			for ware in definition.cave.wares:
 				if ware != null and ware.item != null and "slot" in ware.item: register_item(ware.item)
+	if selected_world != null:
+		for item in selected_world.starting_items: state.take_item(item)
 	start_room = first_room
 	enter_room(first_room, first_room.spawn, Vector2i.UP)
 
@@ -639,6 +641,7 @@ func try_pickups() -> void:
 			lifted_item = pickup.item
 			lift_remaining = pickup.lift_ticks
 			pickup_ticks[state.pickup_key(room.id, pickup.id)] = simulation_tick
+			check_authored_completion()
 			if "slot" in pickup.item and pickup.item.slot == &"triforce":
 				# Z_05 mode $12: the fanfare plays, hearts refill, then Link leaves the level.
 				state.health = state.max_health
@@ -710,6 +713,9 @@ func compute_overrides(definition: Resource) -> Dictionary:
 		for cell in woken_statues:
 			if not result.has(Vector2i(cell)): result[Vector2i(cell)] = [woken_statues[cell], PackedByteArray([0, 0, 0, 0]), "floor"]
 	for door in definition.doors:
+		if not door_requirements_met(door):
+			for index in door.door_cells(): result[Vector2i(index%16,index/16)] = [-1,PackedByteArray([1,1,1,1]),"object"]
+			continue
 		if not door_passable(definition, door): continue
 		var door_cells: PackedInt32Array = door.door_cells()
 		var collision: PackedInt32Array = door.door_collision()
@@ -727,7 +733,13 @@ func door_key(definition: Resource, direction: Vector2i) -> String:
 
 ## Z_05 TouchDoor: false walls let Link through, key and bombable doors stay
 ## open once opened, and shutters open while the room is clear.
+func door_requirements_met(door: Resource) -> bool:
+	for slot in door.required_items:
+		if state.item_value(slot) < door.required_items[slot]: return false
+	return true
+
 func door_passable(definition: Resource, door: Resource) -> bool:
+	if not door_requirements_met(door): return false
 	match door.kind:
 		"open", "false": return true
 		"key", "bombable": return state.flags.get(door_key(definition, door.direction), false) and not (definition == room and door_openings.has(door.direction))
@@ -774,7 +786,7 @@ func key_count_text() -> String:
 func try_doors(direction: Vector2i) -> bool:
 	var at: Vector2i = player.pixel_position()
 	for door in room.doors:
-		if door.kind != "key" or direction != door.direction or not door.in_doorway(at): continue
+		if door.kind != "key" or not door_requirements_met(door) or direction != door.direction or not door.in_doorway(at): continue
 		if door_openings.has(door.direction): return true
 		if state.flags.get(door_key(room, door.direction), false): continue
 		if state.item_value(&"magic_key") == 0:
@@ -885,7 +897,7 @@ func tick_item_objects() -> void:
 	for object in item_objects:
 		if not object.detonating(): continue
 		for door in room.doors:
-			if door.kind != "bombable" or door_passable(room, door): continue
+			if door.kind != "bombable" or not door_requirements_met(door) or door_passable(room, door): continue
 			var delta: Vector2i = (door.bomb_hotspot() - object.position).abs()
 			if delta.x < 0x18 and delta.y < 0x18: open_door(door)
 	item_objects = item_objects.filter(func(object: RefCounted) -> bool: return object.active)
@@ -1190,6 +1202,8 @@ func try_exit(direction: Vector2i, from: Vector2i = Vector2i(-1000, -1000)) -> v
 	elif at.y == bounds.end.y - 1 and direction == Vector2i.DOWN: edge = "down"
 	if not room.exits.has(edge):
 		return
+	for door in room.doors:
+		if DIRECTION_NAMES[door.direction] == edge and not door_requirements_met(door): return
 	var target: Resource = rooms[StringName(room.exits[edge])]
 	if maze_repeats(edge): target = room
 	var destination := at
@@ -2217,3 +2231,12 @@ func reveal_secret(flag: String) -> bool:
 	state.flags[flag] = true
 	audio.play(&"secret")
 	return true
+
+## Authored objectives are collectible IDs, independent of the original ending.
+func check_authored_completion() -> void:
+	if world_definition == null or world_definition.completion_goals.is_empty() or state.flags.get("authored/complete",false): return
+	for goal in world_definition.completion_goals:
+		if not state.has_collected(StringName(goal.room),StringName(goal.pickup)): return
+	state.flags["authored/complete"] = true
+	status_message = "DUNGEON COMPLETE"
+	status_ticks = 240

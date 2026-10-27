@@ -19,6 +19,8 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 	var world = World.new()
 	world.id = StringName("authored/" + pack.id)
 	world.start_room = StringName(pack.start_room)
+	for item in pack.get("starting_items",["wooden_sword"]): world.starting_items.append(load("res://content/items/"+item+".tres"))
+	for goal in pack.get("goals",[]): world.completion_goals.append(goal.duplicate(true))
 	world.visual_theme = load("res://content/themes/default.tres").duplicate(true)
 	var definitions: Dictionary = {}
 	for id in pack.enemy_types:
@@ -63,6 +65,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 			var door = Door.new()
 			door.direction = DIRECTIONS[edge]
 			door.kind = link.kind
+			for item in link.get("requires",[]): door.required_items[StringName(Contract.ITEM_SLOTS[item])] = 1
 			room.doors.append(door)
 		for placement in source.enemies:
 			var spawn = Spawn.new()
@@ -77,6 +80,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 			pickup.position = Vector2i(int(placement.position[0]),int(placement.position[1]))
 			pickup.tolerance = Vector2i(8,8)
 			pickup.lift_ticks = 0
+			pickup.requires_clear = placement.get("requires_clear",false)
 			room.pickups.append(pickup)
 		errors.append_array(room.validation_errors())
 		world.rooms.append(room)

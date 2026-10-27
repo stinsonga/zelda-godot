@@ -24,6 +24,15 @@ be assigned to enemy variants, and atlas cells can be painted with the separate
 Art brush. Local choices stay outside shared packs; see [LOCAL_APPEARANCE.md](LOCAL_APPEARANCE.md). Import instructions:
 [IMPORTING.md](../docs/IMPORTING.md).
 
+## Templates and generated dungeons
+
+The **Dungeon** tab now offers **Generate…**, **Save template…** and
+**Check progression…**. Generation uses weighted authored templates and a stable
+seed, then checks inventory and room geometry before offering a result. Objective
+pickups, required-item doors and starting equipment are editable in the inspector.
+See [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md) for controls, version-2 packs,
+solver assumptions and unsupported mechanics.
+
 ## First dungeon
 
 The editor opens **Lantern vault**, a hand-authored three-room example. Its key,
@@ -142,13 +151,13 @@ This is the first usable editing loop, not the complete editor. Next:
 - Secrets, push blocks, cellars, caves, more item types and advanced doors.
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
-- Room-template tags and generation requirements, followed by a seeded generator
-  and a progression validator. Structural validation does **not** prove key economy,
-  combat accessibility, bomb availability or overall dungeon solvability.
+- Broader generation: loops, multiple floors, advanced template dependencies and
+  more solver mechanics. The first seeded generator/progression search is now
+  available; ordinary structural validation alone is still not a proof.
 
-Roguelike generation should produce this same concrete content model and let the
-editor inspect the result. No generator or generation metadata was added yet.
-Do not infer that a valid pack can always be completed.
+Generated dungeons use the same concrete content model and remain editable.
+Their recipes record seed, algorithm and template fingerprint. Only the explicit
+progression report certifies its supported abstraction; validity alone is insufficient.
 
 ## Checks
 

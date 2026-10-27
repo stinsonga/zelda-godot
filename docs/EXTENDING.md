@@ -12,7 +12,10 @@ that keep the project shareable, and how to test what you add.
 game engine. Its shared versioned JSON contract compiles into the resource types
 described below; existing `.tres` content is unchanged. This first editor covers
 terrain, spawns, basic enemies, pickups and reciprocal doors. It does not yet
-import existing rooms or prove generated dungeons solvable.
+import existing rooms. A seeded template generator and inventory/geometry
+progression search are now available; see
+[DUNGEON_GENERATION.md](../editor/DUNGEON_GENERATION.md) for supported proof rules
+and limits.
 
 ## The content boundary
 

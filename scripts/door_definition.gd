@@ -4,6 +4,7 @@ extends Resource
 ## while the door is passable; collision masks hold four eight-pixel parts,
 ## column-major, bit set when blocked. Authored doors may leave the cell arrays
 ## empty: direction and kind are then enough (see STANDARD_CELLS).
+@export var required_items: Dictionary[StringName, int] = {}
 @export var direction: Vector2i = Vector2i.UP
 @export_enum("open", "wall", "false", "bombable", "key", "shutter") var kind: String = "open"
 @export var cells: PackedInt32Array = PackedInt32Array()
@@ -53,6 +54,8 @@ func bomb_hotspot() -> Vector2i:
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
+	for slot in required_items:
+		if slot not in [&"sword",&"bow",&"ladder",&"candle",&"recorder",&"magic_key"] or required_items[slot] != 1: errors.append("Invalid authored door item requirement")
 	if direction.abs().x + direction.abs().y != 1: errors.append("Door direction must be cardinal")
 	if kind == "wall" and not cells.is_empty(): errors.append("A wall door has no doorway cells")
 	if cells.size() != open_tiles.size() or cells.size() != open_collision.size(): errors.append("Door cell arrays must match")

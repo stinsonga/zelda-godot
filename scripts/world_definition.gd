@@ -8,6 +8,9 @@ extends Resource
 ## (the second quest's stronger Ropes and shooting Stalfos).
 @export var enemy_variants: Dictionary[StringName, Resource] = {}
 @export var items: Array[Resource] = []
+## Authored packs only; imported worlds keep these empty.
+@export var starting_items: Array[Resource] = []
+@export var completion_goals: Array[Dictionary] = []
 @export var start_room: StringName
 @export var rooms: Array[Resource] = []
 @export var visual_theme: Resource

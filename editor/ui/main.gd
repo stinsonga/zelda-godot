@@ -4,6 +4,7 @@ const Canvas = preload("room_canvas.gd")
 const DungeonMap = preload("dungeon_map.gd")
 const AssetLibrary = preload("asset_library.gd")
 const ImportDialog = preload("import_dialog.gd")
+const DungeonTools = preload("dungeon_tools.gd")
 const Appearance = preload("../shared/appearance.gd")
 var appearance: Dictionary = Appearance.fresh("lantern_vault")
 var saved_appearance_text := ""
@@ -25,6 +26,11 @@ var syncing := false
 var pending_action: Callable
 var preview_pids: Array[int] = []
 var game_root := ""
+var dungeon_tools: AcceptDialog
+var requirement_checks: Array[CheckBox] = []
+var starting_checks: Array[CheckBox] = []
+var goal_pickup: OptionButton
+var goal_info: Label
 var importer: AcceptDialog
 var asset_library: Control
 var rooms_list: ItemList
@@ -226,6 +232,9 @@ func build_ui() -> void:
 	var map_tools := HFlowContainer.new()
 	map_view.add_child(map_tools)
 	button("Fit map",map_tools,func(): dungeon_map.fit_to_rooms())
+	button("Generate…",map_tools,func(): open_dungeon_tools(0))
+	button("Save template…",map_tools,func(): open_dungeon_tools(1))
+	button("Check progression…",map_tools,func(): open_dungeon_tools(2))
 	adjacent_edge = options(Pack.EDGES,map_tools)
 	adjacent_kind = options(Pack.KINDS,map_tools)
 	button("Add adjacent room",map_tools,add_adjacent_room)
@@ -288,9 +297,22 @@ func build_ui() -> void:
 	edge.item_selected.connect(func(_index): refresh_connection())
 	destination = options([],right)
 	door_kind = options(Pack.KINDS,right)
+	label("Required items (apply to door)",right).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	for item in Pack.REQUIRED_ITEMS:
+		var check := CheckBox.new();check.text = item;right.add_child(check);requirement_checks.append(check)
 	button("Connect both sides",right,connect_rooms)
 	button("Remove connection",right,disconnect_room)
-	label("Doors use the standard opening.\nMatching reverse doors are automatic.\nThis is not a solvability checker.",right)
+	label("Doors use the standard opening.\nMatching reverse doors and item gates\nare enforced in game previews.",right).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section("OBJECTIVES",right)
+	goal_info = label("",right)
+	goal_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	goal_pickup = options([],right)
+	button("Add selected pickup as objective",right,add_objective)
+	button("Remove selected objective",right,remove_objective)
+	section("STARTING EQUIPMENT",right)
+	for item in Pack.REQUIRED_ITEMS + ["key","bombs"]:
+		var check := CheckBox.new();check.text = item + (" (one)" if item == "key" else " (four)" if item == "bombs" else "");check.set_meta("item",item);right.add_child(check);starting_checks.append(check)
+	button("Set checked starting equipment",right,apply_starting_items)
 	status = RichTextLabel.new()
 	status.custom_minimum_size.y = 85
 	status.scroll_active = true
@@ -306,6 +328,10 @@ func build_ui() -> void:
 		pending_action = Callable()
 		if action.is_valid(): action.call())
 	add_child(confirmation)
+	dungeon_tools = DungeonTools.new()
+	dungeon_tools.game_root = game_root
+	add_child(dungeon_tools)
+	dungeon_tools.generated.connect(func(value): request_action(func(): replace_pack(value,""); views.current_tab = 1; dungeon_map.call_deferred("fit_to_rooms")))
 	importer = ImportDialog.new()
 	importer.game_root = game_root
 	add_child(importer)
@@ -331,6 +357,10 @@ func refresh() -> void:
 	for r in pack.rooms:
 		rooms_list.add_item(("★ " if r.id == pack.start_room else "") + r.title)
 		if r.id == current_id: rooms_list.select(rooms_list.item_count-1)
+	goal_pickup.clear()
+	for pickup in room.pickups: goal_pickup.add_item(pickup.id)
+	goal_info.text = str(pack.get("goals",[]).size()) + " objective pickups. Add one to use progression checking."
+	for check in starting_checks: check.button_pressed = check.get_meta("item") in pack.get("starting_items",["wooden_sword"])
 	title_edit.text = room.title
 	pack_title.text = pack.title
 	pack_id.text = pack.id
@@ -369,6 +399,7 @@ func refresh_enemy() -> void:
 	damage.value = enemy.contact_damage
 func refresh_connection() -> void:
 	var link: Dictionary = current().connections.get(selected(edge),{})
+	for check in requirement_checks: check.button_pressed = check.text in link.get("requires",[])
 	if link.is_empty(): return
 	pick(destination,link.target)
 	pick(door_kind,link.kind)
@@ -423,6 +454,7 @@ func paint(cell: Vector2i, erase: bool) -> void:
 		room[field].append(entry)
 	elif tool == "Erase":
 		for field in ["enemies","pickups"]: room[field] = room[field].filter(func(e): return placement_cell(e.position) != cell)
+		if pack.schema == 2: pack.goals = pack.goals.filter(func(g): return g.room != current_id or room.pickups.any(func(p): return p.id == g.pickup))
 	canvas.queue_redraw()
 func placement_cell(at: Array) -> Vector2i: return Vector2i(int(at[0])/16,(int(at[1])+3)/16)
 func unique_placement_id(entries: Array, prefix: String) -> String:
@@ -460,6 +492,7 @@ func delete_room() -> void:
 	edit(func():
 		var removed := current_id
 		appearance.room_tiles.erase(removed)
+		if pack.schema == 2: pack.goals = pack.goals.filter(func(g): return g.room != removed)
 		pack.rooms = pack.rooms.filter(func(r): return r.id != removed)
 		for room in pack.rooms:
 			for direction in room.connections.keys():
@@ -501,11 +534,13 @@ func connect_rooms() -> void:
 	var direction := selected(edge)
 	var target := find_room(selected(destination))
 	var kind := selected(door_kind)
+	var requirements := selected_requirements()
 	edit(func():
+		if not requirements.is_empty(): Pack.upgrade(pack)
 		unlink(current(),direction)
 		unlink(target,Pack.OPPOSITE[direction])
-		current().connections[direction] = {"target":target.id,"kind":kind}
-		target.connections[Pack.OPPOSITE[direction]] = {"target":current_id,"kind":kind})
+		current().connections[direction] = connection(target.id,kind,requirements)
+		target.connections[Pack.OPPOSITE[direction]] = connection(current_id,kind,requirements))
 func disconnect_room() -> void: edit(func(): unlink(current(),selected(edge)))
 func validate_pack() -> void:
 	var errors := Pack.validate(pack)
@@ -513,7 +548,7 @@ func validate_pack() -> void:
 		var warnings := Pack.layout_warnings(pack)
 		warnings.append_array(appearance_load_warnings)
 		if local_art.button_pressed: warnings.append_array(asset_library.library.warnings)
-		message("Valid pack: %d rooms. Potential paths only; keys, bombs and combat are not solved." % pack.rooms.size() + ("\nLayout warnings:\n" + "\n".join(warnings) if not warnings.is_empty() else ""))
+		message("Valid pack: %d rooms. Structural check only; use Dungeon > Check progression for inventory and objectives." % pack.rooms.size() + ("\nLayout warnings:\n" + "\n".join(warnings) if not warnings.is_empty() else ""))
 		return
 	message("Valid pack: %d rooms. Progression and key solvability are not checked." % pack.rooms.size() if errors.is_empty() else "Fix before saving or playing:\n" + "\n".join(errors))
 func message(text: String) -> void: status.text = text
@@ -618,7 +653,9 @@ func playtest(from_room: bool) -> void:
 	message("Playtest launched from an unsaved snapshot. Arrows/WASD move; Space attacks; X uses an item. Log: " + preview + ".log")
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
-		if importer != null and importer.busy:
+		if dungeon_tools != null and dungeon_tools.busy:
+			dungeon_tools.popup_centered();message("Dungeon generation/progression is still running. Close after it finishes.")
+		elif importer != null and importer.busy:
 			importer.popup_centered()
 			message("Import is still running. Close the editor after it finishes; the dialog can be hidden while you edit.")
 		else: request_action(func(): get_tree().quit())
@@ -660,13 +697,15 @@ func add_adjacent_room() -> void:
 	var source := current()
 	var direction := selected(adjacent_edge)
 	var kind := selected(adjacent_kind)
+	var requirements := selected_requirements()
 	edit(func():
+		if not requirements.is_empty(): Pack.upgrade(pack)
 		var room := Pack.room(unique_room_id())
 		room.title = "Room " + str(pack.rooms.size()+1)
 		room.map_position = [cell.x,cell.y]
 		unlink(source,direction)
-		source.connections[direction] = {"target":room.id,"kind":kind}
-		room.connections[Pack.OPPOSITE[direction]] = {"target":source.id,"kind":kind}
+		source.connections[direction] = connection(room.id,kind,requirements)
+		room.connections[Pack.OPPOSITE[direction]] = connection(source.id,kind,requirements)
 		pack.rooms.append(room)
 		current_id = room.id)
 func connect_neighbour() -> void:
@@ -729,3 +768,31 @@ func paint_art(cell: Vector2i, erase: bool) -> void:
 			appearance.room_tiles[current_id] = {"atlas":art_brush.atlas,"indices":indices}
 		appearance.room_tiles[current_id].indices[cell.y*16+cell.x] = art_brush.index
 	refresh_appearance_canvas()
+
+func selected_requirements() -> Array:
+	var items: Array = []
+	for check in requirement_checks:
+		if check.button_pressed: items.append(check.text)
+	return items
+func connection(target: String, kind: String, requirements: Array) -> Dictionary:
+	var link := {"target":target,"kind":kind}
+	if pack.schema == 2: link.requires = requirements.duplicate()
+	return link
+func open_dungeon_tools(tab: int) -> void:
+	flush_text_edits()
+	dungeon_tools.open_for(pack,current_id,tab)
+func add_objective() -> void:
+	if goal_pickup.item_count == 0: message("Place a pickup in this room first.");return
+	var goal := {"room":current_id,"pickup":selected(goal_pickup)}
+	edit(func():
+		Pack.upgrade(pack)
+		if not pack.goals.has(goal): pack.goals.append(goal))
+func remove_objective() -> void:
+	if pack.schema != 2 or goal_pickup.item_count == 0: return
+	var goal := {"room":current_id,"pickup":selected(goal_pickup)}
+	edit(func(): pack.goals.erase(goal))
+func apply_starting_items() -> void:
+	var items: Array = []
+	for check in starting_checks:
+		if check.button_pressed: items.append(check.get_meta("item"))
+	edit(func(): Pack.upgrade(pack);pack.starting_items = items)

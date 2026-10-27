@@ -93,19 +93,25 @@ local thumbnail browser. Grouped 16×16 sprite sets and room atlas tiles can now
 be assigned through a separate local Art layer, saved in ignored
 reference-inputs/editor-overrides/ and resolved in game previews. Behavior and
 collision remain authored pack data. See [LOCAL_APPEARANCE.md](../editor/LOCAL_APPEARANCE.md). The sample
-Lantern vault exercises keys, combat, shutters and a reward. Structural validation
-does not prove progression solvability. Missing:
+Lantern vault exercises keys, combat, shutters and a reward. Dungeon tools now
+provide authored template capture, stable seeded generation and a bounded
+inventory/room-geometry solver with witness routes. Version-2 packs support
+starting equipment, required-item gates and collectible objectives, enforced in
+playtests. See [DUNGEON_GENERATION.md](../editor/DUNGEON_GENERATION.md) for assumptions
+and unsupported mechanics. Structural validation alone is not a proof. Missing:
 - an advanced placement inspector, authored replacement libraries, richer sprite
   layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
-- authoring helpers for dungeons, doors, and cellars, which are built by hand
-  from the lab fixtures today;
+- authoring support for secrets, push blocks, caves and cellars, plus broader
+  generation layouts and solver support for water, advanced dependencies and
+  capacity-sensitive pickup routing;
 - automatic ID remapping when content is renamed, so older saves keep loading
   ([SAVING.md](SAVING.md)).
 
 ### 4. Reachability solver limits
 
-The solver is a test tool, not part of the game. It does not:
+The original-ROM checker (`tests/reachability.gd`) is separate from the new
+authored-pack solver above. It remains a test tool with these approximations:
 - count keys;
 - limit the ladder to one square;
 - loop the mazes;

@@ -110,7 +110,10 @@ Some checks only run when `imported/` exists. The optional emulator comparison
 
 `editor/` is a separate Godot project for authoring ROM-free rooms, enemies,
 pickups and doors, with undo/redo and playtesting in the game. Run it with
-`godot --path editor`. See [editor/README.md](editor/README.md).
+`godot --path editor`. It now includes reusable room templates, stable seeded
+generation and inventory/geometry progression checks with witness routes. See
+[editor/README.md](editor/README.md) and the
+[generation guide](editor/DUNGEON_GENERATION.md).
 
 ## Documentation
 

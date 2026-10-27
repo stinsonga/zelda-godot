@@ -112,7 +112,7 @@ func _draw() -> void:
 			else: draw_dashed_line(a,b,color,2,7,true)
 			var middle := (a+b)/2
 			if cell_size.x >= 65:
-				var label := String(link.kind) + (" !" if not aligned else "")
+				var label := String(link.kind) + (" +item" if not link.get("requires",[]).is_empty() else "") + (" !" if not aligned else "")
 				var extent := ThemeDB.fallback_font.get_string_size(label,HORIZONTAL_ALIGNMENT_LEFT,-1,12)
 				draw_rect(Rect2(middle-extent/2-Vector2(4,6),extent+Vector2(8,8)),Color("111b26"))
 				text(label,middle-extent/2+Vector2(0,7),color,12)
@@ -129,6 +129,7 @@ func _draw() -> void:
 			while caption.length() > 1 and ThemeDB.fallback_font.get_string_size(caption,HORIZONTAL_ALIGNMENT_LEFT,-1,14).x > available: caption = caption.left(caption.length()-2) + "…"
 			text(caption,rect.position+Vector2(6,20),Color("e4edf2"),14,available)
 			text("%d enemies / %d items" % [room.enemies.size(),room.pickups.size()],rect.position+Vector2(6,38),Color("a4b5c3"),11,available)
+			if room.has("role") and rect.size.y>60: text(String(room.role).to_upper(),rect.position+Vector2(6,54),Color("86d1ad"),10,available)
 		if room.id == selected_id:
 			for direction in DIRECTIONS.values(): draw_circle(at+Vector2(direction)*cell_size*0.36,3,Color("86d1ad"))
 	if dragging.is_empty() and valid_cell(hover) and room_at(hover).is_empty():

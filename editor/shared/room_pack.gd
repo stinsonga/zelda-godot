@@ -1,11 +1,13 @@
 extends RefCounted
 ## The single, engine-independent pack contract, loaded by both Godot projects.
 ## JSON is data only: no script, resource or external asset paths are accepted.
-const VERSION := 1
+const VERSION := 1 # Fresh/v1 documents remain backwards compatible.
+const REQUIRED_ITEMS := ["wooden_sword","bow","ladder","blue_candle","recorder","magic_key"]
+const ITEM_SLOTS := {"wooden_sword":"sword","bow":"bow","ladder":"ladder","blue_candle":"candle","recorder":"recorder","magic_key":"magic_key"}
 const EDGES := ["up", "right", "down", "left"]
 const OPPOSITE := {"up":"down", "down":"up", "left":"right", "right":"left"}
 const KINDS := ["open", "key", "bombable", "shutter", "false", "wall"]
-const ITEMS := ["key", "rupee", "heart", "bombs", "wooden_sword"]
+const ITEMS := ["key", "rupee", "heart", "bombs", "wooden_sword","bow","ladder","blue_candle","recorder","magic_key"]
 const BEHAVIORS := ["walker", "jumper", "gel", "rope", "flyer"]
 const ROOM_FIELDS := ["id", "title", "tiles", "spawn", "enemies", "pickups", "connections", "shutter_trigger", "map_position"]
 
@@ -67,8 +69,11 @@ static func walkable(tiles: Array, at: Array) -> bool:
 static func validate(pack) -> PackedStringArray:
 	var errors := PackedStringArray()
 	if not pack is Dictionary: return PackedStringArray(["Pack must be a JSON object"])
-	unknown_fields(pack,["schema","id","title","start_room","rooms","enemy_types"],"Pack",errors)
-	if pack.get("schema") != VERSION: errors.append("Unsupported pack schema; expected 1")
+	var version = pack.get("schema")
+	var fields := ["schema","id","title","start_room","rooms","enemy_types"]
+	if version == 2: fields.append_array(["starting_items","goals","generation"])
+	unknown_fields(pack,fields,"Pack",errors)
+	if version != 1 and version != 2: errors.append("Unsupported pack schema; expected 1 or 2")
 	if not identifier(pack.get("id")): errors.append("Pack ID needs lowercase letters, digits, underscores or hyphens")
 	if not pack.get("title") is String: errors.append("Pack needs a title")
 	var definitions = pack.get("enemy_types")
@@ -94,7 +99,12 @@ static func validate(pack) -> PackedStringArray:
 		if not identifier(id): errors.append("Invalid room ID"); continue
 		if ids.has(id): errors.append("Duplicate room ID: " + id)
 		ids[id] = r
-		unknown_fields(r,ROOM_FIELDS,id,errors)
+		var room_fields: Array = ROOM_FIELDS.duplicate()
+		if version == 2: room_fields.append_array(["template_id","role"])
+		unknown_fields(r,room_fields,id,errors)
+		if version == 2:
+			if r.has("template_id") and not identifier(r.template_id): errors.append(id + ": invalid template ID")
+			if r.has("role") and r.role not in ["start","key","item","combat","treasure","goal"]: errors.append(id + ": invalid template role")
 		if not r.get("title") is String: errors.append(id + ": title must be text")
 		var tiles = r.get("tiles")
 		var good_tiles: bool = tiles is Array and tiles.size() == 11
@@ -118,7 +128,10 @@ static func validate(pack) -> PackedStringArray:
 			var spawn_ids: Dictionary = {}
 			for entry in entries:
 				if not entry is Dictionary: errors.append(id + ": invalid placement"); continue
-				unknown_fields(entry,["id","type","position"] if field == "enemies" else ["id","item","position"],id,errors)
+				var placement_fields := ["id","type","position"] if field == "enemies" else ["id","item","position"]
+				if version == 2 and field == "pickups": placement_fields.append("requires_clear")
+				unknown_fields(entry,placement_fields,id,errors)
+				if entry.has("requires_clear") and not entry.requires_clear is bool: errors.append(id + ": requires_clear must be true or false")
 				var spawn_id = entry.get("id")
 				if not identifier(spawn_id) or spawn_ids.has(spawn_id): errors.append(id + ": placement IDs must be unique within each list")
 				else: spawn_ids[spawn_id] = true
@@ -131,7 +144,14 @@ static func validate(pack) -> PackedStringArray:
 		for edge in connections:
 			var link = connections[edge]
 			if edge not in EDGES or not link is Dictionary: errors.append(id + ": invalid connection"); continue
-			unknown_fields(link,["target","kind"],id,errors)
+			unknown_fields(link,["target","kind","requires"] if version == 2 else ["target","kind"],id,errors)
+			if version == 2 and link.has("requires"):
+				if not link.requires is Array: errors.append(id + ": connection requirements must be a list")
+				else:
+					var seen_requirements: Array = []
+					for requirement in link.requires:
+						if requirement not in REQUIRED_ITEMS or requirement in seen_requirements: errors.append(id + ": invalid or duplicate required item")
+						seen_requirements.append(requirement)
 			if not identifier(link.get("target")) or link.get("kind") not in KINDS: errors.append(id + ": invalid connection target or door kind")
 	if not ids.has(pack.get("start_room")): errors.append("Starting room is missing")
 	for id in ids:
@@ -146,8 +166,9 @@ static func validate(pack) -> PackedStringArray:
 			var back = ids[target].get("connections",{})
 			if not back is Dictionary: continue
 			var reverse = back.get(OPPOSITE[edge],{})
-			if not reverse is Dictionary or reverse.get("target") != id or reverse.get("kind") != link.get("kind"):
+			if not reverse is Dictionary or reverse.get("target") != id or reverse.get("kind") != link.get("kind") or requirements(reverse) != requirements(link):
 				errors.append(id + ": connection " + edge + " needs a reciprocal door of the same kind")
+	if version == 2: validate_progression(pack,ids,errors)
 	return errors
 
 static func read(path: String) -> Dictionary:
@@ -196,3 +217,50 @@ static func layout_warnings(pack: Dictionary) -> PackedStringArray:
 	for room in pack.rooms:
 		if not visited.has(room.id): warnings.append(room.id + ": no potential connection path from the starting room")
 	return warnings
+
+static func requirements(link: Dictionary) -> Array:
+	var values = link.get("requires",[])
+	if not values is Array: return []
+	var result: Array = values.duplicate()
+	# Validate elements before sorting, so malformed input never crashes review.
+	for value in result:
+		if not value is String: return []
+	result.sort()
+	return result
+static func upgrade(pack: Dictionary) -> void:
+	if pack.schema == 2: return
+	pack.schema = 2
+	pack.starting_items = ["wooden_sword"]
+	pack.goals = []
+static func validate_progression(pack: Dictionary, rooms: Dictionary, errors: PackedStringArray) -> void:
+	var starting = pack.get("starting_items")
+	if not starting is Array or starting.size() > 32: errors.append("Version 2 needs at most 32 starting_items")
+	else:
+		for item in starting:
+			if item not in REQUIRED_ITEMS and item not in ["key","bombs"]: errors.append("Unsupported starting item")
+	var goals = pack.get("goals")
+	if not goals is Array or goals.size() > 16: errors.append("Version 2 needs a goals list (at most 16)")
+	else:
+		var seen: Array = []
+		for goal in goals:
+			if not goal is Dictionary: errors.append("Goal must name a room and pickup"); continue
+			unknown_fields(goal,["room","pickup"],"Goal",errors)
+			if not goal.get("room") is String or not goal.get("pickup") is String: errors.append("Goal needs room/pickup IDs"); continue
+			var key: String = goal.room + "/" + goal.pickup
+			if key in seen: errors.append("Duplicate goal")
+			seen.append(key)
+			if not rooms.has(goal.room): errors.append("Goal room is missing"); continue
+			var pickups = rooms[goal.room].get("pickups")
+			if not pickups is Array or not pickups.any(func(p): return p is Dictionary and p.get("id") == goal.pickup): errors.append("Goal pickup is missing")
+	if pack.has("generation"):
+		var g = pack.generation
+		if not g is Dictionary: errors.append("Generation provenance must be an object"); return
+		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"],"Generation",errors)
+		if g.get("algorithm") != "authored_tree" or g.get("version") != 1 or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
+		var hash = g.get("template_sha256")
+		if not hash is String or hash.length() != 64 or not hash.is_valid_hex_number(): errors.append("Invalid template fingerprint")
+		if g.get("required_item") not in REQUIRED_ITEMS or not g.get("templates") is Dictionary: errors.append("Invalid generator template metadata")
+		elif g.templates.size() > 256: errors.append("Too many generation template records")
+		else:
+			for id in g.templates:
+				if not identifier(id) or not identifier(g.templates[id]): errors.append("Invalid generation template ID")

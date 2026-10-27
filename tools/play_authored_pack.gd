@@ -38,7 +38,6 @@ func run() -> void:
 		result.world.start_room = StringName(room_id)
 	world.tree_exiting.connect(func(): world.combat.encounter_room = null)
 	root.add_child(world)
-	world.state.take_item(load("res://content/items/wooden_sword.tres"))
 	if check_only:
 		world.set_physics_process(false)
 		for i in range(120): world.simulate_tick(Vector2i.ZERO)
