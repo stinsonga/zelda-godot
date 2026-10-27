@@ -1,7 +1,13 @@
 extends SceneTree
 ## Render deterministic cave, shop, secret, lifting, or sword views for screenshot review.
 func _initialize() -> void:
-	call_deferred("preview")
+	call_deferred("run_preview")
+
+## With a window, the view stays up for a screenshot. Headless (as in the test
+## runs) there is nothing to look at, so it renders once and exits.
+func run_preview() -> void:
+	preview()
+	if DisplayServer.get_name() == "headless": quit(0)
 
 func preview() -> void:
 	var args := OS.get_cmdline_user_args()
