@@ -106,6 +106,15 @@ def objects(ram):
     beam = [['beam', int(ram[0x70+14]), int(ram[0x84+14])-64]] if ram[0xAC+14] & 0xF1 == 0x10 else []
     return monsters + shots + beam
 
+# Per-slot NES fields kept as diagnostics (not compared), named like Godot's.
+OBJECT_DIAGNOSTICS = {'state':0xAC, 'timer':0x28, 'shove':0xC0, 'shove_distance':0xD3, 'inv':0x4F0,
+                      'hp':0x485, 'speed':0x3BC, 'goff':0x394, 'frac':0x3A8, 'input':0x3F8,
+                      'meta':0x405, 'shoot':0x451, 'wants':0x412, 'turn':0x478, 'stun':0x3D}
+
+def object_diagnostics(ram):
+    return {str(slot): {name: int(ram[address+slot]) for name, address in OBJECT_DIAGNOSTICS.items()}
+            for slot in range(1, 15) if ram[0x34F+slot] or (slot >= 13 and ram[0xAC+slot])}
+
 def snapshot(core):
     ram = core.ram
     # Monster starting state the native capture adopts: Random ($18-$24),
@@ -117,7 +126,8 @@ def snapshot(core):
             'direction':int(ram[0x98]), 'phase':'play' if int(ram[0x12]) == 5 else 'transition',
             'raw':{'screen_y':int(ram[0x84]), 'fraction':int(ram[0x3A8]), 'grid_offset':int(ram[0x394]),
                    'buttons':int(ram[0xFA]), 'frame_counter':int(ram[0x15]), 'mode':int(ram[0x12]),
-                   'submode':int(ram[0x13]), 'level':int(ram[0x10]), 'state':int(ram[0xAC]), 'paused':int(ram[0xE0])}}
+                   'submode':int(ram[0x13]), 'level':int(ram[0x10]), 'state':int(ram[0xAC]), 'paused':int(ram[0xE0]),
+                   'inv':int(ram[0x4F0]), 'shove':int(ram[0xC0]), 'objects':object_diagnostics(ram)}}
 
 def capture_reference(core_path, rom_path, suite, out):
     from import_rom import read_rom, PRG_SHA1
@@ -135,7 +145,17 @@ def capture_reference(core_path, rom_path, suite, out):
         state = core.save()
         (out/'seed.state').write_bytes(state)
         cases=[]
+        cache_dir=out/'cache'
+        cache_dir.mkdir(exist_ok=True)
         for scenario in suite['cases']:
+            # The emulator never changes: a case already captured with the same
+            # inputs, ROM, core, bootstrap and capture code is reused as is.
+            key=digest({'case':scenario,'room':suite['room'],'initial':suite['initial'],'rom':PRG_SHA1,
+                        'core':core.info.get('sha256'),'seed':hashlib.sha256(state).hexdigest(),'capture':CAPTURE_SOURCE})
+            cached=cache_dir/(key+'.json')
+            if cached.exists():
+                cases.append(read_json(cached))
+                continue
             start = initial
             def replay():
                 nonlocal start
@@ -178,9 +198,10 @@ def capture_reference(core_path, rom_path, suite, out):
             rows=replay()
             if replay()!=rows: raise ValueError('Reference replay is not deterministic: '+scenario['id'])
             cases.append({'id':scenario['id'],'initial':start,'frames':rows})
+            write_json(cached,cases[-1])
         trace={'schema':1,'engine':'nes','suite':suite,'suite_sha256':digest(suite),'rom_prg_sha1':PRG_SHA1,
                'core':core.info,'core_options':{k.decode():v.decode() for k,v in sorted(core.variables.items())},
-               'seed_sha256':hashlib.sha256(state).hexdigest(), 'bootstrap_frames':core.frame-sum((len(c['frames'])+len(setup_frames(s)))*2 for c,s in zip(cases,suite['cases'])),
+               'seed_sha256':hashlib.sha256(state).hexdigest(), 'bootstrap_frames':sum(count for _, count in BOOT),
                'reference_replay_verified':True,'cases':cases}
         metadata=Path(core_path).parent/'nestopia.json'
         if metadata.exists():
@@ -189,6 +210,11 @@ def capture_reference(core_path, rom_path, suite, out):
             trace['core_build']=provenance
         write_json(out/'reference.json',trace)
         return trace
+
+# What a cached capture depends on besides its inputs: the code that records it.
+import inspect as _inspect
+CAPTURE_SOURCE = hashlib.sha256(''.join(_inspect.getsource(f) for f in (objects, object_diagnostics, snapshot, capture_reference, setup_frames, expand)).encode()
+                                + json.dumps([BOOT, BUTTONS, sorted(SHOT_TYPES), MONSTER_TYPES_END, OBJECT_DIAGNOSTICS]).encode()).hexdigest()
 
 def validate_trace(trace, engine):
     if trace.get('schema') != 1 or trace.get('engine') != engine: raise ValueError('Unsupported trace schema or engine')
@@ -241,19 +267,81 @@ def report_text(report):
             lines.append(f"  First difference: frame {d['frame']}, input {d['buttons'] or ['stop']}, fields {d['fields']}")
             for label,key in [('NES','nes'),('Godot','godot')]:
                 row=d[key]
-                lines.append(f"  {label}: {row['phase']} {row['room']} position ({row['x']}, {row['y']}), direction {row['direction']}; diagnostics {row['raw']}")
+                raw={k:v for k,v in row['raw'].items() if k!='objects'}
+                lines.append(f"  {label}: {row['phase']} {row['room']} position ({row['x']}, {row['y']}), direction {row['direction']}; diagnostics {raw}")
                 if OBJECTS_FIELD in d['fields']: lines.append(f"  {label} monsters [slot, type, x, y, dir]: {row.get(OBJECTS_FIELD)}")
             lines.append(f"  Delta: {d['delta']}; {case['different_frames']} differing frames")
     return '\n'.join(lines)+'\n'
 
-def capture_native(godot, out):
-    result=subprocess.run([str(godot),'--headless','--path',str(ROOT),'--script','res://tools/capture_movement.gd',
-                           '--log-file',str(out/'godot.log'),'--','--reference',str(out/'reference.json'),'--output',str(out/'native.json')],
-                          capture_output=True,text=True,timeout=120)
-    (out/'godot-process.log').write_text(result.stdout+result.stderr)
-    if result.returncode or 'SCRIPT ERROR' in result.stdout+result.stderr: raise ValueError('Godot trace capture failed; see '+str(out/'godot-process.log'))
-    native=read_json(out/'native.json')
+def differing_slots(expected, observed):
+    """Monster slots whose rows differ, and whether shots or the beam differ."""
+    nes={o[0]:o for o in expected.get(OBJECTS_FIELD,[]) if isinstance(o[0],int)}
+    godot={o[0]:o for o in observed.get(OBJECTS_FIELD,[]) if isinstance(o[0],int)}
+    slots=sorted(s for s in set(nes)|set(godot) if nes.get(s)!=godot.get(s))
+    others=[k for k in ('shot','beam') if [o for o in expected.get(OBJECTS_FIELD,[]) if o[0]==k]!=[o for o in observed.get(OBJECTS_FIELD,[]) if o[0]==k]]
+    return slots,others
+
+def inspect_text(reference, native, case_ids=None, before=12, extra_slots=()):
+    """The frames leading to each case's first difference, for just what differs:
+    Link, the differing monster slots (with each engine's internal fields), or shots."""
+    report=compare(reference,native)
+    lines=[]
+    wanted=case_ids.split(',') if case_ids else None
+    for result,ref,act in zip(report['cases'],reference['cases'],native['cases']):
+        if wanted and result['id'] not in wanted: continue
+        d=result['first_difference']
+        if not d:
+            lines.append(f"PASS {result['id']}")
+            continue
+        index=d['frame']-1
+        slots,others=differing_slots(ref['frames'][index],act['frames'][index])
+        slots=sorted(set(slots)|set(extra_slots))
+        link='objects' not in d['fields'] or len(d['fields'])>1
+        lines.append(f"DIFF {result['id']} at frame {d['frame']}: fields {d['fields']}; slots {slots or '-'}; {', '.join(others) or ''}")
+        for i in range(max(0,index-before),min(len(ref['frames']),index+3)):
+            e,o=ref['frames'][i],act['frames'][i]
+            mark='>' if i==index else ' '
+            head=f"{mark}{e['frame']:5} {''.join(b[0].upper() for b in e['buttons']) or '-':3} {'lag' if e.get('lag') else '   '}"
+            if link:
+                lines.append(f"{head} link nes {e['phase'][0]} {e['room']} ({e['x']},{e['y']}) d{e['direction']} goff {e['raw'].get('grid_offset')} frac {e['raw'].get('fraction')} st {e['raw'].get('state')} | godot {o['phase'][0]} {o['room']} ({o['x']},{o['y']}) d{o['direction']}")
+            for slot in slots:
+                en=next((x for x in e.get(OBJECTS_FIELD,[]) if x[0]==slot),None)
+                go=next((x for x in o.get(OBJECTS_FIELD,[]) if x[0]==slot),None)
+                ed=e['raw'].get('objects',{}).get(str(slot),{})
+                gd=o['raw'].get('objects',{}).get(str(slot),{})
+                lines.append(f"{head} slot {slot} nes {en} {ed}")
+                lines.append(f"{' '*len(head)}        godot {go} {gd}")
+            for kind in others:
+                lines.append(f"{head} {kind} nes {[x for x in e.get(OBJECTS_FIELD,[]) if x[0]==kind]} | godot {[x for x in o.get(OBJECTS_FIELD,[]) if x[0]==kind]}")
+    return '\n'.join(lines)+'\n'
+
+def capture_native(godot, out, jobs=4):
+    """Replays the reference in Godot, its cases split across parallel processes."""
     reference=read_json(out/'reference.json')
+    count=max(1,min(jobs,len(reference['cases'])))
+    # Longest cases first, dealt round-robin, so the processes finish together.
+    for stale in out.glob('*.part*.json'): stale.unlink()
+    order=sorted(range(len(reference['cases'])),key=lambda i:-len(reference['cases'][i]['frames']))
+    chunks=[order[k::count] for k in range(count)]
+    running=[]
+    for k,indices in enumerate(chunks):
+        part=dict(reference,cases=[reference['cases'][i] for i in sorted(indices)])
+        write_json(out/f'reference.part{k}.json',part)
+        log=open(out/f'godot-process.part{k}.log','w')
+        running.append((sorted(indices),log,subprocess.Popen([str(godot),'--headless','--path',str(ROOT),'--script','res://tools/capture_movement.gd',
+            '--log-file',str(out/f'godot.part{k}.log'),'--','--reference',str(out/f'reference.part{k}.json'),'--output',str(out/f'native.part{k}.json')],
+            stdout=log,stderr=subprocess.STDOUT,text=True)))
+    native_cases=[None]*len(reference['cases'])
+    native=None
+    for k,(indices,log,process) in enumerate(running):
+        process.wait(timeout=600)
+        log.close()
+        text=(out/f'godot-process.part{k}.log').read_text()
+        if process.returncode or 'SCRIPT ERROR' in text: raise ValueError('Godot trace capture failed; see '+str(out/f'godot-process.part{k}.log'))
+        part=read_json(out/f'native.part{k}.json')
+        for i,case in zip(indices,part['cases']): native_cases[i]=case
+        native=part
+    native=dict(native,cases=native_cases)
     # Godot parses JSON numbers as floats. Restore the authored integer schema
     # only after checking the echoed suite is semantically identical.
     if native['suite'] != reference['suite']: raise ValueError('Godot changed the replay suite')
@@ -267,7 +355,11 @@ def capture_native(godot, out):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',choices=['run','capture','compare'])
+    parser.add_argument('action',choices=['run','capture','compare','inspect'])
+    parser.add_argument('--case',help='Only these comma-separated case IDs')
+    parser.add_argument('--jobs',type=int,default=4,help='Parallel Godot processes')
+    parser.add_argument('--before',type=int,default=12,help='inspect: frames shown before the first difference')
+    parser.add_argument('--slots',default='',help='inspect: comma-separated monster slots to show as well')
     parser.add_argument('--rom',type=Path)
     parser.add_argument('--core',type=Path,default=ROOT/'reference-inputs/emulator/nestopia_libretro.dylib')
     parser.add_argument('--suite',type=Path,default=SCENARIOS)
@@ -276,17 +368,27 @@ def main():
     args=parser.parse_args()
     try:
         out=output_directory(args.out)
+        if args.action=='inspect':
+            extra=[int(x) for x in args.slots.split(',') if x]
+            print(inspect_text(read_json(out/'reference.json'),read_json(out/'native.json'),args.case,args.before,extra),end='')
+            return 0
         if args.action in ('run','capture'):
             rom=args.rom
             if rom is None:
                 candidates=list((ROOT/'reference-inputs').glob('*.nes'))
                 if len(candidates)!=1: raise ValueError('Pass --rom for exactly one verified US PRG0 ROM')
                 rom=candidates[0]
-            reference=capture_reference(args.core,rom,read_json(args.suite),out)
+            suite=read_json(args.suite)
+            if args.case:
+                wanted=args.case.split(',')
+                missing=[c for c in wanted if c not in [s['id'] for s in suite['cases']]]
+                if missing: raise ValueError('Unknown case: '+', '.join(missing))
+                suite=dict(suite,cases=[s for s in suite['cases'] if s['id'] in wanted])
+            reference=capture_reference(args.core,rom,suite,out)
             if args.action=='capture':
                 print('Captured deterministic NES reference:',out/'reference.json')
                 return 0
-            native=capture_native(args.godot,out)
+            native=capture_native(args.godot,out,args.jobs)
         else:
             reference,native=read_json(out/'reference.json'),read_json(out/'native.json')
         report=compare(reference,native)

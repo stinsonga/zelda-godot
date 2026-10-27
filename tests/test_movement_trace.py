@@ -80,6 +80,35 @@ class MovementTraceTests(unittest.TestCase):
         self.assertEqual(len(suite['cases']),24)
         self.assertEqual(len({c['id'] for c in suite['cases']}),24)
         self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),10541)
+    def test_inspect_shows_the_differing_slot_with_internals(self):
+        ref,native=self.traces()
+        ref['suite']['cases'][0]['objects']=True
+        native['suite']=ref['suite']
+        for trace in (ref,native): trace['suite_sha256']=m.digest(ref['suite'])
+        for i,(e,o) in enumerate(zip(ref['cases'][0]['frames'],native['cases'][0]['frames'])):
+            e['objects']=[[3,8,100+i,61,2]]; o['objects']=[[3,8,100+i,61,2]]
+            e['raw']={'objects':{'3':{'timer':9-i}}}; o['raw']={'objects':{'3':{'timer':8-i}}}
+        native['cases'][0]['frames'][2]['objects']=[[3,8,101,61,2]]
+        self.assertEqual(m.differing_slots(ref['cases'][0]['frames'][2],native['cases'][0]['frames'][2]),([3],[]))
+        text=m.inspect_text(ref,native)
+        self.assertIn('DIFF synthetic at frame 3',text)
+        self.assertIn("slot 3 nes [3, 8, 102, 61, 2] {'timer': 7}",text)
+        self.assertIn("godot [3, 8, 101, 61, 2] {'timer': 6}",text)
+        self.assertNotIn('link nes',text)
+    def test_shots_and_the_beam_are_reported_apart_from_slots(self):
+        e={'objects':[[1,8,0,0,1],['shot',83,5,5],['beam',9,9]]}
+        o={'objects':[[1,8,0,0,1],['beam',9,9]]}
+        self.assertEqual(m.differing_slots(e,o),([],['shot']))
+    def test_capture_cache_depends_on_capture_code(self):
+        self.assertEqual(len(m.CAPTURE_SOURCE),64)
+    def test_autopilot_records_segments_and_swings_only_ahead(self):
+        import route_autopilot as a
+        self.assertEqual(a.segments([['up'],['up'],['up','a'],[]]),
+                         [{'buttons':['up'],'frames':2},{'buttons':['up','a'],'frames':1},{'buttons':[],'frames':1}])
+        snap={'x':100,'y':77,'objects':[[1,3,80,77,1],['shot',83,90,77]]}
+        self.assertTrue(a.monster_ahead(snap,'left'))
+        self.assertFalse(a.monster_ahead(snap,'right'))
+        self.assertFalse(a.monster_ahead(snap,'up'))
     def test_generated_output_cannot_enter_shared_content(self):
         with self.assertRaises(ValueError):m.output_directory(ROOT/'content/capture')
         with tempfile.TemporaryDirectory() as folder:

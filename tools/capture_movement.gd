@@ -50,8 +50,21 @@ func snapshot(world: Node) -> Dictionary:
 	monsters.append_array(shots)
 	var beam = world.combat.beam
 	if beam != null and beam.flying(): monsters.append(["beam", beam.position.x, beam.position.y])
+	# Each monster's internals, named like the reference's per-slot diagnostics.
+	var internals := {}
+	for actor in world.combat.enemies:
+		if actor.slot < 1: continue
+		var family = actor.family
+		var source = actor.source
+		internals[str(actor.slot)] = {"state": family.phase if family != null and "phase" in family else -1,
+			"timer": family.timer if family != null and "timer" in family else -1, "inv": actor.invulnerability, "hp": actor.health,
+			"shove": bits(actor.shove_direction) if actor.shove_remaining > 0 else 0, "shove_distance": actor.shove_remaining,
+			"speed": source.move_speed, "goff": source.grid_offset, "frac": source.fraction, "input": bits(source.input_direction),
+			"meta": actor.spawn_remaining, "shoot": source.shoot_timer, "wants": int(source.wants_to_shoot), "turn": source.turn_timer,
+			"init": int(actor.initializing), "waiting": int(actor.waiting_spawn)}
 	return {"objects":monsters,"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),"phase":"transition" if moving_between else "play",
-		"raw":{"subposition_x":world.player.subposition.x,"subposition_y":world.player.subposition.y,
+		"raw":{"objects":internals,"inv":world.combat.player_invulnerability,"shove":world.combat.shove_remaining,"grid_offset":world.player.grid_offset,"fraction":world.player.fraction,
+		"subposition_x":world.player.subposition.x,"subposition_y":world.player.subposition.y,
 		"entry_walk_remaining":world.entry_walk_remaining,"curtain":world.curtain,"random":Array(world.combat.source_random.bytes),"edge_timer":world.combat.edge_timer,"edge_cell":world.combat.edge_cursor,"frame_clock":world.combat.frame_clock}}
 func fail(message: String) -> void:
 	push_error(message)

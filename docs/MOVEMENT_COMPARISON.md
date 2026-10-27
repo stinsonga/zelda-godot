@@ -69,6 +69,34 @@ and **2** means setup or validation failed. `capture` runs only the NES capture;
 ignored directory or an external temporary folder. Generated data inside the
 project is restricted to `reference-inputs/` and `exports/`.
 
+### Working on a difference
+
+- **One case:** `run --case west_to_moblins` (comma-separated IDs) captures and
+  compares only those cases, in a couple of seconds.
+- **Cached captures:** each NES case is stored under `cache/` keyed by its
+  inputs, the ROM, the core, the bootstrap, and the capture code. An unchanged
+  case is reused without running the emulator; new ones are still replayed twice
+  to prove determinism. A full cached run takes about ten seconds.
+- **Parallel replay:** Godot replays the cases in `--jobs` processes (4 by default).
+- **`inspect`:** after a run, prints the frames before each case's first
+  difference for just what differs: Link, the differing monster slots, or shots
+  and the beam. Each slot shows both engines' internals side by side (NES state,
+  timer, shove, invincibility, HP, speed, grid offset, fraction, input direction,
+  metastate, shot timer, turn timer; Godot's equivalents). `--before N` widens
+  the window and `--slots 4,5` adds slots, such as a shot's shooter.
+
+The per-slot internals are diagnostics in each frame's `raw` block, never compared.
+
+### Finding a route
+
+`tools/route_autopilot.py` writes new cases that cross monster rooms. It steers
+the emulator through waypoints (a grid coordinate in a room, an exit, or an idle
+spell), presses A at monsters ahead once Link has a sword, tries several start
+delays, and records what it pressed as plain segments. Start it after an existing
+case's setup (`--setup-case sword_swings` takes the sword first) or after a whole
+case (`--extend`). `--append` adds the result to the scenario file; see the
+script's help for the waypoint format.
+
 ## Frame convention and safeguards
 
 The headless frontend drives a full NES emulator, including its PPU and mapper;
