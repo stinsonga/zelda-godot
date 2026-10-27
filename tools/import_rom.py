@@ -11,7 +11,7 @@ from pathlib import Path
 import struct
 import zlib
 
-from import_dungeons import MONSTERS, export_levels, level_rooms
+from import_dungeons import MONSTERS, export_levels, level_rooms, turns_after_hitting_link
 import import_dungeons
 import import_submenu
 import import_title
@@ -393,6 +393,7 @@ BRACELET_ROOM = 0x24
 # Z_01 CheckMazes: ForestMazeDirs in room $61 (right leaves freely) and
 # MountainMazeDirs in room $1B (left leaves freely).
 MAZE_DIRECTIONS = {0x08: 'up', 0x04: 'down', 0x02: 'left', 0x01: 'right'}
+
 def maze_field(directions, free):
     return 'maze = PackedStringArray(' + ', '.join(f'"{MAZE_DIRECTIONS[d]}"' for d in directions) + f')\nmaze_free_exit = "{free}"'
 MAZE_TABLES = 0x6D97                # ForestMazeDirs (4), then MountainMazeDirs (4).
@@ -472,7 +473,8 @@ def export_overworld_enemies(prg, patterns, palettes, output):
         raw_damage = prg[0x72BA + kind]
         damage = (raw_damage & 15)*2 + (1 if raw_damage & 240 else 0)
         fields = {'id':f'&"{name}"', 'title':json.dumps(name.replace('_',' ').title()), 'behavior':json.dumps(behavior),
-                  'nes_type':kind,'health':hp, 'contact_damage':damage,'sprite':f'&"{name}"'}
+                  'nes_type':kind,'health':hp, 'contact_damage':damage,'sprite':f'&"{name}"',
+                  'turns_after_hitting_link':turns_after_hitting_link(prg,kind)}
         if behavior == 'nes_octorok':
             fields.update(sprite=f'&"{"blue_octorok" if kind >= 9 else "red_octorok"}"',
                           speed_subpixels=256 if kind in (8,10) else 128,turn_chance=160 if kind>=9 else 112)
@@ -598,6 +600,17 @@ def export_overworld_enemies(prg, patterns, palettes, output):
     return names
 
 
+def pair_collision(codes):
+    """Z_07 GetCollidableTile: a vertical move reads two adjacent columns and keeps the
+    higher tile before WalkableTiles turns it into $26, so a blocking tile beside a
+    higher walkable one is missed. Returned only where that differs from checking
+    each column alone."""
+    def blocked(tile): return int(tile >= 0x89 and tile not in WALKABLE)
+    pairs = [blocked(max(codes[i], codes[i + 1] if i % 32 < 31 else codes[i])) for i in range(704)]
+    separate = [blocked(codes[i]) | (blocked(codes[i + 1]) if i % 32 < 31 else 0) for i in range(704)]
+    return pairs if pairs != separate else []
+
+
 def import_rom(prg, output):
     output = Path(output)
     MAZES[0x61] = maze_field(prg[MAZE_TABLES:MAZE_TABLES + 4], 'right')
@@ -696,6 +709,7 @@ def import_rom(prg, output):
             indices, collision = [], [0] * (32 * 22)
             ladder_water = [0] * 704
             stairs = [0] * 704
+            codes = [0] * 704
             coarse = []
             for y, row in enumerate(layout):
                 line = ''
@@ -709,9 +723,11 @@ def import_rom(prg, output):
                         collision[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = blocked
                         ladder_water[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(0x8D <= tile < 0x99)
                         stairs[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = int(tile in MOUNTAIN_STAIRS)
+                        codes[(y * 2 + part % 2) * 32 + x * 2 + part // 2] = tile
                         solid.append(blocked)
                     line += '#' if all(solid) else '.'
                 coarse.append(line)
+            pairs = pair_collision(codes)
             exits = {}
             for edge, delta, allowed in [('left', -1, room_id % 16 > 0), ('right', 1, room_id % 16 < 15),
                                          ('up', -16, room_id >= 16), ('down', 16, room_id < 112)]:
@@ -840,6 +856,7 @@ def import_rom(prg, output):
     ladder_allowed = {str(room_id in (0x17, 0x18, 0x19, 0x27, 0x4F, 0x5F)).lower()}
 {f'false_wall_x = {FALSE_WALL[1]}{chr(10)}false_wall_below_y = {FALSE_WALL[2] - 64}' if room_id == FALSE_WALL[0] else ''}
     ladder_water = PackedByteArray({array(ladder_water)})
+    {f'pair_collision = PackedByteArray({array(pairs)})' if pairs else ''}
     {f'stairs_tiles = PackedByteArray({array(stairs)})' if any(stairs) else ''}
     {'zora = ExtResource("zora")' if zora else ''}
     {MAZES.get(room_id, '')}

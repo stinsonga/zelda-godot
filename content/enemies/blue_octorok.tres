@@ -5,6 +5,7 @@ script = ExtResource("1")
 id = &"blue_octorok"
 title = "Blue Octorok"
 health = 2
+turns_after_hitting_link = true
 sprite = &"blue_octorok"
 fallback_color = Color(0.25, 0.5, 0.9, 1)
 turn_chance = 160

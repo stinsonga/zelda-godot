@@ -102,6 +102,9 @@ var simulation_tick := 0
 var entry_walk_remaining := 0
 var entry_walk_subpixels := 0
 var entry_direction := Vector2i.UP
+## Mode 4 after a dungeon scroll moves Link with MoveObject alone: no tile or door
+## checks, so a shutter can close behind him while he walks in.
+var entry_walk_unchecked := false
 var dialogue_elapsed := 0
 var lift_remaining := 0
 const TRIFORCE = preload("res://content/items/triforce.tres")
@@ -265,6 +268,7 @@ func enter_room(target: Resource, at: Vector2i, facing: Vector2i, entry_walk: in
 	player.facing = facing
 	entry_walk_remaining = entry_walk
 	entry_walk_subpixels = entry_walk * 256
+	entry_walk_unchecked = false
 	entry_direction = facing
 	dialogue_elapsed = 0
 	walk_ticks = 0
@@ -418,7 +422,9 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	if transition != null:
 		if transition.tick():
-			enter_room(transition.target, transition.destination, transition.direction)
+			var target: Resource = transition.target
+			enter_room(target, transition.destination, transition.direction, dungeon_entry_walk(target, transition.direction))
+			entry_walk_unchecked = target.dungeon_level > 0
 			# Mode 4 ends by setting mode 5; InitMode5Play then spends a frame
 			# (measured in the overworld).
 			if room.dungeon_level == 0: settle_ticks = 1
@@ -490,10 +496,13 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	if entry_walk_remaining > 0:
 		# Mode 4 walks stop exactly on the target, unlike carried free movement.
 		var budget := mini(Player.SPEED_SUBPIXELS, entry_walk_subpixels)
-		player.step(entry_direction, can_occupy, can_enter_segment, budget)
+		if entry_walk_unchecked:
+			player.step(entry_direction, func(_at: Vector2i) -> bool: return true, func(_at: Vector2i, _direction: Vector2i) -> bool: return true, budget)
+		else:
+			player.step(entry_direction, can_occupy, can_enter_segment, budget)
 		entry_walk_subpixels -= budget
 		entry_walk_remaining = ceili(entry_walk_subpixels / 256.0)
-		assert(player.pixel_position() != before, "Portal entry walk is blocked")
+		assert(budget < 256 or player.pixel_position() != before, "Portal entry walk is blocked")
 	elif cave_halts:
 		return
 	elif cave_session == null and dialogue_visible() and dialogue_elapsed < room.dialogue.length() * room.dialogue_character_ticks:
@@ -1055,6 +1064,17 @@ func is_blocked(pixel: Vector2i) -> bool:
 			return true
 	return false
 
+## A vertical move's two columns (Z_07 GetCollidableTile keeps the higher tile).
+## Changed tiles and decorations fall back to checking each column.
+func is_pair_blocked(pixel: Vector2i) -> bool:
+	var right := pixel + Vector2i(8, 0)
+	if room.pair_collision.is_empty() or not overrides.is_empty() or secrets.drained(room, state):
+		return is_blocked(pixel) or is_blocked(right)
+	for decoration in room.decorations:
+		if decoration_visible(decoration) and (decoration.blocking_area.has_point(pixel) or decoration.blocking_area.has_point(right)):
+			return true
+	return room.is_pair_solid(pixel)
+
 func can_occupy(at: Vector2i) -> bool:
 	# Z_07 GetCollidableTileStill: y + $0B, two eight-pixel columns.
 	if not room.movement_bounds.has_point(at):
@@ -1112,7 +1132,16 @@ func ordinary_segment(at: Vector2i, direction: Vector2i) -> bool:
 		probe.x += 16 if direction.x > 0 else -8
 		return not is_blocked(probe)
 	probe.y += 8 if direction.y > 0 else -8
-	return not is_blocked(probe) and not is_blocked(probe + Vector2i(8, 0))
+	return not is_pair_blocked(probe)
+
+## Z_05 InitMode_EnterRoom: entering a dungeon room, Link's grid offset starts at
+## $18 for an open or key doorway and $28 for any other, and mode 4 walks him in
+## until it reaches 8: 16 or 32 pixels, clear of the door before it can close.
+func dungeon_entry_walk(target: Resource, direction: Vector2i) -> int:
+	if target.dungeon_level == 0: return 0
+	for door in target.doors:
+		if door.direction == -direction: return 16 if door.kind in ["open", "key"] else 32
+	return 16
 
 ## Z_07 CheckScreenEdge: Link must already stand on the edge when the frame
 ## begins (from), so the room changes on the frame after he reaches it.
@@ -1138,7 +1167,8 @@ func try_exit(direction: Vector2i, from: Vector2i = Vector2i(-1000, -1000)) -> v
 	# Z_07 CheckScreenEdge: Link reaches it "regardless of walkability" and never
 	# checks the next room, so he can arrive over water and walk on (room $0F).
 	if not scroll_transitions:
-		enter_room(target, destination, direction)
+		enter_room(target, destination, direction, dungeon_entry_walk(target, direction))
+		entry_walk_unchecked = target.dungeon_level > 0
 		return
 	transition = preload("res://scripts/room_transition.gd").new()
 	transition.source = room

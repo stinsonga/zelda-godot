@@ -8,6 +8,7 @@ behavior = "walker"
 nes_type = 2
 health = 4
 contact_damage = 2
+turns_after_hitting_link = true
 sprite = &"red_lynel"
 targeting = "dominant_axis"
 projectile_kind = "sword"

@@ -23,6 +23,8 @@ var zelda_state := 0
 ## set when its cycle ends, so the room can raise another.
 var zora_back := false
 var zora_gone := false
+## UpdateBurrower stores the surfaced frame image (2 front, 3 back) in ObjDir.
+var zora_image := 0
 ## Pond fairy (Z_04 UpdatePondFairy): 0 waiting, 1 refilling, 2 lingering, 3
 ## done; its eight hearts are [state, angle, subposition].
 var pond_phase := 0
@@ -38,6 +40,8 @@ var manhandla_animation := 0
 var initialized := false
 var phase := 0
 var timer := 0
+## Z_04 Jumper_ObjReversalCount: bounces off the room bounds since the last free step.
+var reversal_count := 0
 var velocity_y := 0
 var target_y := 0
 var jump_direction := Vector2i.RIGHT
@@ -241,10 +245,14 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, context: Diction
 
 func begin_jump(actor: RefCounted) -> void:
 	var definition: Resource = actor.definition
+	# Two bounces in a row (a corner) turn the jump's horizontal component around.
+	if reversal_count >= 2:
+		jump_direction.x = -jump_direction.x
+		reversal_count = 0
 	# Jumper_PointBoulderDownward: a boulder always heads down.
 	if definition.jump_wait_style == "boulder": jump_direction.y = 1
-	target_y = actor.position().y + jump_direction.y * definition.jump_target_offset
-	if definition.jump_wait_style != "boulder": target_y = clampi(target_y, 13, 141)
+	# Jumper_ObjTargetY is a screen-Y byte: it wraps rather than clamping.
+	target_y = (actor.position().y + 64 + jump_direction.y * definition.jump_target_offset) & 255
 	velocity_y = definition.jump_velocity_subpixels
 	phase = 1
 	actor.facing = jump_direction
@@ -262,8 +270,10 @@ func tick_jump(actor: RefCounted, target: Vector2i) -> void:
 	# BoundFlyer skips the vertical bounds for boulders.
 	if not (bound_sides(actor) if boulder else bound(actor)):
 		jump_direction = actor.facing
+		reversal_count += 1
 		begin_jump(actor)
 		return
+	reversal_count = 0
 	# NES stores whole Y separately from fractional acceleration.
 	actor.subposition.y += floori(velocity_y / 256.0) * 256
 	var acceleration: int = definition.jump_horizontal_acceleration if jump_direction.y == 0 else definition.jump_up_acceleration if jump_direction.y < 0 else definition.jump_down_acceleration
@@ -275,7 +285,8 @@ func tick_jump(actor: RefCounted, target: Vector2i) -> void:
 		actor.death_remaining = 0
 		actor.drop_resolved = true
 		return
-	if velocity_y >= 0 and absi(actor.position().y-target_y) < 3:
+	var distance: int = (actor.position().y + 64 - target_y) & 255
+	if velocity_y >= 0 and mini(distance, 256 - distance) < 3:
 		phase = 0
 		if boulder:
 			timer = 0
@@ -852,6 +863,7 @@ func tick_zora(actor: RefCounted, context: Dictionary) -> bool:
 		if phase == 1:
 			var player: Vector2i = context.get("player", Vector2i.ZERO)
 			zora_back = actor.position().y >= player.y
+			zora_image = 3 if zora_back else 2
 		phase = (phase + 1) % 6
 		timer = definition.burrow_times[phase]
 		anim_ticks = 0

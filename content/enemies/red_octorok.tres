@@ -4,3 +4,4 @@
 script = ExtResource("1")
 id = &"red_octorok"
 title = "Red Octorok"
+turns_after_hitting_link = true

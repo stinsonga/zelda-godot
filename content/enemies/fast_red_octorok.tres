@@ -5,3 +5,4 @@ script = ExtResource("1")
 id = &"fast_red_octorok"
 title = "Fast red Octorok"
 speed_subpixels = 256
+turns_after_hitting_link = true

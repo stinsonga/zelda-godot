@@ -6,6 +6,7 @@ id = &"leever"
 title = "Leever"
 behavior = "burrower"
 health = 2
+turns_after_hitting_link = true
 shooting_enabled = false
 sprite = &"blue_leever"
 fallback_color = Color(0.2, 0.45, 0.8, 1)

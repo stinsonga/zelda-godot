@@ -1,7 +1,7 @@
 # Movement comparison against the NES
 
-The harness runs seventeen controller sequences starting in first-quest room
-`ow_77`, 1,509 compared frames:
+The harness runs twenty controller sequences starting in first-quest room
+`ow_77`, 3,836 compared frames:
 - walking and stopping, reversing, and turning between grid boundaries;
 - approaching obstacles on three sides and backing away;
 - turns before and after halfway in each direction;
@@ -9,7 +9,9 @@ The harness runs seventeen controller sequences starting in first-quest room
 - one-frame taps;
 - a 178-frame mix of short presses;
 - walking out of the room to the east, west, and north, and back south;
-- diagonals held from a grid point, partway along a segment, and into a wall.
+- diagonals held from a grid point, partway along a segment, and into a wall;
+- monsters in rooms $78, $67 and $76, and a 1,369-frame walk through rooms $76,
+  $66, $65 (with a Zora), $64 and $63 to the Moblins.
 
 Each frame records a phase: free play (NES mode 5), or a transition between
 rooms (modes 6, 7, and 4). The phase is compared on every frame; room, position,
@@ -203,16 +205,46 @@ Two more rooms then matched once three more rules were added:
   rock given a lower slot would move a frame sooner; slot allocation is not
   modelled.
 
+`west_to_moblins` walks through five rooms and is hit on the way. It found ten
+more differences, now fixed:
+- **Jumper corners.** `Jumper_ObjReversalCount` counts bounces off the room
+  bounds since the last free step. At two (a corner) the next jump's horizontal
+  part turns around.
+- **Jump targets wrap.** `Jumper_ObjTargetY` is a screen-Y byte. It isn't
+  clamped, and the landing distance is taken in eight bits.
+- **Shove start.** `Obj_Shove`'s first call only sets up the shove, so Link is
+  pushed from the frame after the hit.
+- **Shove direction.** `BeginShove` pushes Link along the axis he faces between
+  grid points. On a grid point it pushes horizontally only when the midpoints are
+  under 4 pixels apart vertically. Either way he moves away from the attacker.
+- **Attacker turns.** A monster that knocks Link back turns to the opposite
+  direction, unless `ObjectTypeToAttributes` bit 7 is set or it is a Vire. Enemy
+  definitions carry this as `turns_after_hitting_link`.
+- **Shot probe.** A monster or shot moving down checks the tile 8 pixels below
+  its foot hotspot, not 16, so a rock reaches a wall's edge before vanishing.
+- **Column pairs.** A vertical move reads two adjacent columns and keeps the
+  higher tile *before* `WalkableTiles` turns walkable ones into $26. A blocking
+  $DD beside a walkable $DF reads as walkable, so Link and monsters pass half-solid
+  corners. Seventy-seven overworld rooms have such pairs. They are imported as
+  `pair_collision`.
+- **Zora.** `CheckZora` tries 13 candidates; the thirteenth reads $25, past the
+  random bytes, which is always 0, so it never succeeds. A new Zora initializes
+  the next frame. Its `ObjDir` holds the surfaced frame image (2 front, 3 back)
+  and isn't cleared, so the next Zora in slot 11 starts with the last one's.
+- **Standing walkers.** `Walker_Move` checks tiles even while a walker stands
+  still to shoot, so a blocked one turns in place.
+
+The case ends at frame 1,369. Frame 1,370 is a lag frame in room $63, which has
+six monsters and their shots. Godot has no lag outside room changes.
+
 The random bytes line up frame for frame. Zelda's NMI scrambles them before
 running the frame's logic, as Godot's tick does, and both skip the two lag
 frames.
 
-**Further routes are blocked on monsters.** Mountain stairs, room $1F's false
-wall, and any dungeon are several screens from the start through rooms with
-monsters. The bootstrap has no sword. Godot's monsters don't yet start from the
-NES's random state, so contact and knockback would differ for reasons unrelated
-to movement. Comparing monsters first (agreeing on their spawn order and RNG) is
-the prerequisite. It is also the handoff's next step.
+**Further routes.** Mountain stairs, room $1F's false wall, and the dungeons are
+several screens away through monster rooms. The bootstrap has no sword, so a
+route must survive contact. Lynels (rooms $0x-$2x), Leevers and Peahats remain
+untraced.
 Known gaps the source shows but no case covers yet:
 - **Mountain stairs.** On tiles $74/$75, `InitLinkSpeed` halves the quarter speed
   to $30 and resets the fraction. This is now implemented from the source: rooms

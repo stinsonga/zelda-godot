@@ -112,11 +112,11 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool,
 		shove(actor, probe)
 		return false
 	shove_started = false
-	# Walker_Move occurs before target selection and _TryShooting.
-	if move_speed > 0:
-		var direction: Vector2i = input_direction
-		if grid_offset == 0: direction = choose_movement(actor, probe, random_byte, input_direction)
-		if direction != Vector2i.ZERO: advance_position(actor, direction, move_speed)
+	# Walker_Move occurs before target selection and _TryShooting. Its tile check
+	# runs even while a walker stands still to shoot, so a blocked one still turns.
+	var direction: Vector2i = input_direction
+	if grid_offset == 0: direction = choose_movement(actor, probe, random_byte, input_direction)
+	if move_speed > 0 and direction != Vector2i.ZERO: advance_position(actor, direction, move_speed)
 	select_target(actor, target, random_byte, next_random)
 	# L_Walker_SetInputDirAndTryShooting*: the facing becomes the next input.
 	input_direction = actor.facing

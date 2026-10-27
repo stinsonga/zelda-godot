@@ -69,9 +69,9 @@ class MovementTraceTests(unittest.TestCase):
             with self.assertRaises(ValueError):m.expand({'segments':[{'buttons':buttons,'frames':frames}]})
     def test_authored_suite_has_nineteen_cases(self):
         suite=m.read_json(m.SCENARIOS); m.validate_suite(suite)
-        self.assertEqual(len(suite['cases']),19)
-        self.assertEqual(len({c['id'] for c in suite['cases']}),19)
-        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),2467)
+        self.assertEqual(len(suite['cases']),20)
+        self.assertEqual(len({c['id'] for c in suite['cases']}),20)
+        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),3836)
     def test_generated_output_cannot_enter_shared_content(self):
         with self.assertRaises(ValueError):m.output_directory(ROOT/'content/capture')
         with tempfile.TemporaryDirectory() as folder:

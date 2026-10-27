@@ -70,15 +70,16 @@ func check_zora() -> void:
 	var at: Vector2i = first.position()
 	check(at.x % 16 == 0 and (at.y + 64) % 16 == 0x0D and room.is_ladder_water(at + Vector2i(0, 0x0B)), "It surfaces on a $10-aligned water spot (%s)" % at)
 	check(first.family.phase == 0 or first.family.phase == 1, "It starts as a ripple")
-	# Ripple $20, surfaced $0F, then state 3 shoots two frames in.
+	# It initializes on its first frame; then ripple $20, surfaced $0F, then state 3
+	# shoots two frames in.
 	var phases: Array = []
 	var shot_at := -1
-	for i in range(0x20 + 0x0F + 3):
+	for i in range(1 + 0x20 + 0x0F + 3):
 		var rocks: int = world.combat.rocks.size()
 		tick()
 		if first.family.phase not in phases: phases.append(first.family.phase)
 		if world.combat.rocks.size() > rocks and shot_at < 0: shot_at = i
-	check(phases == [1, 2, 3], "Ripple, then surfaced (%s)" % [phases])
+	check(phases.filter(func(p: int) -> bool: return p != 0) == [1, 2, 3], "Ripple, then surfaced (%s)" % [phases])
 	check(shot_at >= 0 and first.family.timer <= 0x20, "A fireball leaves early in state 3, and the timer drops to $20")
 	check(first.targetable() and first.can_touch_player(), "Surfaced, it can be struck and hurts")
 	# Let it finish: state 4, sinking, then gone and replaced.

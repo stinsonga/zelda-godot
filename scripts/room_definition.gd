@@ -79,6 +79,10 @@ extends Resource
 ## Ladder-eligible water, independent of art and ordinary collision. Fine masks
 ## use the same 32 x 22 eight-pixel cells as collision_tiles.
 @export var ladder_allowed: bool = true
+## Z_07 GetCollidableTile: vertical moves keep the higher of two adjacent column
+## tiles, so a blocking tile beside a higher walkable one is missed. Each cell says
+## whether the pair starting there blocks; empty means check each column alone.
+@export var pair_collision: PackedByteArray = PackedByteArray()
 ## A false wall Link alone walks through vertically (Z_07 GetCollidingTileMoving:
 ## room $1F, X $80, Y below $56): with his X at false_wall_x and Y above
 ## false_wall_below_y, vertical moves ignore the tiles. -1 means none.
@@ -105,6 +109,12 @@ func is_pixel_solid(pixel: Vector2i) -> bool:
 	if not collision_tiles.is_empty():
 		return collision_tiles[(pixel.y / 8) * 32 + pixel.x / 8] != 0
 	return is_solid(Vector2i(pixel.x / 16, pixel.y / 16))
+
+## The eight-pixel column at pixel and the one to its right, as a vertical move reads them.
+func is_pair_solid(pixel: Vector2i) -> bool:
+	if pair_collision.is_empty() or pixel.x < 0 or pixel.y < 0 or pixel.x >= 256 or pixel.y >= 176:
+		return is_pixel_solid(pixel) or is_pixel_solid(pixel + Vector2i(8, 0))
+	return pair_collision[(pixel.y / 8) * 32 + pixel.x / 8] != 0
 
 func is_ladder_water(pixel: Vector2i) -> bool:
 	if pixel.x < 0 or pixel.y < 0 or pixel.x >= 256 or pixel.y >= 176: return false
@@ -138,6 +148,8 @@ func validation_errors() -> PackedStringArray:
 				errors.append("Atlas tile index out of bounds")
 	if not collision_tiles.is_empty() and collision_tiles.size() != 704:
 		errors.append("Fine collision requires 704 eight-pixel cells")
+	if not pair_collision.is_empty() and pair_collision.size() != 704:
+		errors.append("Pair collision requires 704 eight-pixel cells")
 	if not ladder_water.is_empty() and ladder_water.size() != 704:
 		errors.append("Ladder water requires 704 eight-pixel cells")
 	if not stairs_tiles.is_empty() and stairs_tiles.size() != 704:

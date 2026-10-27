@@ -5,6 +5,7 @@ script = ExtResource("1")
 id = &"fast_blue_octorok"
 title = "Fast blue Octorok"
 health = 2
+turns_after_hitting_link = true
 speed_subpixels = 256
 sprite = &"blue_octorok"
 fallback_color = Color(0.25, 0.5, 0.9, 1)

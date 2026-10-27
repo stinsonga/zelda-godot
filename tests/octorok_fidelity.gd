@@ -104,8 +104,8 @@ func run() -> void:
 	room.collision_tiles[7 * 32 + 10] = 1
 	check(not world.combat.source_can_enter(world, Vector2i(64, 45), Vector2i.RIGHT), "Horizontal walker probe must inspect its leading column at Y plus eleven")
 	room.collision_tiles.fill(0)
-	room.collision_tiles[9 * 32 + 9] = 1
-	check(not world.combat.source_can_enter(world, Vector2i(64, 45), Vector2i.DOWN), "Vertical probe must inspect both eight-pixel columns sixteen pixels ahead")
+	room.collision_tiles[8 * 32 + 9] = 1
+	check(not world.combat.source_can_enter(world, Vector2i(64, 45), Vector2i.DOWN), "Downward probe must inspect both eight-pixel columns eight pixels below the foot")
 	room.collision_tiles.fill(0)
 	check(not world.combat.source_can_enter(world, Vector2i(16, 45), Vector2i.LEFT), "Source left room bound must reject outward movement")
 	check(not world.combat.source_can_enter(world, Vector2i(224, 45), Vector2i.RIGHT), "Source right room bound must reject outward movement")

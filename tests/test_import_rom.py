@@ -40,6 +40,25 @@ class ImportValidation(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         rom_import.read_rom(path)
 
+    def test_vertical_pairs_keep_the_higher_tile(self):
+        # Room $64's corner: solid $DD beside walkable $DF reads as $DF, so it is open.
+        codes = [0x26] * 704
+        codes[5 * 32 + 4], codes[5 * 32 + 5] = 0xDD, 0xDF
+        pairs = rom_import.pair_collision(codes)
+        self.assertEqual((pairs[5 * 32 + 4], pairs[5 * 32 + 3]), (0, 1))
+        # A solid tile numbered above its walkable neighbour still blocks, so the
+        # pairs match checking each column and the map is omitted.
+        codes[5 * 32 + 4], codes[5 * 32 + 5] = 0xDF, 0xE0
+        self.assertEqual(rom_import.pair_collision(codes), [])
+
+    def test_monsters_turn_after_hitting_link_unless_flagged(self):
+        prg = bytearray(0x20000)
+        prg[rom_import.import_dungeons.OBJECT_ATTRIBUTES + 0x07] = 0x05
+        prg[rom_import.import_dungeons.OBJECT_ATTRIBUTES + 0x0D] = 0x81
+        self.assertEqual(rom_import.turns_after_hitting_link(prg, 0x07), 'true')
+        self.assertEqual(rom_import.turns_after_hitting_link(prg, 0x0D), 'false')
+        self.assertEqual(rom_import.turns_after_hitting_link(prg, 0x12), 'false')   # Vire
+
     def test_bitplanes_have_correct_order(self):
         pattern = bytes([0b10000000] + [0] * 7 + [0b01000000] + [0] * 7)
         self.assertEqual(rom_import.chr_pixels(pattern, 0)[0], [1, 2, 0, 0, 0, 0, 0, 0])

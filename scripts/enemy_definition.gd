@@ -19,6 +19,9 @@ extends Resource
 @export var health: int = 1
 ## One unit of contact damage is half a heart. Speeds are 1/256 pixel per tick.
 @export var contact_damage: int = 1
+## Z_01 BeginShove: a monster that knocks Link back turns to the opposite
+## direction (ObjectTypeToAttributes bit 7 clear, except the Vire).
+@export var turns_after_hitting_link: bool = false
 @export var speed_subpixels: int = 128
 @export var sprite: StringName = &"red_octorok"
 ## "directional" sprites are name_direction_pose; "frames" are name_frame, flipped by the renderer.

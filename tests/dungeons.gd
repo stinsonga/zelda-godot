@@ -45,6 +45,7 @@ func run() -> void:
 	check_cellar(world)
 	check_items(world)
 	check_blocks_and_shutters(world)
+	check_shutter_entry(world)
 	check_save(world)
 	world.free()
 	for name in DirAccess.get_files_at(temporary): DirAccess.remove_absolute(temporary.path_join(name))
@@ -156,6 +157,19 @@ func check_blocks_and_shutters(world: Node) -> void:
 	check(world.secrets.pushed, "Pushing a block for 16 ticks must move it")
 	ticks(world, 40)
 	check(world.secrets.revealed and world.door_passable(world.room, shutter), "A pushed block must open the room's shutters")
+
+## Z_05 InitMode_EnterRoom: Link walks 32 pixels in past a shutter doorway,
+## ignoring collision, so the shutter closes behind him rather than on him.
+func check_shutter_entry(world: Node) -> void:
+	world.enter_room(world.rooms[&"l8_1f"], Vector2i(32, 77), Vector2i.LEFT)
+	world.combat.enemies.clear()
+	walk_until(world, Vector2i.LEFT, &"l8_1e")
+	ticks(world, 40)
+	var shutter: Resource = door(world, &"l8_1e", "shutter")
+	check(world.room.id == &"l8_1e" and world.player.pixel_position() == Vector2i(208, 77), "Link walks in past the shutter (%s)" % world.player.pixel_position())
+	check(not world.door_passable(world.room, shutter), "The shutter closes behind him while monsters live")
+	ticks(world, 12, Vector2i.LEFT)
+	check(world.player.pixel_position().x < 208, "And he can keep walking")
 
 func check_save(world: Node) -> void:
 	world.enter_room(world.rooms[&"l1_63"], world.rooms[&"l1_63"].spawn, Vector2i.UP)

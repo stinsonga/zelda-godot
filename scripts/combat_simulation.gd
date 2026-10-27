@@ -26,6 +26,8 @@ var rocks: Array[RefCounted] = []
 var player_invulnerability := 0
 var shove_remaining := 0
 var shove_direction := Vector2i.ZERO
+## Z_07 Obj_Shove spends its first call initializing: Link moves from the next frame.
+var shove_starting := false
 ## Z_05 ObjectRoomBoundsOW and ObjectRoomBoundsUW in play-area pixels.
 const BOUNDS_OVERWORLD := Rect2i(17, 14, 207, 127)
 const BOUNDS_UNDERWORLD := Rect2i(33, 30, 175, 95)
@@ -43,6 +45,8 @@ var person_provoked := false
 ## Z_04 ZoraActive: set while the room's Zora lives; a killed Zora keeps it set,
 ## so it never returns until the room is entered again.
 var zora_active := false
+## SetTypeAndClearObject leaves ObjDir alone: a new Zora keeps the last one's frame image.
+var zora_image := 0
 const STATUE_START_TIMES := [0x50, 0x80, 0xF0, 0x60]
 ## SetUpCommonCaveObjects: residents stand at ($78, $80).
 const PERSON_POSITION := Vector2i(0x78, 0x80 - 64)
@@ -92,6 +96,7 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	statue_timers = PackedInt32Array([0, 0, 0, 0])
 	person_provoked = false
 	zora_active = false
+	zora_image = 0
 	for actor in enemies:
 		if actor.definition.behavior == "ganon": actor.family.ganon = preload("res://scripts/ganon.gd").new()
 	encounter_total = enemies.filter(func(a: RefCounted) -> bool: return a.definition.counts_for_persistence).size()
@@ -215,17 +220,23 @@ func hurt_player(world: Node, damage: int, source: Vector2i) -> bool:
 	if world.state.health == 0: world.audio.silence()
 	world.audio.play(&"player_hurt")
 	player_invulnerability = 48
-	var delta: Vector2i = world.player.pixel_position() - source
-	var relative: Vector2i = world.player.subposition - world.player.grid_origin * 256
-	var on_grid: bool = posmod(relative.x, 2048) == 0 and posmod(relative.y, 2048) == 0
-	var horizontal: bool = absi(delta.x) >= absi(delta.y) if on_grid else world.player.facing.x != 0
-	shove_direction = (Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT) if horizontal else (Vector2i.DOWN if delta.y >= 0 else Vector2i.UP)
+	# Z_01 BeginShove: between grid points Link is pushed along the axis he faces;
+	# on one, horizontally only when the midpoints are under 4 pixels apart
+	# vertically (DoObjectsCollide's [0B]). He goes away from the attacker,
+	# up or left when it is level with him.
+	var at: Vector2i = world.player.pixel_position()
+	var horizontal: bool = world.player.facing.x != 0 if world.player.grid_offset != 0 else absi(source.y - at.y) < 4
+	shove_direction = (Vector2i.LEFT if source.x >= at.x else Vector2i.RIGHT) if horizontal else (Vector2i.UP if source.y >= at.y else Vector2i.DOWN)
 	shove_remaining = 32
+	shove_starting = true
 	world.sword.phase = -1
 	world.rod.phase = -1
 	return true
 
 func move_shoved_player(world: Node) -> void:
+	if shove_starting:
+		shove_starting = false
+		return
 	var before: Vector2i = world.player.pixel_position()
 	var facing: Vector2i = world.player.facing
 	world.player.facing = shove_direction
@@ -482,12 +493,14 @@ func tick_zora_spawn(world: Node) -> void:
 	var room: Resource = world.room
 	for actor in enemies.duplicate():
 		if actor.definition.behavior == "zora" and actor.family.zora_gone:
+			zora_image = actor.family.zora_image
 			enemies.erase(actor)
 			zora_active = false
 	if room.zora == null or zora_active or room.dungeon_level > 0: return
 	if enemies.filter(func(a: RefCounted) -> bool: return a.health > 0).size() + rocks.size() >= 11: return
 	for index in range(13, 0, -1):
-		var random_byte: int = source_random.at(index)
+		# Random+13 is $25, past the generator: nothing writes it, so it stays 0.
+		var random_byte: int = source_random.at(index) if index < 13 else 0
 		var x: int = random_byte & 0xF0
 		if x == 0 or x == 0xF0: continue
 		var y: int = (random_byte << 4) & 0xFF
@@ -503,6 +516,9 @@ func tick_zora_spawn(world: Node) -> void:
 		zora.setup(spawn)
 		zora.spawn_remaining = 0
 		zora.slot = 11
+		# Like any new object, it initializes on the next frame's update.
+		zora.initializing = true
+		zora.family.zora_image = zora_image
 		enemies.append(zora)
 		zora_active = true
 		return
@@ -593,7 +609,9 @@ func touch_player(world: Node, actor: RefCounted) -> void:
 			# UpdateLikeLike clears Link's shove; a held Link is never knocked away.
 			if world.captor == actor: shove_remaining = 0
 		_:
-			hurt_player(world, actor.definition.contact_damage, actor.position())
+			if hurt_player(world, actor.definition.contact_damage, actor.position()) and actor.definition.turns_after_hitting_link:
+				# GetOppositeDir: the lowest direction bit, so horizontal first.
+				actor.facing = Vector2i(-actor.facing.x, 0) if actor.facing.x != 0 else Vector2i(0, -actor.facing.y)
 
 ## Z_04 Zol_CheckCollisions and UpdateZolState2_Split: a Zol that survives a
 ## hit becomes two Gels darting perpendicular to it, without a drop.
@@ -838,8 +856,9 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 	if direction.x != 0:
 		probe.x += 16 if direction.x > 0 else -16
 		return not world.is_blocked(probe)
-	probe.y += 16 if direction.y > 0 else -16
-	return not world.is_blocked(probe) and not world.is_blocked(probe + Vector2i(8, 0))
+	# Z_07 GetCollidingTileMoving: a monster or shot looks 8 pixels down, 16 up.
+	probe.y += 8 if direction.y > 0 else -16
+	return not world.is_pair_blocked(probe)
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.

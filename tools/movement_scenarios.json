@@ -935,6 +935,55 @@
           "frames": 300
         }
       ]
+    },
+    {
+      "id": "west_to_moblins",
+      "rooms": [
+        "ow_76",
+        "ow_66",
+        "ow_65",
+        "ow_64",
+        "ow_63"
+      ],
+      "objects": true,
+      "segments": [
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 225
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 170
+        },
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 345
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 48
+        },
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 355
+        },
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 226
+        }
+      ]
     }
   ]
 }

@@ -602,13 +602,24 @@ def monster_types(prg, block, info, room):
     return types
 
 
+
+# Z_07 ObjectTypeToAttributes, just before ObjectTypeToHpPairs. BeginShove turns
+# a monster around after it knocks Link back unless bit 7 is set or it is a Vire.
+OBJECT_ATTRIBUTES = 0x1FAEF
+
+
+def turns_after_hitting_link(prg, kind):
+    return str(not prg[OBJECT_ATTRIBUTES + kind] & 0x80 and kind != 0x12).lower()
+
+
 def monster_definition(prg, kind):
     name, behavior = MONSTERS[kind]
     pair = prg[0x1FB4E + kind // 2]
     health = max(1, pair & 15 if kind & 1 else pair >> 4)   # HP 0 dies to any hit.
     raw = prg[0x72BA + kind]
     fields = {'id': f'&"{name}"', 'title': json.dumps(name.replace('_', ' ').title()), 'behavior': json.dumps(behavior),
-              'nes_type': kind, 'health': health, 'fragile': str((pair & 15 if kind & 1 else pair >> 4) == 0).lower(), 'contact_damage': (raw & 15) * 2 + (1 if raw & 240 else 0), 'sprite': f'&"{name}"'}
+              'nes_type': kind, 'health': health, 'fragile': str((pair & 15 if kind & 1 else pair >> 4) == 0).lower(), 'contact_damage': (raw & 15) * 2 + (1 if raw & 240 else 0), 'sprite': f'&"{name}"',
+              'turns_after_hitting_link': turns_after_hitting_link(prg, kind)}
     if kind in NO_DROP: fields['drops_rewards'] = 'false'
     if name in ('blue_goriya', 'red_goriya'):
         # Z_04 UpdateGoriya: dominant-axis aim within $51, boomerangs at 2.5 pixels a frame.

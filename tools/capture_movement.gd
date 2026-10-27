@@ -34,9 +34,11 @@ func snapshot(world: Node) -> Dictionary:
 	var moving_between: bool = world.transition != null or world.entry_walk_remaining > 0
 	var monsters: Array = []
 	for actor in world.combat.enemies:
-		if actor.alive() and not actor.waiting_spawn and actor.spawn_remaining == 0 and actor.slot >= 1:
+		if actor.alive() and not actor.waiting_spawn and actor.spawn_remaining == 0 and not actor.initializing and actor.slot >= 1:
 			var p: Vector2i = actor.position()
-			monsters.append([actor.slot, actor.definition.nes_type, p.x, p.y, bits(actor.facing)])
+			# The Zora's ObjDir holds its frame image instead of a direction.
+			var dir: int = actor.family.zora_image if actor.definition.behavior == "zora" else bits(actor.facing)
+			monsters.append([actor.slot, actor.definition.nes_type, p.x, p.y, dir])
 	monsters.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	# Shots by type and position, as the reference lists them ($53 flying rock).
 	var shots: Array = []

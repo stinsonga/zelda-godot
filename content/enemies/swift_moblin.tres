@@ -7,6 +7,7 @@ title = "Swift Moblin"
 behavior = "walker"
 nes_type = 3
 health = 3
+turns_after_hitting_link = true
 speed_subpixels = 192
 sprite = &"blue_moblin"
 projectile_kind = "arrow"
