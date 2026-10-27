@@ -18,6 +18,8 @@ func start(definition: Resource, facing: Vector2i) -> bool:
 	direction = facing
 	phase = 0
 	ticks_left = weapon.phase_ticks[0]
+	# Z_07 UpdateSwordOrRod also runs on the frame WieldSword starts the sword.
+	tick()
 	return true
 
 func tick() -> void:

@@ -9,6 +9,8 @@ var blockable := true
 var magic_blockable := true
 var source_rules := false
 var age := 0
+## Frames left showing a blocked arrow's spark (UpdateArrowOrBoomerang, state $20).
+var spark_remaining := 0
 var bounce_remaining := 0
 var bounce_direction := Vector2i.UP
 var alive := true

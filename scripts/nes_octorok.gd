@@ -12,6 +12,8 @@ var shove_started := false
 var input_direction := Vector2i.ZERO
 ## The tile check alone, without the room bounds (set before each update).
 var tile_probe := Callable()
+## The room bounds alone (BoundByRoom), for shoves between grid points.
+var bounds_probe := Callable()
 
 func setup(enemy_type: int) -> void:
 	move_speed = 192 if enemy_type in [8, 10] else 128
@@ -77,18 +79,33 @@ func advance_position(actor: RefCounted, direction: Vector2i, distance: int) -> 
 	grid_offset += delta.x + delta.y
 	if absi(grid_offset) >= 16: grid_offset %= 16
 
-func shove(actor: RefCounted, probe: Callable) -> void:
+## Z_07 Obj_Shove. The first call only sets up the shove: a monster facing across
+## it between grid points has it cancelled. Later calls push four pixels, ending
+## at a blocked tile (checked at grid points), and the call after the distance
+## runs out only resets it. Returns true while the shove used the frame; once it
+## ends, the walker's update goes on to its targeting (Wanderer_TargetPlayer).
+## The room bounds are checked at every pixel (ShoveMoveMin).
+func shove(actor: RefCounted, probe: Callable) -> bool:
 	if not shove_started:
 		shove_started = true
 		if grid_offset != 0 and actor.facing.x * actor.shove_direction.x + actor.facing.y * actor.shove_direction.y == 0:
 			actor.shove_remaining = 0
-		return
+			shove_started = false
+			return false
+		return true
+	if actor.shove_remaining <= 0:
+		actor.shove_remaining = 0
+		shove_started = false
+		return false
 	for pixel in range(mini(4, actor.shove_remaining)):
-		if grid_offset == 0 and not probe.call(actor.position(), actor.shove_direction):
+		var blocked: bool = grid_offset == 0 and not probe.call(actor.position(), actor.shove_direction)
+		if blocked or (bounds_probe.is_valid() and not bounds_probe.call(actor.position(), actor.shove_direction)):
 			actor.shove_remaining = 0
-			return
+			shove_started = false
+			return false
 		advance_position(actor, actor.shove_direction, 256)
 		actor.shove_remaining -= 1
+	return true
 
 func select_target(actor: RefCounted, target: Vector2i, random_byte: int, next_random: int) -> void:
 	if move_speed == 0 or grid_offset != 0: return
@@ -118,18 +135,23 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool,
 	# Z_04 UpdateGoriya: state $80 waits, unmoving, until the boomerang returns.
 	if actor.shot_out: return false
 	if turn_timer > 0: turn_timer -= 1
-	if actor.shove_remaining > 0:
-		shove(actor, probe)
-		return false
-	shove_started = false
+	# Wanderer_TargetPlayer returns early while a shove uses the frame, but the
+	# monster's update still goes on to _TryShooting.
+	var shoving := false
+	var shoved := false
+	if actor.shove_remaining > 0 or shove_started:
+		shoving = shove(actor, probe)
+		shoved = true
 	# Walker_Move occurs before target selection and _TryShooting. Its tile check
 	# runs even while a walker stands still to shoot, so a blocked one still turns.
-	var direction: Vector2i = input_direction
-	if grid_offset == 0: direction = choose_movement(actor, probe, random_byte, input_direction)
-	if move_speed > 0 and direction != Vector2i.ZERO: advance_position(actor, direction, move_speed)
-	select_target(actor, target, random_byte, next_random)
-	# L_Walker_SetInputDirAndTryShooting*: the facing becomes the next input.
-	input_direction = actor.facing
+	if not shoved:
+		var direction: Vector2i = input_direction
+		if grid_offset == 0: direction = choose_movement(actor, probe, random_byte, input_direction)
+		if move_speed > 0 and direction != Vector2i.ZERO: advance_position(actor, direction, move_speed)
+	if not shoving:
+		select_target(actor, target, random_byte, next_random)
+		# L_Walker_SetInputDirAndTryShooting*: the facing becomes the next input.
+		input_direction = actor.facing
 	if actor.definition.projectile_kind == "boomerang":
 		return throw_boomerang(actor, can_shoot, random_byte)
 	if not actor.definition.shooting_enabled or actor.definition.shoot_cooldown <= 0:
@@ -146,9 +168,12 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool,
 	move_speed = actor.definition.speed_subpixels
 	if shoot_timer == 0: return false
 	move_speed = 0
-	if shoot_timer == 0x10 and wants_to_shoot and can_shoot:
-		wants_to_shoot = false
-		return true
+	if shoot_timer == 0x10:
+		if wants_to_shoot and can_shoot:
+			wants_to_shoot = false
+			return true
+		# _ShootIfWanted2 failed (not wanted, or no room): the speed stays this frame.
+		move_speed = actor.definition.speed_subpixels
 	return false
 
 ## Z_04 L_Walker_SetInputDirAndTryShootingBoomerang: blue Goriyas throw whenever

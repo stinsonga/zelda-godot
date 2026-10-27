@@ -59,7 +59,7 @@ func run() -> void:
 	check(world.state.equipped_weapon.id == &"wooden_sword" and world.state.flags.has("quest/test_gate"), "Equipped item and progression flags must round trip")
 	check(world.state.has_collected(&"combat_lab", &"lab_sword") and world.combat.enemies.size() == 1, "Collected items and defeated enemies must remain absent after load")
 	check(world.player.subposition == Vector2i(120 * 256 + 128, 133 * 256) and world.player.facing == Vector2i.LEFT, "Position fractions and facing must round trip")
-	check(world.combat.player_invulnerability == 48, "Loaded player must receive a short arrival grace period")
+	check(world.combat.player_invulnerability == 0x18, "Loaded player must receive a short arrival grace period ($18, NES units)")
 	write_text(path, "{ damaged")
 	check(world.load_game() and world.state.rupees == 42 and world.status_message == "BACKUP SAVE LOADED", "Damaged primary save must recover the previous valid backup")
 	DirAccess.remove_absolute(path + ".bak")

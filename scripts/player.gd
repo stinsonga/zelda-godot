@@ -46,7 +46,10 @@ func place(at: Vector2i) -> void:
 ## stairs_at(pixel, direction) reports whether the tile probed ahead is mountain
 ## stairs (overworld only). InitLinkSpeed reads the tile the previous frame's
 ## collision check found, or at a grid point the one just probed for the input.
-func move_frame(wanted: Vector2i, can_enter_segment: Callable, stairs_at: Callable = Callable()) -> void:
+##
+## With move false (Link wielding the sword), only the turning runs: Walker_Move
+## zeroes the moving direction, so MoveObject does nothing.
+func move_frame(wanted: Vector2i, can_enter_segment: Callable, stairs_at: Callable = Callable(), move: bool = true) -> void:
 	if wanted == Vector2i.ZERO:
 		return
 	var pixel := pixel_position()
@@ -76,6 +79,9 @@ func move_frame(wanted: Vector2i, can_enter_segment: Callable, stairs_at: Callab
 		# GetOppositeDir keeps one direction, the lowest bit: horizontal first.
 		if diagonal: wanted = Vector2i(wanted.x, 0)
 		move_on_line(wanted)
+	if not move:
+		moved_to = pixel
+		return
 	var forward := facing.x + facing.y > 0
 	# Walker_CheckTileCollision probes ahead before the move; InitLinkSpeed uses it next frame.
 	if stairs_at.is_valid(): collided_stairs = stairs_at.call(pixel, facing)

@@ -46,6 +46,9 @@ class MovementTraceTests(unittest.TestCase):
         self.assertEqual(m.allowed_rooms(suite,{'rooms':['ow_78','l1_73']}),{'ow_77','ow_78','l1_73'})
         for bad in ('cave_77','l0_73','l1_80','ow_7'):
             with self.assertRaises(ValueError):m.allowed_rooms(suite,{'rooms':[bad]})
+    def test_a_button_joins_the_d_pad(self):
+        self.assertEqual(m.expand({'segments':[{'buttons':['up','right','a'],'frames':1}]}),[['up','right','a']])
+        self.assertEqual(m.BUTTONS['a'],0x80)
     def test_setup_frames_are_validated_like_segments(self):
         self.assertEqual(m.setup_frames({'segments':[]}),[])
         self.assertEqual(m.setup_frames({'setup':[{'buttons':['up'],'frames':2}]}),[['up'],['up']])
@@ -70,13 +73,13 @@ class MovementTraceTests(unittest.TestCase):
         ref,native=self.traces(); native['cases'][0]['initial']['x']+=1
         with self.assertRaisesRegex(ValueError,'Initial states'):m.compare(ref,native)
     def test_ambiguous_or_invalid_inputs_rejected(self):
-        for buttons,frames in [(['up','down'],1),(['left','right'],1),(['up','up'],1),(['up','right','left'],1),(['a'],1),([],True),([],0),([],1.5)]:
+        for buttons,frames in [(['up','down'],1),(['left','right'],1),(['up','up'],1),(['up','right','left'],1),(['b'],1),(['a','a'],1),([],True),([],0),([],1.5)]:
             with self.assertRaises(ValueError):m.expand({'segments':[{'buttons':buttons,'frames':frames}]})
-    def test_authored_suite_has_twenty_two_cases(self):
+    def test_authored_suite_has_twenty_four_cases(self):
         suite=m.read_json(m.SCENARIOS); m.validate_suite(suite)
-        self.assertEqual(len(suite['cases']),22)
-        self.assertEqual(len({c['id'] for c in suite['cases']}),22)
-        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),6551)
+        self.assertEqual(len(suite['cases']),24)
+        self.assertEqual(len({c['id'] for c in suite['cases']}),24)
+        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),10541)
     def test_generated_output_cannot_enter_shared_content(self):
         with self.assertRaises(ValueError):m.output_directory(ROOT/'content/capture')
         with tempfile.TemporaryDirectory() as folder:

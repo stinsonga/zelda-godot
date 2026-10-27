@@ -39,7 +39,7 @@ func run() -> void:
 	world.simulate_tick(Vector2i.ZERO,false,true)
 	check(world.rod.phase == 0 and world.combat.beam == null, "Rod begins its five-frame preparation without a wave")
 	var player_at: Vector2i = world.player.pixel_position()
-	for i in range(12): world.simulate_tick(Vector2i.RIGHT)
+	for i in range(11): world.simulate_tick(Vector2i.RIGHT)
 	check(world.player.pixel_position() == player_at and world.combat.beam == null, "Rod pose holds Link and wave waits through extension")
 	ticks(1)
 	var wave: RefCounted = world.combat.beam
@@ -105,7 +105,7 @@ func check_damage() -> void:
 	world.rod.phase = -1
 	actor.invulnerability = 0
 	place_magic(Vector2i(84,77))
-	world.combat.tick_beam(world)
+	world.combat.weapon_hits(world, actor)
 	check(actor.health == 6 and world.combat.beam == null, "Magic immunity parries the wave independently of melee")
 	world.combat.enemies.clear()
 	var terrain = world.room.duplicate(true)
@@ -125,7 +125,7 @@ func check_book() -> void:
 	world.rod.phase = -1
 	world.candle_used = true
 	place_magic()
-	world.combat.tick_beam(world)
+	world.combat.impact_beam(world)
 	check(world.combat.beam == null and world.item_objects.size() == 1, "Book replaces wave impact with fire, without owning a candle")
 	var fire: RefCounted = world.item_objects[0]
 	check(fire.kind == "fire" and fire.stage == 2 and fire.timer == 79 and world.candle_used, "Book fire starts standing for 79 ticks and preserves candle-use flag")
@@ -137,7 +137,7 @@ func check_book() -> void:
 	check(world.item_objects.is_empty(), "Book fire expires at 79 ticks")
 	world.item_objects.assign([Item.bomb(Vector2i(64,64),Vector2i.UP),Item.bomb(Vector2i(96,64),Vector2i.UP)])
 	place_magic()
-	world.combat.tick_beam(world)
+	world.combat.impact_beam(world)
 	check(world.item_objects.size() == 2 and world.item_objects.all(func(o:RefCounted)->bool:return o.kind == "bomb"), "Book cannot replace occupied bomb slots")
 	world.item_objects.clear()
 	var custom_book = Book.duplicate()
@@ -145,7 +145,7 @@ func check_book() -> void:
 	world.item_catalog[&"book"] = custom_book
 	world.state.inventory[&"book"] = custom_book
 	place_magic()
-	world.combat.tick_beam(world)
+	world.combat.impact_beam(world)
 	check(world.item_objects[0].timer == 12, "Authored book changes fire lifetime")
 	world.item_objects.clear()
 	world.item_catalog[&"book"] = Book
@@ -154,7 +154,7 @@ func check_book() -> void:
 	dark.dark_room = true
 	world.enter_room(dark,Vector2i(80,125),Vector2i.UP,0,true)
 	place_magic()
-	world.combat.tick_beam(world)
+	world.combat.impact_beam(world)
 	ticks(1)
 	check(world.lighting.fading(), "Standing book fire lights a dark room")
 	world.lighting.stage = 0

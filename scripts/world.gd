@@ -204,7 +204,7 @@ func _input(event: InputEvent) -> void:
 		KEY_ENTER:
 			if event.pressed and state.health == 0 and not menus_enabled:
 				state.health = state.max_health
-				combat.player_invulnerability = 48
+				combat.player_invulnerability = 0x18
 				enter_room(room, room.spawn, Vector2i.UP)
 			elif event.pressed:
 				# Start: open or close the submenu.
@@ -491,6 +491,10 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		portal_armed = false
 		return
 	var before: Vector2i = player.pixel_position()
+	# Z_07 UpdateSwordOrRod: the sword runs states of 5, 8, 1, 1, 1 frames
+	# (counting its first frame), but Link is held only through the first three;
+	# he walks while the last two finish.
+	if sword.active(): sword.tick()
 	if entry_walk_remaining > 0:
 		if not entry_walk_unchecked:
 			# Portal walks stop exactly on the target, unlike carried free movement.
@@ -521,8 +525,10 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		combat.move_shoved_player(self)
 		combat.tick(self)
 		return
-	elif sword.active():
-		sword.tick()
+	elif sword.active() and sword.phase <= 2:
+		# Link_HandleInput still turns him; the sword copies his direction each frame.
+		if captor == null: player.move_frame(direction, can_enter_segment, stairs_ahead, false)
+		sword.direction = player.facing
 		combat.tick(self)
 		return
 	elif rod.active():
@@ -535,6 +541,10 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	elif attack_pressed and state.sword_block_ticks == 0 and not state.sword_cursed and sword.start(state.equipped_weapon, player.facing):
 		audio.play(&"attack")
+		# WieldSword comes first in Link_HandleInput; the turning that follows
+		# still runs this frame, and the sword takes his new direction.
+		if captor == null: player.move_frame(direction, can_enter_segment, stairs_ahead, false)
+		sword.direction = player.facing
 		combat.tick(self)
 		return
 	elif item_pressed and use_item():
@@ -2190,7 +2200,7 @@ func load_game() -> bool:
 	attack_requested = false
 	enter_room(target, at, Vector2i(int(data.facing[0]), int(data.facing[1])), 0, true)
 	player.subposition = position
-	combat.player_invulnerability = 48
+	combat.player_invulnerability = 0x18
 	show_status("BACKUP SAVE LOADED" if result.backup else "LOADED AT ROOM ENTRANCE" if relocated else "GAME LOADED")
 	return true
 

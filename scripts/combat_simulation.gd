@@ -24,7 +24,11 @@ var beam: RefCounted
 var rewards: Array[RefCounted] = []
 var enemies: Array[RefCounted] = []
 var rocks: Array[RefCounted] = []
+## ObjInvincibilityTimer for Link, in NES units: set to $18 when hurt and counted
+## down only on even FrameCounter values (Z_07 DecrementInvincibilityTimer).
 var player_invulnerability := 0
+## FrameCounter ($15): advanced with the random bytes, skipped on lag frames.
+var frame_counter := 0
 var shove_remaining := 0
 var shove_direction := Vector2i.ZERO
 ## Z_07 Obj_Shove spends its first call initializing: Link moves from the next frame.
@@ -223,7 +227,7 @@ func hurt_player(world: Node, damage: int, source: Vector2i) -> bool:
 	world.state.take_damage(damage)
 	if world.state.health == 0: world.audio.silence()
 	world.audio.play(&"player_hurt")
-	player_invulnerability = 48
+	player_invulnerability = 0x18
 	# Z_01 BeginShove: between grid points Link is pushed along the axis he faces;
 	# on one, horizontally only when the midpoints are under 4 pixels apart
 	# vertically (DoObjectsCollide's [0B]). He goes away from the attacker,
@@ -233,8 +237,8 @@ func hurt_player(world: Node, damage: int, source: Vector2i) -> bool:
 	shove_direction = (Vector2i.LEFT if source.x >= at.x else Vector2i.RIGHT) if horizontal else (Vector2i.UP if source.y >= at.y else Vector2i.DOWN)
 	shove_remaining = 32
 	shove_starting = true
-	world.sword.phase = -1
-	world.rod.phase = -1
+	# Being hurt leaves the sword and rod alone; only a room change resets them
+	# (Z_05 ResetInvObjState).
 	return true
 
 func move_shoved_player(world: Node) -> void:
@@ -268,14 +272,15 @@ func move_shoved_player(world: Node) -> void:
 
 func tick(world: Node) -> void:
 	if world.state.health <= 0: return
-	player_invulnerability = maxi(0, player_invulnerability - 1)
+	if frame_counter % 2 == 0: player_invulnerability = maxi(0, player_invulnerability - 1)
 	var launched := false
 	if world.sword.phase == 2 and not world.sword.beam_attempted:
 		world.sword.beam_attempted = true
-		launched = launch_beam(world)
+		# MakeSwordShot fills slot $0E, which updates after the sword the same frame.
+		launch_beam(world)
 	if world.rod.phase == 2 and not world.rod.beam_attempted:
 		world.rod.beam_attempted = true
-		launched = launch_magic(world) or launched
+		launched = launch_magic(world)
 	if not launched: tick_beam(world)
 	var food_target: Variant=null
 	var attracts:bool=world.room.bait_attraction=="enabled"
@@ -289,7 +294,7 @@ func tick(world: Node) -> void:
 	update_edge_spawns(world)
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
 	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds, "chase_target":chase_target, "rng":source_random, "random":source_random.at(0), "head_random":source_random.at(5),
-		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
+		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock, "frame_counter":frame_counter,
 		"recorder_used":world.recorder_used_here and world.recorder_ticks == 0,
 		"ambush_timer":ambush_timer, "active_ambush":enemies.filter(func(a: RefCounted) -> bool: return a.alive() and a.definition.behavior == "burrower" and a.definition.burrow_style == "ambush" and a.family.phase != 0).size(),
 		"spawn_allowed":func(at: Vector2i) -> bool: return not world.is_blocked(at+Vector2i(0,11)),
@@ -309,24 +314,7 @@ func tick(world: Node) -> void:
 		actor.source_random = source_random.at(actor.slot)
 		actor.source_next_random = source_random.at(actor.slot + 1)
 		actor.source.tile_probe = func(at: Vector2i, direction: Vector2i) -> bool: return source_tiles_open(world, at, direction)
-		if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.hit_position()):
-			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction, "sword"):
-				world.audio.play(&"enemy_hit")
-				if actor.health == 0:
-					world.audio.play(&"enemy_die")
-					record_permanent_kill(world, actor)
-			elif actor.parried_hit:
-				world.audio.play(&"parry")
-		if actor.targetable() and world.rod.hits(world.player.pixel_position(), actor.hit_position()):
-			if actor.receive_hit(world.rod.weapon.damage, world.rod.direction, "rod"):
-				world.audio.play(&"enemy_hit")
-				if actor.health == 0:
-					world.audio.play(&"enemy_die")
-					record_permanent_kill(world, actor)
-			elif actor.parried_hit: world.audio.play(&"parry")
-		if actor.health == 0 and not actor.defeat_applied:
-			actor.defeat_applied = true
-			if actor.definition.defeat_takes != &"": take_down(actor.definition.defeat_takes)
+		actor.source.bounds_probe = source_within_bounds
 		var was_alive: bool = actor.health > 0
 		var original: bool = actor.definition.behavior != "native"
 		var target: Vector2i = chase_target if original else world.player.pixel_position()
@@ -346,6 +334,13 @@ func tick(world: Node) -> void:
 				rock.direction = actor.facing
 				rock.speed_subpixels = actor.definition.projectile_speed_subpixels
 				rocks.append(rock)
+		# Z_01 CheckMonsterCollisions runs at the end of the monster's own update,
+		# after it has moved: the sword shot, then the sword, then the rod.
+		var touchable: bool = actor.invulnerability == 0
+		weapon_hits(world, actor)
+		if actor.health == 0 and not actor.defeat_applied:
+			actor.defeat_applied = true
+			if actor.definition.defeat_takes != &"": take_down(actor.definition.defeat_takes)
 		if was_alive and actor.health == 0:
 			var cry: StringName = actor.death_sound()
 			if not cry.is_empty() and cry not in actor.cues: actor.cues.append(cry)
@@ -385,7 +380,9 @@ func tick(world: Node) -> void:
 					spawn_reward(world, item, actor.position(), actor.slot)
 		var reach: Vector2i = actor.collision_size() / 2 + Vector2i.ONE
 		var gap: Vector2i = (actor.position() + actor.definition.collision_offset + actor.collision_size() / 2 - world.player.pixel_position() - Vector2i(8, 8)).abs()
-		if not world.state.clock_active and not world.raft.active and actor.can_touch_player() and actor.invulnerability == 0 and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
+		# Z_01 CheckMonsterCollisions skips everything while the monster is
+		# invincible, but a hit landing in this check still lets it test Link.
+		if not world.state.clock_active and not world.raft.active and actor.can_touch_player() and (actor.invulnerability == 0 or (original and touchable)) and ((gap.x < reach.x and gap.y < reach.y) if original else actor.hurtbox().intersects(player_box(world))):
 			touch_player(world, actor)
 	tick_rupee_stash(world)
 	tick_statues(world)
@@ -758,8 +755,9 @@ func player_box(world: Node) -> Rect2i:
 func launch_beam(world: Node) -> bool:
 	if beam != null or not world.sword.weapon.fires_beam:
 		return false
-	# MakeSwordShot requires the last partial heart to be at least half full.
-	if world.state.health < world.state.max_health - 1:
+	# MakeSwordShot: every heart full and the last one's HeartPartial at least $80,
+	# so less than half a heart may be missing (half a heart's hit leaves $7F).
+	if world.state.max_health * world.state.HEALTH_UNITS - world.state.health_units >= world.state.HEALTH_UNITS:
 		return false
 	var at: Vector2i = world.player.pixel_position() + world.sword.direction * 16
 	if world.sword.direction.x != 0 and (at.x < 20 or at.x >= 236):
@@ -804,29 +802,45 @@ func tick_beam(world: Node) -> void:
 			beam.finished = true
 			beam = null
 		return
-	# MoveShot checks room bounds. Beam flight does not use rock terrain checks.
+	# Z_07 MoveShot checks the room bounds before moving (BoundByRoom, which for
+	# Link's weapons tests X + $0B and X - $0C, Y + $0F and Y - $12), then moves
+	# the whole step. Beam flight does not use rock terrain checks.
+	var at: Vector2i = beam.position
+	if (beam.direction.x < 0 and at.x + 0x0B < bounds.position.x) or (beam.direction.x > 0 and at.x - 0x0C >= bounds.end.x) \
+			or (beam.direction.y < 0 and at.y + 0x0F < bounds.position.y) or (beam.direction.y > 0 and at.y - 0x12 >= bounds.end.y):
+		impact_beam(world)
+		return
 	beam.fraction += beam.speed_subpixels
 	var pixels: int = beam.fraction / 256
 	beam.fraction %= 256
-	for pixel in range(pixels):
-		var next: Vector2i = beam.position + beam.direction
-		if not (bounds if beam.kind == "magic" else world.room.movement_bounds).has_point(next):
+	beam.position += beam.direction * pixels
+
+func weapon_hits(world: Node, actor: RefCounted) -> void:
+	if beam != null and beam.flying() and actor.targetable() and beam.hits(actor.hit_position(), world.player.facing):
+		if actor.receive_hit(beam.damage, beam.direction, beam.kind):
+			world.audio.play(&"enemy_hit")
+			if actor.health == 0:
+				world.audio.play(&"enemy_die")
+				record_permanent_kill(world, actor)
 			impact_beam(world)
-			return
-		beam.position = next
-		for actor in enemies:
-			if actor.targetable() and beam.hits(actor.hit_position()):
-				if actor.receive_hit(beam.damage, beam.direction, beam.kind):
-					world.audio.play(&"enemy_hit")
-					if actor.health == 0:
-						world.audio.play(&"enemy_die")
-						record_permanent_kill(world, actor)
-					impact_beam(world)
-					return
-				if actor.parried_hit:
-					world.audio.play(&"parry")
-					impact_beam(world)
-					return
+		elif actor.parried_hit:
+			world.audio.play(&"parry")
+			impact_beam(world)
+	if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.hit_position()):
+		if actor.receive_hit(world.sword.weapon.damage, world.sword.direction, "sword"):
+			world.audio.play(&"enemy_hit")
+			if actor.health == 0:
+				world.audio.play(&"enemy_die")
+				record_permanent_kill(world, actor)
+		elif actor.parried_hit:
+			world.audio.play(&"parry")
+	if actor.targetable() and world.rod.hits(world.player.pixel_position(), actor.hit_position()):
+		if actor.receive_hit(world.rod.weapon.damage, world.rod.direction, "rod"):
+			world.audio.play(&"enemy_hit")
+			if actor.health == 0:
+				world.audio.play(&"enemy_die")
+				record_permanent_kill(world, actor)
+		elif actor.parried_hit: world.audio.play(&"parry")
 
 func record_permanent_kill(world: Node, actor: RefCounted) -> void:
 	if world.room.enemy_persistence == "permanent" and actor.definition.counts_for_persistence:
@@ -853,6 +867,7 @@ func commit_room(state: RefCounted) -> void:
 
 func advance_frame() -> void:
 	source_random.advance()
+	frame_counter = (frame_counter + 1) & 255
 	frame_clock += 1
 	if frame_clock % 10 == 0:
 		chase_timer = maxi(0, chase_timer - 1)
@@ -985,6 +1000,10 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 	# next frame, and moves only on the third. A shot given a lower slot would move
 	# a frame sooner; slots are not modelled.
 	if rock.age <= 2: return
+	if rock.spark_remaining > 0:
+		rock.spark_remaining -= 1
+		if rock.spark_remaining == 0: rock.alive = false
+		return
 	if rock.bounce_remaining > 0:
 		var displacement := Vector2i(1, -2)
 		if rock.bounce_direction == Vector2i.DOWN: displacement = Vector2i(-1, 2)
@@ -994,11 +1013,16 @@ func tick_source_rock(world: Node, rock: RefCounted) -> void:
 		rock.bounce_remaining -= 1
 		if rock.bounce_remaining == 0: rock.alive = false
 		return
-	if not source_within_bounds(rock.position(),rock.direction) or (rock.kind not in ["sword", "magic"] and not source_can_enter(world, rock.position(), rock.direction)):
-		rock.alive = false
+	# Z_04 UpdateMonsterShot: only flying rocks (types below $55) check tiles;
+	# arrows and sword or magic shots stop only at the room bounds.
+	if not source_within_bounds(rock.position(),rock.direction) or (rock.kind == "rock" and not source_can_enter(world, rock.position(), rock.direction)):
+		# A blocked arrow sparks where it stopped for three frames.
+		if rock.kind == "arrow": rock.spark_remaining = 3
+		else: rock.alive = false
 		return
 	rock.subposition += rock.direction * rock.speed_subpixels
-	var center: Vector2i = rock.position() + (Vector2i(4,8) if rock.kind == "rock" else Vector2i(8,8))
+	# Monster shots ($53 and up) are half width (attribute $40): their middle is X + 4.
+	var center: Vector2i = rock.position() + Vector2i(4, 8)
 	var player_center: Vector2i = world.player.pixel_position() + Vector2i(8, 8)
 	if not world.state.clock_active and not world.raft.active and player_invulnerability == 0 and source_contact(center, player_center):
 		if shield_blocks(world, rock) and world.player.facing == -rock.direction and not world.sword.active():

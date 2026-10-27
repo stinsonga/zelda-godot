@@ -43,11 +43,13 @@ func snapshot(world: Node) -> Dictionary:
 	# Shots by type and position, as the reference lists them ($53 flying rock).
 	var shots: Array = []
 	for rock in world.combat.rocks:
-		if rock.kind == "rock":
+		if rock.kind in ["rock", "arrow"]:
 			var p: Vector2i = rock.position()
-			shots.append(["shot", 0x53, p.x, p.y])
+			shots.append(["shot", 0x53 if rock.kind == "rock" else 0x5B, p.x, p.y])
 	shots.sort()
 	monsters.append_array(shots)
+	var beam = world.combat.beam
+	if beam != null and beam.flying(): monsters.append(["beam", beam.position.x, beam.position.y])
 	return {"objects":monsters,"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),"phase":"transition" if moving_between else "play",
 		"raw":{"subposition_x":world.player.subposition.x,"subposition_y":world.player.subposition.y,
 		"entry_walk_remaining":world.entry_walk_remaining,"curtain":world.curtain,"random":Array(world.combat.source_random.bytes),"edge_timer":world.combat.edge_timer,"edge_cell":world.combat.edge_cursor,"frame_clock":world.combat.frame_clock}}
@@ -76,6 +78,8 @@ func run() -> void:
 		world.enter_room(world.rooms[room_id],Vector2i(int(initial.x),int(initial.y)),direction(int(initial.direction)),0,true)
 		# The NES seed has already completed its curtain and entry walk.
 		world.curtain = -1
+		# A setup may end on a cave mouth Link just came out of; it re-arms once he moves.
+		world.portal_armed = not world.target_has_portal_at(world.room, world.player.pixel_position())
 		# A case with setup frames may start partway through Link's movement.
 		var raw: Dictionary = initial.get("raw", {})
 		world.player.fraction = int(raw.get("fraction", 0))
@@ -94,16 +98,28 @@ func run() -> void:
 			world.combat.chase_target = Vector2i(int(chase[0]), int(chase[1]))
 			world.combat.chase_other = int(chase[2]) != 0
 			world.combat.chase_timer = int(chase[3])
+		# Items ($657): the sword a setup may have taken (1 wooden, 2 white, 3 magical).
+		var sword_items := ["res://content/items/wooden_sword.tres", "res://content/items/white_sword.tres", "res://content/items/magical_sword.tres"]
+		var sword := int(recorded.initial.get("sword", 0))
+		if sword > 0: world.state.take_item(load(sword_items[sword - 1]))
 		# SpawnCycle ($524): where spawn lists resume, carried across rooms.
 		world.state.spawn_cycle = int(recorded.initial.get("spawn_cycle", 0))
+		world.combat.frame_counter = int(raw.get("frame_counter", 0))
 		if recorded.initial.has("timer_cycle"):
 			world.combat.frame_clock = posmod(-(int(recorded.initial.timer_cycle) + 1), 10)
 		var seed := snapshot(world)
 		var frames: Array = []
+		var attack_held := false
 		for recorded_frame in recorded.frames:
 			var buttons: Array = recorded_frame.buttons
-			if buttons.size() > 2 or (not buttons.is_empty() and input_direction(buttons) == Vector2i.ZERO): world.free(); fail("Unsupported movement input"); return
-			world.simulate_tick(input_direction(buttons))
+			var directions: Array = buttons.filter(func(b: Variant) -> bool: return b != "a")
+			if directions.size() > 2 or (not directions.is_empty() and input_direction(directions) == Vector2i.ZERO): world.free(); fail("Unsupported movement input"); return
+			# A acts when newly pressed (ButtonsPressed), not while held.
+			var attack: bool = "a" in buttons and not attack_held
+			# The reference lagged: its game logic skipped this frame, so Godot holds too.
+			if not recorded_frame.get("lag", false):
+				world.simulate_tick(input_direction(directions), attack)
+				attack_held = "a" in buttons
 			var row := snapshot(world)
 			row["frame"] = recorded_frame.frame
 			row["buttons"] = buttons

@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS = ROOT/'tools/movement_scenarios.json'
 DEFAULT_OUTPUT = ROOT/'reference-inputs/comparisons/link_movement'
 DIRECTIONS = {'right':1, 'left':2, 'down':4, 'up':8}
+# The A button (the sword) as ButtonsDown ($FA) holds it, beside the D-pad.
+BUTTONS = {**DIRECTIONS, 'a':0x80}
 FIELDS = ('room','x','y','direction')
 # Compared on every frame; FIELDS only while both engines are in free play.
 # NES modes 4, 6, and 7 (enter, leave, scroll) are one transition phase.
@@ -26,7 +28,7 @@ OBJECTS_FIELD = 'objects'
 # Monster types end where shots begin ($53, the flying rock). Shots are compared
 # by type and position without their slot, since Godot keeps them in a list.
 MONSTER_TYPES_END = 0x53
-SHOT_TYPES = {0x53}
+SHOT_TYPES = {0x53, 0x5B}
 # Start a fresh file called A, using controller input only. No SRAM/RAM patches.
 BOOT = [([],180),(['start'],1),([],180),(['start'],1),([],180),(['a'],1),([],10),
         (['select'],1),([],10),(['select'],1),([],10),(['select'],1),([],10),
@@ -55,14 +57,15 @@ def expand(scenario):
     for segment in scenario['segments']:
         buttons = segment['buttons']
         count = segment['frames']
-        if not isinstance(buttons,list) or len(buttons)>2 or len(set(buttons))!=len(buttons) or any(b not in DIRECTIONS for b in buttons):
-            raise ValueError('Movement adapter accepts up to two distinct directions per frame')
+        if not isinstance(buttons,list) or len(set(buttons))!=len(buttons) or any(b not in BUTTONS for b in buttons) \
+                or sum(b in DIRECTIONS for b in buttons)>2:
+            raise ValueError('Movement adapter accepts up to two distinct directions, and A, per frame')
         if set(buttons) in ({'left','right'},{'up','down'}):
             raise ValueError('Opposite directions cannot both be held on a D-pad')
         if type(count) is not int or not 1 <= count <= 600:
             raise ValueError('Segment frame count must be 1..600')
         frames.extend([list(buttons) for _ in range(count)])
-    if not frames or len(frames)>2400: raise ValueError('Scenario must contain 1..2400 frames')
+    if not frames or len(frames)>6000: raise ValueError('Scenario must contain 1..6000 frames')
     return frames
 
 def setup_frames(scenario):
@@ -99,7 +102,9 @@ def objects(ram):
                 for slot in range(1, 12) if 0 < ram[0x34F+slot] < MONSTER_TYPES_END and ram[0x405+slot] == 0]
     shots = sorted([['shot', int(ram[0x34F+slot]), int(ram[0x70+slot]), int(ram[0x84+slot])-64]
                     for slot in range(1, 12) if ram[0x34F+slot] in SHOT_TYPES])
-    return monsters + shots
+    # Link's sword shot (slot $0E) while it flies (state $10), not while it spreads ($11).
+    beam = [['beam', int(ram[0x70+14]), int(ram[0x84+14])-64]] if ram[0xAC+14] & 0xF1 == 0x10 else []
+    return monsters + shots + beam
 
 def snapshot(core):
     ram = core.ram
@@ -107,7 +112,7 @@ def snapshot(core):
     # CurEdgeSpawnCell ($525), MonstersFromEdgesLongTimer ($4B), the ten-frame
     # long-timer counter ($26), and SpawnCycle ($524).
     return {OBJECTS_FIELD: objects(ram), 'random': [int(b) for b in ram[0x18:0x25]],
-            'edge_cell': int(ram[0x525]), 'edge_timer': int(ram[0x4B]), 'timer_cycle': int(ram[0x26]), 'spawn_cycle': int(ram[0x524]),
+            'edge_cell': int(ram[0x525]), 'edge_timer': int(ram[0x4B]), 'timer_cycle': int(ram[0x26]), 'spawn_cycle': int(ram[0x524]), 'sword': int(ram[0x657]),
             'chase': [int(ram[0x61]), int(ram[0x62])-64, int(ram[0x60]), int(ram[0x4A])],'room':(f'l{ram[0x10]}_' if ram[0x10] else 'ow_')+f'{ram[0xEB]:02x}', 'x':int(ram[0x70]), 'y':int(ram[0x84])-64,
             'direction':int(ram[0x98]), 'phase':'play' if int(ram[0x12]) == 5 else 'transition',
             'raw':{'screen_y':int(ram[0x84]), 'fraction':int(ram[0x3A8]), 'grid_offset':int(ram[0x394]),
@@ -152,12 +157,15 @@ def capture_reference(core_path, rom_path, suite, out):
                     # RoomId briefly names the next room while InitMode7 lays it out.
                     if row['phase'] == 'play' and row['room'] not in rooms:
                         raise ValueError(f"{scenario['id']} frame {frame}: reference reached unlisted room {row['room']}")
-                    mask=sum(DIRECTIONS[b] for b in buttons)
+                    mask=sum(BUTTONS[b] for b in buttons)
                     advance=(row['raw']['frame_counter']-previous_frame)%256
                     if row['phase'] == 'play':
-                        if row['raw']['buttons'] != mask:
+                        # A lag frame in play (too much work for one frame) runs no
+                        # game logic. Godot has no CPU budget, so it is told to hold.
+                        if advance == 0: row['lag'] = True
+                        elif row['raw']['buttons'] != mask:
                             raise ValueError(f"{scenario['id']} frame {frame}: controller/RAM input phase mismatch")
-                        if advance != 1:
+                        if advance not in (0, 1):
                             raise ValueError(f"{scenario['id']} frame {frame}: NMI frame did not advance once")
                     # Laying out the next room can take more than a frame: a lag frame
                     # leaves FrameCounter alone. Input is ignored until free play.

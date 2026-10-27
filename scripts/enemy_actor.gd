@@ -61,7 +61,8 @@ func setup(spawn: Resource, variant: Resource = null) -> void:
 		source.setup(definition.nes_type)
 		spawn_remaining += 12
 		if definition.behavior != "nes_octorok": source.move_speed = definition.speed_subpixels
-		if not definition.spawn_cloud: spawn_remaining = 0
+		# Cloudless flyers (Peahats) still wait for InitObject on their first update.
+		if not definition.spawn_cloud and definition.behavior != "flyer": spawn_remaining = 0
 
 ## Z_07 InitObject: the cloud waits for ObjTimer, then AnimateAndDrawMetaObject
 ## takes three six-frame steps. Most monsters start the timer at their slot; the
@@ -71,7 +72,13 @@ func setup(spawn: Resource, variant: Resource = null) -> void:
 ## this countdown (starting on the init frame) reaches with T + 13.
 const CLOUD_STEPS := 13
 func start_cloud(target: Vector2i) -> void:
-	if definition.behavior == "native" or not definition.spawn_cloud: return
+	if definition.behavior == "native": return
+	if not definition.spawn_cloud:
+		# InitPeahat: no cloud; the monster appears from this frame, flying up.
+		if definition.behavior == "flyer" and family != null and family.has_method("initialize"):
+			spawn_remaining = 1
+			family.initialize(self)
+		return
 	spawn_remaining = slot + CLOUD_STEPS
 	# Z_04 InitWalker faces by ChaseTarget on this frame.
 	if definition.behavior in ["nes_octorok", "walker"]:
@@ -148,7 +155,8 @@ func receive_hit(damage: int, direction: Vector2i, kind: String = "sword") -> bo
 	var sample_cue: StringName = death_sound() if health == 0 else hurt_sound()
 	if not sample_cue.is_empty(): cues.append(sample_cue)
 	if health == 0: died_from = kind
-	invulnerability = 32
+	# Z_01 BeginShove: $10, counted down on even FrameCounter values only.
+	invulnerability = 0x10
 	windup = 0
 	source.shove_started = false
 	shove_direction = direction
@@ -206,7 +214,7 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 		if wake_remaining == 0: finish_waking()
 		return false
 	animation_ticks += 1
-	invulnerability = maxi(0, invulnerability - 1)
+	if int(context.get("frame_counter", 0)) % 2 == 0: invulnerability = maxi(0, invulnerability - 1)
 	if stun_ticks > 0:
 		stun_ticks -= 1
 		return false

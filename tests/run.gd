@@ -176,8 +176,9 @@ func check_cave_sequence(world: Node) -> void:
 	for tick in range(16):
 		if world.sword.active(): counts[world.sword.phase] += 1
 		world.simulate_tick(Vector2i.LEFT)
-	check(counts == [5, 8, 1, 1, 1], "Sword phases must match original timing")
-	check(not world.sword.active() and world.player.pixel_position() == before, "Sword must recover after 16 frames without moving Link")
+	# The swing's own frame is the first of state 1 (UpdateSwordOrRod runs then too).
+	check(counts == [4, 8, 1, 1, 1], "Sword phases must match original timing")
+	check(not world.sword.active() and world.player.pixel_position().x < before.x, "Sword ends after 16 frames; Link walks during its last two states")
 	for tick in range(55):
 		world.simulate_tick(Vector2i.DOWN)
 		if world.room.id == &"ow_77": break
@@ -215,7 +216,8 @@ func check_combat() -> void:
 	world.player.place(Vector2i(80, 77))
 	world.player.facing = Vector2i.RIGHT
 	world.simulate_tick(Vector2i.ZERO, true)
-	for tick in range(4): world.simulate_tick(Vector2i.ZERO)
+	# CheckMonsterSwordCollision: only state 2, from the fourth frame of the swing.
+	for tick in range(3): world.simulate_tick(Vector2i.ZERO)
 	check(actor.health == 1, "Sword startup must not damage an enemy")
 	world.simulate_tick(Vector2i.ZERO)
 	check(actor.health == 0, "Fully extended wooden sword must defeat a red Octorok")
@@ -327,7 +329,7 @@ func check_rewards() -> void:
 	world.player.facing = Vector2i.RIGHT
 	world.combat.rewards.append(reward)
 	world.simulate_tick(Vector2i.ZERO, true)
-	for tick in range(4): world.simulate_tick(Vector2i.ZERO)
+	for tick in range(3): world.simulate_tick(Vector2i.ZERO)
 	check(world.state.rupees == 0, "Invisible sword startup must not collect a distant reward")
 	world.simulate_tick(Vector2i.ZERO)
 	check(world.state.rupees == 1, "Extended sword must collect rewards outside Link's direct reach")
@@ -435,20 +437,20 @@ func check_beams() -> void:
 	world.player.place(Vector2i(80, 77))
 	world.player.facing = Vector2i.RIGHT
 	world.simulate_tick(Vector2i.ZERO, true)
-	for tick in range(12): world.simulate_tick(Vector2i.ZERO)
-	check(world.combat.beam == null, "Beam must wait until the sword's third phase")
+	for tick in range(11): world.simulate_tick(Vector2i.ZERO)
+	check(world.combat.beam == null, "Beam must wait until the sword's third state")
 	world.simulate_tick(Vector2i.ZERO)
-	check(world.combat.beam != null and world.combat.beam.position == Vector2i(96, 77), "Beam must begin 16 pixels ahead, without moving on its emission frame")
+	check(world.combat.beam != null and world.combat.beam.position == Vector2i(99, 77), "Beam must start 16 pixels ahead and move on its emission frame")
 	var first = world.combat.beam
 	world.simulate_tick(Vector2i.ZERO)
-	check(first.position == Vector2i(99, 77), "Beam must fly three pixels per simulation tick")
+	check(first.position == Vector2i(102, 77), "Beam must fly three pixels per simulation tick")
 	for tick in range(4): world.simulate_tick(Vector2i.ZERO)
 	world.simulate_tick(Vector2i.ZERO, true)
 	for tick in range(13): world.simulate_tick(Vector2i.ZERO)
 	check(world.combat.beam == first, "A second swing must not replace an active beam")
 	first.position = Vector2i(238, 77)
 	world.combat.tick_beam(world)
-	check(first.burst_remaining == 22 and first.position.x == 240, "Room boundary must start the 22-tick burst without crossing rooms")
+	check(first.burst_remaining == 22 and first.position.x == 238, "MoveShot's bounds check must start the 22-tick burst before moving")
 	check(not world.combat.launch_beam(world), "Burst must retain the single projectile slot")
 	for tick in range(22): world.combat.tick_beam(world)
 	check(world.combat.beam == null, "Burst must release the projectile slot at completion")
@@ -457,7 +459,9 @@ func check_beams() -> void:
 	world.state.health = 4
 	check(not world.combat.launch_beam(world), "One missing heart must disable the beam")
 	world.state.health = 5
-	check(world.combat.launch_beam(world), "The original half-partial-heart threshold must allow half a heart missing")
+	check(not world.combat.launch_beam(world), "MakeSwordShot needs HeartPartial $80 or more: half a heart missing disables the beam")
+	world.state.health = 6
+	check(world.combat.launch_beam(world), "Full hearts allow the beam")
 	world.combat.beam = null
 	world.sword.weapon = world.sword.weapon.duplicate()
 	world.sword.weapon.fires_beam = false
@@ -483,6 +487,8 @@ func check_beams() -> void:
 	world.combat.enemies.append(actor)
 	for tick in range(12):
 		world.combat.tick_beam(world)
+		# Each monster checks the shot at the end of its own update.
+		world.combat.weapon_hits(world, actor)
 		if actor.health == 0: break
 	check(actor.health == 0 and world.combat.beam.burst_remaining == 22, "Beam hit must damage an enemy and immediately stop flight")
 	check(world.state.defeated.has("combat_lab/red"), "Beam kills must use the same persistent defeated flag as melee")

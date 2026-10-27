@@ -1,7 +1,7 @@
 # Movement comparison against the NES
 
-The harness runs twenty-two controller sequences starting in first-quest room
-`ow_77`, 6,551 compared frames:
+The harness runs twenty-four controller sequences starting in first-quest room
+`ow_77`, 10,541 compared frames:
 - walking and stopping, reversing, and turning between grid boundaries;
 - approaching obstacles on three sides and backing away;
 - turns before and after halfway in each direction;
@@ -14,7 +14,10 @@ The harness runs twenty-two controller sequences starting in first-quest room
   $66, $65 (with a Zora), $64 and $63 to the Moblins;
 - level 1's first room changes, left and back, with Keese and Stalfos;
 - a walk north through rooms $78, $68 and $58 (Octorok edge spawns) to the Red
-  Leevers and Zora of room $48.
+  Leevers and Zora of room $48;
+- sword swings standing and walking;
+- a 3,834-frame sword fight west through the Moblin rooms and the Lost Woods
+  (room $61) to the Lynels and Peahats of room $60.
 
 Each frame records a phase: free play (NES mode 5), or a transition between
 rooms (modes 6, 7, and 4). The phase is compared on every frame; room, position,
@@ -291,10 +294,49 @@ The random bytes line up frame for frame. Zelda's NMI scrambles them before
 running the frame's logic, as Godot's tick does, and both skip the two lag
 frames.
 
+### The sword
+
+A case's `setup` can take the wooden sword from the cave in room $77 (the
+emulator plays it uncompared; the case starts after Link comes out). The
+snapshot records the sword level (`Items`, $657), and the adapter gives Godot the
+same sword. Cases may hold `a` with the D-pad; Godot sees A only on the frame it
+is newly pressed. Link's sword shot (slot $0E, while flying) and monster arrows
+($5B) are compared beside the monsters and rocks. NES lag frames during play
+(too much work for one frame) are recorded, and Godot holds on them.
+
+A small emulator autopilot (not part of the repository) found the route: it
+steers Link through room and grid-point waypoints, swings at monsters ahead,
+and records its inputs as fixed segments.
+
+Fixes found on the way:
+- **Sword timing.** `UpdateSwordOrRod` runs on the sword's first frame too, so
+  its states (5, 8, 1, 1, 1 frames) start a frame earlier than Godot counted.
+  Link is held only through the first three; during them his input still turns
+  him (the sword copies his direction each frame), including on the frame of the
+  swing. The sword hits only in its second state.
+- **Sword shot.** It leaves on the third state, moving on its launch frame, only
+  with every heart full (`HeartPartial` at least $80). `MoveShot` checks the room
+  bounds (X + $0B, X - $0C, Y + $0F, Y - $12) before each three-pixel step. Its
+  hit box is offset by Link's facing, not the shot's.
+- **Weapon checks** happen at the end of each monster's own update, after it
+  moves. A monster already invincible skips them, Link contact included; one hit
+  during the check still tests contact. Being hurt does not cancel the sword.
+- **Invincibility** (`ObjInvincibilityTimer`, $10 for monsters and $18 for Link)
+  counts down only on even `FrameCounter` values, so it lasts 31 or 32 frames
+  (47 or 48 for Link) by parity. Godot keeps NES units and the frame counter.
+- **Monster shoves** (`Obj_Shove`): the first call only sets up, each pixel stays
+  inside the room bounds, tiles are checked at grid points, and the call after
+  the distance runs out only resets. When a shove ends, the walker's targeting
+  still runs that frame; `_TryShooting` runs even while shoved.
+- **Shots.** A failed shot (not wanted, or four out) leaves the walker's speed
+  for that frame. Arrows and other shots from $55 up ignore tiles; blocked
+  arrows spark for three frames. Monster shots are half width (middle X + 4).
+- **Peahats** have no cloud but still appear on their first update, flying up.
+
 **Further routes.** Mountain stairs and room $1F's false wall are several
 screens away through monster rooms. The bootstrap has no sword, so a route must
-survive contact. Lynels, blue Leevers, Peahats, Ghini, and most dungeon
-monsters remain untraced.
+survive contact. Blue Leevers, Ghini, Peahats once they land, and most
+dungeon monsters remain untraced.
 Known gaps the source shows but no case covers yet:
 - **Mountain stairs.** On tiles $74/$75, `InitLinkSpeed` halves the quarter speed
   to $30 and resets the fraction. This is now implemented from the source: rooms
