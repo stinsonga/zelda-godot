@@ -148,6 +148,47 @@ early. It also missed the settle frame after arrival. The fixes are in
 
 This adapter covers the starting room and its neighbours.
 
+## Monsters
+
+A case with `"objects": true` also compares monster slots 1-11 in free play:
+type, position, and facing, for slots out of their spawn cloud (`ObjMetastate`
+0). The native capture adopts the reference's monster starting state, as it does
+Link's position:
+- the random bytes ($18-$24);
+- `CurEdgeSpawnCell` ($525), which is set once at reset and carries across rooms;
+- `MonstersFromEdgesLongTimer` ($4B);
+- the ten-frame long-timer counter's phase ($26);
+- the chase target, its timer, and its other-target flag ($60-$62, $4A).
+
+The first case, `octoroks_east`, walks into room $78. It found four differences,
+now fixed:
+- **Lag frames.** The NES has two lag frames in each room change (`RoomTransition.LAG_TICKS`). On
+  them the NMI skips its random and timer updates; Godot advanced them.
+- **Spawn frame.** On a monster's spawn frame, `InitObject` runs instead of its
+  update, so it doesn't move.
+- **Initial facing.** Edge spawns face by `ChaseTarget` (`InitWalker`), which can
+  lag behind Link, not by Link's live position.
+- **Starting state.** The state above was not shared.
+
+Tracing further found three more differences, and the case now matches on all
+312 frames, Link and monsters alike:
+- **Input direction.** Walkers move along `ObjInputDir`, which takes the facing
+  only at the end of each update and is 0 for a new monster. A new monster
+  therefore starts with `Walker_GetNextAltDir`'s search, beginning with a random
+  perpendicular. (`TryNextDir` stores each candidate as the moving direction, so
+  the search's "opposite of the moving direction" is the rejected perpendicular.)
+- **Shared fraction.** Monsters share one `ObjPosFrac` across both axes, like
+  Link, with `MoveObject`'s grid limit of +-16. After a turn, the first step
+  depends on the fraction left by the last axis.
+- **Wrapped spawn distance.** `IsDistanceSafeToSpawn`, also reached from
+  `IsSafeToSpawn` for spawn lists, subtracts in eight bits. A spot across the
+  screen (Link at X 0, the spawn at X 240) counts as within $22, so the spawn is
+  refused.
+
+The random bytes line up frame for frame. Zelda's NMI scrambles them before
+running the frame's logic, as Godot's tick does, and both skip the two lag
+frames.
+
 **Further routes are blocked on monsters.** Mountain stairs, room $1F's false
 wall, and any dungeon are several screens from the start through rooms with
 monsters. The bootstrap has no sword. Godot's monsters don't yet start from the

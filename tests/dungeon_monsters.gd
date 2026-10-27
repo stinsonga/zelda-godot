@@ -277,7 +277,8 @@ func check_regulars(world: Node) -> void:
 		if not red_wizzrobe.targetable(): seen_hidden = true
 	var at: Vector2i = red_wizzrobe.position()
 	check(shots == 1 and seen_hidden, "Red Wizzrobes shoot once per 256-frame cycle and spend part of it hidden")
-	check(at.x % 16 == 0 and (at.y + 3) % 16 == 0 and (at - Vector2i(120, 77)).abs().x <= 0x50 and (at - Vector2i(120, 77)).abs().y <= 0x50, "Red Wizzrobes appear on a square near Link")
+	# Offsets reach $50, then the spot is rounded down to its square (AND $F0).
+	check(at.x % 16 == 0 and (at.y + 3) % 16 == 0 and (at - Vector2i(120, 77)).abs().x < 0x50 + 16 and (at - Vector2i(120, 77)).abs().y < 0x50 + 16, "Red Wizzrobes appear on a square near Link")
 	check(not world.combat.shield_blocks(world, world.combat.rocks[0]) if not world.combat.rocks.is_empty() else true, "Only the magical shield stops Wizzrobe magic")
 	# Blue Wizzrobe: walks, teleports, and fires along Link's row.
 	var blue_wizzrobe = actor("blue_wizzrobe", Vector2i(112, 77), Vector2i.RIGHT)

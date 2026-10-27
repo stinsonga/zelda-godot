@@ -403,7 +403,8 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 	if game_phase == "ending":
 		tick_ending(start_pressed)
 		return
-	combat.advance_frame()
+	# The NES's lag frames during a room change skip the random and timer updates.
+	if transition == null or not transition.lags_next(): combat.advance_frame()
 	if state.tick_rupees(simulation_tick):
 		audio.play(&"heart")
 	state.sword_block_ticks = maxi(0, state.sword_block_ticks - 1)

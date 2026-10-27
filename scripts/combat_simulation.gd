@@ -272,6 +272,10 @@ func tick(world: Node) -> void:
 	var updates: Array = enemies.duplicate()
 	updates.reverse()
 	for actor in updates:
+		# Z_07 InitObject runs instead of the monster's update on its spawn frame.
+		if actor.initializing:
+			actor.initializing = false
+			continue
 		actor.source_random = source_random.at(actor.slot)
 		actor.source_next_random = source_random.at(actor.slot + 1)
 		if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.hit_position()):
@@ -855,8 +859,7 @@ func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, d
 			var packed := int(points[cursor])
 			cursor = (cursor + 1) % 9
 			var at := Vector2i((packed & 15) * 16, (packed & 240) + 13 - 64)
-			var delta := (player - at).abs()
-			if not room.is_pixel_solid(at + Vector2i(0, 11)) and (delta.x >= 34 or delta.y >= 34):
+			if not room.is_pixel_solid(at + Vector2i(0, 11)) and safe_to_spawn(player, at):
 				positions.append(at)
 				found = true
 				break
@@ -870,6 +873,14 @@ func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, d
 		actor.facing = Vector2i.ZERO
 		actor.source.initialize_facing(actor, player)
 		actor.waiting_spawn = false
+
+## Z_05 IsDistanceSafeToSpawn: unsafe when both distances to Link are under $22.
+## The subtraction is eight bits wide, so a spot across the screen (X 0 and 240)
+## can count as near.
+static func safe_to_spawn(player: Vector2i, at: Vector2i) -> bool:
+	var dx := absi(wrapi(player.x - at.x, -128, 128))
+	var dy := absi(wrapi(player.y - at.y, -128, 128))
+	return dx >= 0x22 or dy >= 0x22
 
 func next_edge_cell(cell: int) -> int:
 	if (cell & 15) == 0: cell += 16
@@ -897,13 +908,14 @@ func update_edge_spawns(world: Node) -> void:
 	edge_timer = (source_random.at(actor.slot + 1) & 3) + 2
 	if not found: return
 	var at := Vector2i((edge_cursor & 15) * 16, (edge_cursor & 240) - 3 - 64)
-	var delta: Vector2i = (world.player.pixel_position() - at).abs()
-	if delta.x < 34 and delta.y < 34: return
+	if not safe_to_spawn(world.player.pixel_position(), at): return
 	actor.subposition = at * 256
 	actor.facing = Vector2i.ZERO
-	actor.source.initialize_facing(actor, world.player.pixel_position())
+	# Z_04 InitWalker faces the monster by ChaseTarget, which can lag behind Link.
+	actor.source.initialize_facing(actor, chase_target)
 	actor.waiting_spawn = false
 	actor.spawn_remaining = 0
+	actor.initializing = true
 
 func tick_source_rock(world: Node, rock: RefCounted) -> void:
 	rock.age += 1

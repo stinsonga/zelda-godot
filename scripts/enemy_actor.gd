@@ -27,6 +27,8 @@ var rng := RandomNumberGenerator.new()
 var shot_out := false
 ## Set when a Zol survives a hit; the combat simulation splits it.
 var split_pending := false
+## Set on the frame a monster comes in from the edge: it is initialized, not updated.
+var initializing := false
 ## Like Like and Wallmaster: ticks spent holding Link; 0 when free.
 var capture_ticks := 0
 ## The boomerang stuns monsters for $A0 frames; clocks last for the visit.

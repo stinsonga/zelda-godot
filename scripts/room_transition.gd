@@ -20,6 +20,9 @@ var overworld := true
 ## and 83 down, counted from the frame the transition begins.
 const LEAD_TICKS := {Vector2i.RIGHT: 32, Vector2i.LEFT: 32, Vector2i.UP: 33, Vector2i.DOWN: 32}
 const TAIL_TICKS := {Vector2i.RIGHT: 8, Vector2i.LEFT: 8, Vector2i.UP: 8, Vector2i.DOWN: 7}
+## Lag frames, also measured: laying out the next room takes the NES two frames
+## longer than one, and the NMI skips its random and timer updates on them.
+const LAG_TICKS := {Vector2i.RIGHT: [5, 6], Vector2i.LEFT: [5, 6], Vector2i.UP: [30, 31], Vector2i.DOWN: [5, 6]}
 
 func length() -> int:
 	return 256 if direction.x != 0 else 176
@@ -28,6 +31,10 @@ func length() -> int:
 ## frame up or down.
 func scroll_ticks() -> int:
 	return 64 if direction.x != 0 else 44
+
+## Whether the coming tick is a lag frame.
+func lags_next() -> bool:
+	return overworld and (ticks + 1) in LAG_TICKS[direction]
 
 func lead_ticks() -> int:
 	return LEAD_TICKS[direction] if overworld else 0

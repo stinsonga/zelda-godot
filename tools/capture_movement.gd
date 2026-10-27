@@ -35,9 +35,15 @@ func input_direction(buttons: Array) -> Vector2i:
 func snapshot(world: Node) -> Dictionary:
 	var at: Vector2i = world.player.pixel_position()
 	var moving_between: bool = world.transition != null or world.entry_walk_remaining > 0
-	return {"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),"phase":"transition" if moving_between else "play",
+	var monsters: Array = []
+	for actor in world.combat.enemies:
+		if actor.alive() and not actor.waiting_spawn and actor.spawn_remaining == 0 and actor.slot >= 1:
+			var p: Vector2i = actor.position()
+			monsters.append([actor.slot, actor.definition.nes_type, p.x, p.y, bits(actor.facing)])
+	monsters.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	return {"objects":monsters,"room":String(world.room.id),"x":at.x,"y":at.y,"direction":bits(world.player.facing),"phase":"transition" if moving_between else "play",
 		"raw":{"subposition_x":world.player.subposition.x,"subposition_y":world.player.subposition.y,
-		"entry_walk_remaining":world.entry_walk_remaining,"curtain":world.curtain}}
+		"entry_walk_remaining":world.entry_walk_remaining,"curtain":world.curtain,"random":Array(world.combat.source_random.bytes),"edge_timer":world.combat.edge_timer,"edge_cell":world.combat.edge_cursor,"frame_clock":world.combat.frame_clock}}
 func fail(message: String) -> void:
 	push_error(message)
 	quit(2)
@@ -63,6 +69,21 @@ func run() -> void:
 		world.enter_room(world.rooms[room_id],Vector2i(int(initial.x),int(initial.y)),direction(int(initial.direction)),0,true)
 		# The NES seed has already completed its curtain and entry walk.
 		world.curtain = -1
+		# Start from the reference's monster state, like its position: the random
+		# bytes ($18-$24), the edge spawn cursor and timer, and the phase of the
+		# ten-frame long-timer counter ($26 counts down; timers tick when it wraps).
+		world.combat.source_random.bytes = PackedByteArray(recorded.initial.get("random", Array(world.combat.source_random.bytes)))
+		# Zelda's NMI scrambles them before running the frame's logic, as Godot does.
+		world.combat.edge_cursor = int(recorded.initial.get("edge_cell", world.combat.edge_cursor))
+		world.combat.edge_timer = int(recorded.initial.get("edge_timer", world.combat.edge_timer))
+		if recorded.initial.has("chase"):
+			# ChaseTargetX/Y ($61/$62), ChaseOtherTarget ($60), ChaseLongTimer ($4A).
+			var chase: Array = recorded.initial.chase
+			world.combat.chase_target = Vector2i(int(chase[0]), int(chase[1]))
+			world.combat.chase_other = int(chase[2]) != 0
+			world.combat.chase_timer = int(chase[3])
+		if recorded.initial.has("timer_cycle"):
+			world.combat.frame_clock = posmod(-(int(recorded.initial.timer_cycle) + 1), 10)
 		var seed := snapshot(world)
 		var frames: Array = []
 		for recorded_frame in recorded.frames:

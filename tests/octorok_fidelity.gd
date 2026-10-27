@@ -40,6 +40,8 @@ func run() -> void:
 	enemy.subposition = Vector2i(79, 45) * 256
 	enemy.source.grid_offset = 15
 	enemy.source.move_speed = 256
+	# Mid-walk, the previous update left its facing as the input direction.
+	enemy.source.input_direction = enemy.facing
 	enemy.source.tick(enemy, Vector2i(80, 13), open_probe, true, 42, 0)
 	check(enemy.position() == Vector2i(80, 45) and enemy.facing == Vector2i.UP, "Walker must move to its grid boundary before choosing the next facing")
 	check(enemy.source.turn_timer == 42 and enemy.source.wants_to_shoot, "Aligned targeting must latch wants-to-shoot and use the current random byte as its timer")

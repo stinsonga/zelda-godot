@@ -20,6 +20,10 @@ FIELDS = ('room','x','y','direction')
 # Compared on every frame; FIELDS only while both engines are in free play.
 # NES modes 4, 6, and 7 (enter, leave, scroll) are one transition phase.
 PHASE_FIELD = 'phase'
+# Monster slots 1-11, compared in free play for cases that set "objects": true.
+OBJECTS_FIELD = 'objects'
+# Object types from $5D on are not monsters (Z_07 UpdateObject_JumpTable).
+MONSTER_TYPES_END = 0x5D
 # Start a fresh file called A, using controller input only. No SRAM/RAM patches.
 BOOT = [([],180),(['start'],1),([],180),(['start'],1),([],180),(['a'],1),([],10),
         (['select'],1),([],10),(['select'],1),([],10),(['select'],1),([],10),
@@ -79,9 +83,20 @@ def validate_suite(suite):
         allowed_rooms(suite, case)
     if not ids: raise ValueError('No movement scenarios')
 
+def objects(ram):
+    """Active monsters by slot: ObjType ($34F+X), ObjX, ObjY - 64, ObjDir.
+    Slots still in their spawn cloud (ObjMetastate, $405+X, nonzero) are left out."""
+    return [[slot, int(ram[0x34F+slot]), int(ram[0x70+slot]), int(ram[0x84+slot])-64, int(ram[0x98+slot])]
+            for slot in range(1, 12) if 0 < ram[0x34F+slot] < MONSTER_TYPES_END and ram[0x405+slot] == 0]
+
 def snapshot(core):
     ram = core.ram
-    return {'room':f'ow_{ram[0xEB]:02x}', 'x':int(ram[0x70]), 'y':int(ram[0x84])-64,
+    # Monster starting state the native capture adopts: Random ($18-$24),
+    # CurEdgeSpawnCell ($525), MonstersFromEdgesLongTimer ($4B), and the
+    # ten-frame long-timer counter ($26).
+    return {OBJECTS_FIELD: objects(ram), 'random': [int(b) for b in ram[0x18:0x25]],
+            'edge_cell': int(ram[0x525]), 'edge_timer': int(ram[0x4B]), 'timer_cycle': int(ram[0x26]),
+            'chase': [int(ram[0x61]), int(ram[0x62])-64, int(ram[0x60]), int(ram[0x4A])],'room':f'ow_{ram[0xEB]:02x}', 'x':int(ram[0x70]), 'y':int(ram[0x84])-64,
             'direction':int(ram[0x98]), 'phase':'play' if int(ram[0x12]) == 5 else 'transition',
             'raw':{'screen_y':int(ram[0x84]), 'fraction':int(ram[0x3A8]), 'grid_offset':int(ram[0x394]),
                    'buttons':int(ram[0xFA]), 'frame_counter':int(ram[0x15]), 'mode':int(ram[0x12]),
@@ -175,10 +190,12 @@ def compare(reference, native):
         seed_differences=[f for f in FIELDS if ref['initial'][f]!=actual['initial'][f]]
         if seed_differences: raise ValueError('Initial states differ before replay: '+ref['id'])
         differences=[]
+        compare_objects=next(s for s in reference['suite']['cases'] if s['id']==ref['id']).get('objects',False)
         for expected,observed in zip(ref['frames'],actual['frames']):
             fields=[PHASE_FIELD] if expected[PHASE_FIELD]!=observed[PHASE_FIELD] else []
             if expected[PHASE_FIELD]=='play' and not fields:
                 fields=[f for f in FIELDS if expected[f]!=observed[f]]
+                if compare_objects and expected.get(OBJECTS_FIELD)!=observed.get(OBJECTS_FIELD): fields.append(OBJECTS_FIELD)
             if fields:
                 differences.append({'frame':expected['frame'],'fields':fields,'buttons':expected['buttons'],
                                     'nes':expected,'godot':observed,'delta':{'x':observed['x']-expected['x'],'y':observed['y']-expected['y']}})
@@ -198,6 +215,7 @@ def report_text(report):
             for label,key in [('NES','nes'),('Godot','godot')]:
                 row=d[key]
                 lines.append(f"  {label}: {row['phase']} {row['room']} position ({row['x']}, {row['y']}), direction {row['direction']}; diagnostics {row['raw']}")
+                if OBJECTS_FIELD in d['fields']: lines.append(f"  {label} monsters [slot, type, x, y, dir]: {row.get(OBJECTS_FIELD)}")
             lines.append(f"  Delta: {d['delta']}; {case['different_frames']} differing frames")
     return '\n'.join(lines)+'\n'
 

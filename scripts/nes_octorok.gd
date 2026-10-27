@@ -7,6 +7,9 @@ var shoot_timer := 0
 var wants_to_shoot := false
 var move_speed := 128
 var shove_started := false
+## ObjInputDir: the direction Walker_Move moves in. It is 0 for a new monster and
+## takes the facing only at the end of each update.
+var input_direction := Vector2i.ZERO
 
 func setup(enemy_type: int) -> void:
 	move_speed = 192 if enemy_type in [8, 10] else 128
@@ -20,9 +23,15 @@ func initialize_facing(actor: RefCounted, target: Vector2i) -> void:
 	if dy >= dx:
 		actor.facing = Vector2i.LEFT if target.x >= at.x else Vector2i.RIGHT
 
-func choose_movement(actor: RefCounted, probe: Callable, random_byte: int) -> Vector2i:
+## Z_07 Walker_CheckTileCollision: keep the moving direction if walkable; else
+## Walker_GetNextAltDir tries a random perpendicular to the facing, then the
+## opposite of the moving direction (TryNextDir has just made that the rejected
+## perpendicular), then the reversed facing. A new monster's moving direction is
+## 0 (ObjInputDir), so it starts with the search.
+func choose_movement(actor: RefCounted, probe: Callable, random_byte: int, moving: Vector2i = Vector2i(2, 2)) -> Vector2i:
 	var original: Vector2i = actor.facing
-	if probe.call(actor.position(), original): return original
+	if moving == Vector2i(2, 2): moving = original
+	if moving != Vector2i.ZERO and probe.call(actor.position(), moving): return moving
 	var perpendicular := Vector2i.UP if random_byte & 128 else Vector2i.DOWN
 	if original.y != 0: perpendicular = Vector2i.LEFT if random_byte & 128 else Vector2i.RIGHT
 	for direction in [perpendicular, -perpendicular, -original]:
@@ -32,7 +41,26 @@ func choose_movement(actor: RefCounted, probe: Callable, random_byte: int) -> Ve
 	actor.facing = -original
 	return Vector2i.ZERO
 
+## ObjPosFrac: one fraction byte shared by both axes.
+var fraction := 0
+
+## Walker speeds under a pixel a frame follow Z_07 MoveObject: four quarter-steps
+## into the shared fraction, a pixel per carry unless the grid offset is at +-16
+## (the monster limit). Whole-pixel moves (shoves, jumps) go straight through.
 func advance_position(actor: RefCounted, direction: Vector2i, distance: int) -> void:
+	if distance < 256 and distance % 4 == 0 and direction != Vector2i.ZERO:
+		var forward := direction.x + direction.y > 0
+		var pixel: Vector2i = actor.position()
+		for quarter in range(4):
+			fraction += distance / 4 if forward else -distance / 4
+			var carry := fraction >= 256 if forward else fraction < 0
+			fraction = posmod(fraction, 256)
+			if carry and absi(grid_offset) != 16:
+				pixel += direction
+				grid_offset += 1 if forward else -1
+		actor.subposition = pixel * 256
+		if grid_offset != 0 and grid_offset % 16 == 0: grid_offset = 0
+		return
 	var before: Vector2i = actor.position()
 	actor.subposition += direction * distance
 	var delta: Vector2i = actor.position() - before
@@ -86,10 +114,12 @@ func tick(actor: RefCounted, target: Vector2i, probe: Callable, can_shoot: bool,
 	shove_started = false
 	# Walker_Move occurs before target selection and _TryShooting.
 	if move_speed > 0:
-		var direction: Vector2i = actor.facing
-		if grid_offset == 0: direction = choose_movement(actor, probe, random_byte)
+		var direction: Vector2i = input_direction
+		if grid_offset == 0: direction = choose_movement(actor, probe, random_byte, input_direction)
 		if direction != Vector2i.ZERO: advance_position(actor, direction, move_speed)
 	select_target(actor, target, random_byte, next_random)
+	# L_Walker_SetInputDirAndTryShooting*: the facing becomes the next input.
+	input_direction = actor.facing
 	if actor.definition.projectile_kind == "boomerang":
 		return throw_boomerang(actor, can_shoot, random_byte)
 	if not actor.definition.shooting_enabled or actor.definition.shoot_cooldown <= 0:

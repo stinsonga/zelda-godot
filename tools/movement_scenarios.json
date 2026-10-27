@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "name": "link_movement_v4",
+  "name": "link_movement_v5",
   "room": "ow_77",
   "quest": 1,
   "initial": {
@@ -893,6 +893,25 @@
         {
           "buttons": [],
           "frames": 4
+        }
+      ]
+    },
+    {
+      "id": "octoroks_east",
+      "rooms": [
+        "ow_78"
+      ],
+      "objects": true,
+      "segments": [
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 192
+        },
+        {
+          "buttons": [],
+          "frames": 120
         }
       ]
     }
