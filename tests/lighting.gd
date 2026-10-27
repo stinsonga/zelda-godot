@@ -78,10 +78,10 @@ func run()->void:
 	check(world.transition!=null and world.lighting.fading(),"Lit-to-dark scrolling must darken before the scroll")
 	for tick in range(31):world.simulate_tick(Vector2i.ZERO)
 	check(world.transition.distance==0 and world.lighting.stage==3,"Scroll must remain held through the four darkening steps")
-	for tick in range(64):world.simulate_tick(Vector2i.ZERO)
+	finish_transition(world)
 	check(world.room==dark and not world.lighting.fading(),"Dark arrival must not run a second fade")
 	world.try_exit(Vector2i.LEFT)
-	for tick in range(64):world.simulate_tick(Vector2i.ZERO)
+	finish_transition(world)
 	check(world.room==light and world.lighting.fading() and world.lighting.stage==3,"Dark-to-lit scrolling must brighten on arrival")
 	for tick in range(31):world.simulate_tick(Vector2i.ZERO)
 	check(world.lighting.stage==0,"Return room must finish brightening")
@@ -112,3 +112,9 @@ func run()->void:
 		world.free()
 	print("Lighting checks: ","PASS" if failures==0 else "FAIL")
 	quit(0 if failures==0 else 1)
+
+## Dungeon room changes have their own lead, scroll and tail lengths.
+func finish_transition(world: Node) -> void:
+	for tick in range(400):
+		if world.transition == null: return
+		world.simulate_tick(Vector2i.ZERO)

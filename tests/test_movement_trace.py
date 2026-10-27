@@ -41,10 +41,15 @@ class MovementTraceTests(unittest.TestCase):
         native['cases'][0]['frames'][1]['x']=0
         native['cases'][0]['frames'][1]['room']='ow_78'
         self.assertTrue(m.compare(ref,native)['matched'])
-    def test_case_rooms_must_be_overworld_ids(self):
+    def test_case_rooms_must_be_overworld_or_level_ids(self):
         suite=m.read_json(m.SCENARIOS)
-        self.assertEqual(m.allowed_rooms(suite,{'rooms':['ow_78']}),{'ow_77','ow_78'})
-        with self.assertRaises(ValueError):m.allowed_rooms(suite,{'rooms':['cave_77']})
+        self.assertEqual(m.allowed_rooms(suite,{'rooms':['ow_78','l1_73']}),{'ow_77','ow_78','l1_73'})
+        for bad in ('cave_77','l0_73','l1_80','ow_7'):
+            with self.assertRaises(ValueError):m.allowed_rooms(suite,{'rooms':[bad]})
+    def test_setup_frames_are_validated_like_segments(self):
+        self.assertEqual(m.setup_frames({'segments':[]}),[])
+        self.assertEqual(m.setup_frames({'setup':[{'buttons':['up'],'frames':2}]}),[['up'],['up']])
+        with self.assertRaises(ValueError):m.setup_frames({'setup':[{'buttons':['up','down'],'frames':1}]})
     def test_diagnostic_fractions_are_not_equated(self):
         ref,native=self.traces()
         ref['cases'][0]['frames'][0]['raw']={'fraction':128}
@@ -67,11 +72,11 @@ class MovementTraceTests(unittest.TestCase):
     def test_ambiguous_or_invalid_inputs_rejected(self):
         for buttons,frames in [(['up','down'],1),(['left','right'],1),(['up','up'],1),(['up','right','left'],1),(['a'],1),([],True),([],0),([],1.5)]:
             with self.assertRaises(ValueError):m.expand({'segments':[{'buttons':buttons,'frames':frames}]})
-    def test_authored_suite_has_nineteen_cases(self):
+    def test_authored_suite_has_twenty_two_cases(self):
         suite=m.read_json(m.SCENARIOS); m.validate_suite(suite)
-        self.assertEqual(len(suite['cases']),20)
-        self.assertEqual(len({c['id'] for c in suite['cases']}),20)
-        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),3836)
+        self.assertEqual(len(suite['cases']),22)
+        self.assertEqual(len({c['id'] for c in suite['cases']}),22)
+        self.assertEqual(sum(len(m.expand(c)) for c in suite['cases']),6551)
     def test_generated_output_cannot_enter_shared_content(self):
         with self.assertRaises(ValueError):m.output_directory(ROOT/'content/capture')
         with tempfile.TemporaryDirectory() as folder:

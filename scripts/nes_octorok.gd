@@ -10,6 +10,8 @@ var shove_started := false
 ## ObjInputDir: the direction Walker_Move moves in. It is 0 for a new monster and
 ## takes the facing only at the end of each update.
 var input_direction := Vector2i.ZERO
+## The tile check alone, without the room bounds (set before each update).
+var tile_probe := Callable()
 
 func setup(enemy_type: int) -> void:
 	move_speed = 192 if enemy_type in [8, 10] else 128
@@ -34,7 +36,15 @@ func choose_movement(actor: RefCounted, probe: Callable, random_byte: int, movin
 	if moving != Vector2i.ZERO and probe.call(actor.position(), moving): return moving
 	var perpendicular := Vector2i.UP if random_byte & 128 else Vector2i.DOWN
 	if original.y != 0: perpendicular = Vector2i.LEFT if random_byte & 128 else Vector2i.RIGHT
-	for direction in [perpendicular, -perpendicular, -original]:
+	var candidates: Array = [perpendicular, -perpendicular, -original]
+	if probe.call(actor.position(), perpendicular):
+		actor.facing = perpendicular
+		return perpendicular
+	# CheckBoundary: a perpendicular refused by the room bounds (its tile open)
+	# leaves the moving direction 0, so the next step has nothing to try.
+	if tile_probe.is_valid() and tile_probe.call(actor.position(), perpendicular): candidates = [-original]
+	else: candidates = [-perpendicular, -original]
+	for direction in candidates:
 		if probe.call(actor.position(), direction):
 			actor.facing = direction
 			return direction

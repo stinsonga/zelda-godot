@@ -984,6 +984,169 @@
           "frames": 226
         }
       ]
+    },
+    {
+      "id": "level_1_keese_and_stalfos",
+      "rooms": [
+        "ow_78",
+        "ow_68",
+        "ow_58",
+        "ow_48",
+        "ow_38",
+        "ow_37",
+        "l1_73",
+        "l1_72",
+        "l1_74"
+      ],
+      "setup": [
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 270
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 24
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 560
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 351
+        },
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 271
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 257
+        },
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 80
+        },
+        {
+          "buttons": [
+            "down"
+          ],
+          "frames": 10
+        }
+      ],
+      "segments": [
+        {
+          "buttons": [
+            "left"
+          ],
+          "frames": 215
+        },
+        {
+          "buttons": [],
+          "frames": 300
+        },
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 250
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 140
+        },
+        {
+          "buttons": [
+            "down"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 200
+        },
+        {
+          "buttons": [],
+          "frames": 200
+        }
+      ],
+      "objects": true
+    },
+    {
+      "id": "north_to_leevers",
+      "rooms": [
+        "ow_78",
+        "ow_68",
+        "ow_58",
+        "ow_48"
+      ],
+      "objects": true,
+      "segments": [
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 270
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 12
+        },
+        {
+          "buttons": [
+            "right"
+          ],
+          "frames": 24
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 560
+        },
+        {
+          "buttons": [
+            "up"
+          ],
+          "frames": 120
+        },
+        {
+          "buttons": [],
+          "frames": 400
+        }
+      ]
     }
   ]
 }

@@ -83,6 +83,9 @@ extends Resource
 ## tiles, so a blocking tile beside a higher walkable one is missed. Each cell says
 ## whether the pair starting there blocks; empty means check each column alone.
 @export var pair_collision: PackedByteArray = PackedByteArray()
+## The room's layout holds a tile object (a bush, rock, or gravestone square,
+## Z_05 RoomTileObjType), which takes object slot 11 for the whole visit.
+@export var tile_object_slot: bool = false
 ## A false wall Link alone walks through vertically (Z_07 GetCollidingTileMoving:
 ## room $1F, X $80, Y below $56): with his X at false_wall_x and Y above
 ## false_wall_below_y, vertical moves ignore the tiles. -1 means none.

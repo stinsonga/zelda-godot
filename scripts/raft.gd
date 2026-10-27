@@ -22,6 +22,7 @@ func try_start(world: Node) -> bool:
 	active = true
 	world.player.facing = route.direction() if outbound else -route.direction()
 	world.combat.shove_remaining = 0
+	world.combat.shove_finishing = false
 	world.ladder.reset()
 	world.audio.play(&"secret")
 	return true

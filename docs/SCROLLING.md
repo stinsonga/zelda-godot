@@ -46,8 +46,14 @@ The emulator comparison matches these on every frame
 ([MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md)). The split between lead,
 scroll, and tail is approximate in the vertical cases, whose visible scroll
 takes 45 (up) or 43 (down) frames depending on frame parity; only the totals are
-checked. Dungeon transitions keep the bare scroll until they are measured. Cave portals still use their existing immediate room change and
-automatic entry walk. Dungeon transitions and maze rules remain future work.
+checked.
+
+Dungeon room changes scroll at half speed: 128 frames across, a row every fourth
+frame vertically. They have their own lead, tail and lag frames, and end with
+Link walking in past the doorway (`RoomTransition.DUNGEON_*`,
+`PlayerController.walk_in_frame`). The horizontal ones match the emulator; the
+vertical ones are estimated. Cave portals still use their existing immediate room
+change and automatic entry walk. Maze rules remain future work.
 
 ## Verification
 

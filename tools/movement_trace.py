@@ -7,6 +7,7 @@ No frame shifting, tolerance, or expected-failure list hides disagreements.
 """
 import argparse
 import hashlib
+import re
 import json
 from pathlib import Path
 import subprocess
@@ -64,11 +65,16 @@ def expand(scenario):
     if not frames or len(frames)>2400: raise ValueError('Scenario must contain 1..2400 frames')
     return frames
 
+def setup_frames(scenario):
+    """Inputs the reference plays before the case starts, uncompared. The case then
+    starts from the reference's state, as every case does from the bootstrap."""
+    return expand({'segments': scenario['setup']}) if 'setup' in scenario else []
+
 def allowed_rooms(suite, case):
     """The starting room plus any rooms a case may walk into."""
     rooms = case.get('rooms', [])
-    if not isinstance(rooms, list) or any(not isinstance(r, str) or not r.startswith('ow_') for r in rooms):
-        raise ValueError('Case rooms must be a list of overworld room IDs')
+    if not isinstance(rooms, list) or any(not isinstance(r, str) or not re.fullmatch(r'(ow|l[1-9])_[0-7][0-9a-f]', r) for r in rooms):
+        raise ValueError('Case rooms must be a list of overworld or first-quest level room IDs')
     return {suite['room'], *rooms}
 
 def validate_suite(suite):
@@ -82,6 +88,7 @@ def validate_suite(suite):
         if not isinstance(case['id'],str) or not case['id'] or case['id'] in ids: raise ValueError('Scenario IDs must be unique and nonempty')
         ids.append(case['id'])
         expand(case)
+        setup_frames(case)
         allowed_rooms(suite, case)
     if not ids: raise ValueError('No movement scenarios')
 
@@ -97,11 +104,11 @@ def objects(ram):
 def snapshot(core):
     ram = core.ram
     # Monster starting state the native capture adopts: Random ($18-$24),
-    # CurEdgeSpawnCell ($525), MonstersFromEdgesLongTimer ($4B), and the
-    # ten-frame long-timer counter ($26).
+    # CurEdgeSpawnCell ($525), MonstersFromEdgesLongTimer ($4B), the ten-frame
+    # long-timer counter ($26), and SpawnCycle ($524).
     return {OBJECTS_FIELD: objects(ram), 'random': [int(b) for b in ram[0x18:0x25]],
-            'edge_cell': int(ram[0x525]), 'edge_timer': int(ram[0x4B]), 'timer_cycle': int(ram[0x26]),
-            'chase': [int(ram[0x61]), int(ram[0x62])-64, int(ram[0x60]), int(ram[0x4A])],'room':f'ow_{ram[0xEB]:02x}', 'x':int(ram[0x70]), 'y':int(ram[0x84])-64,
+            'edge_cell': int(ram[0x525]), 'edge_timer': int(ram[0x4B]), 'timer_cycle': int(ram[0x26]), 'spawn_cycle': int(ram[0x524]),
+            'chase': [int(ram[0x61]), int(ram[0x62])-64, int(ram[0x60]), int(ram[0x4A])],'room':(f'l{ram[0x10]}_' if ram[0x10] else 'ow_')+f'{ram[0xEB]:02x}', 'x':int(ram[0x70]), 'y':int(ram[0x84])-64,
             'direction':int(ram[0x98]), 'phase':'play' if int(ram[0x12]) == 5 else 'transition',
             'raw':{'screen_y':int(ram[0x84]), 'fraction':int(ram[0x3A8]), 'grid_offset':int(ram[0x394]),
                    'buttons':int(ram[0xFA]), 'frame_counter':int(ram[0x15]), 'mode':int(ram[0x12]),
@@ -124,10 +131,17 @@ def capture_reference(core_path, rom_path, suite, out):
         (out/'seed.state').write_bytes(state)
         cases=[]
         for scenario in suite['cases']:
+            start = initial
             def replay():
+                nonlocal start
                 core.restore(state)
                 rows=[]
-                previous_frame=initial['raw']['frame_counter']
+                for buttons in setup_frames(scenario): core.run(buttons)
+                if 'setup' in scenario:
+                    start = snapshot(core)
+                    if start['raw']['mode'] != 5 or start['room'] not in allowed_rooms(suite, scenario):
+                        raise ValueError(f"{scenario['id']}: setup did not end in free play in a listed room: {start['room']}")
+                previous_frame=start['raw']['frame_counter']
                 for frame, buttons in enumerate(expand(scenario),1):
                     core.run(buttons)
                     row=snapshot(core)
@@ -155,10 +169,10 @@ def capture_reference(core_path, rom_path, suite, out):
                 return rows
             rows=replay()
             if replay()!=rows: raise ValueError('Reference replay is not deterministic: '+scenario['id'])
-            cases.append({'id':scenario['id'],'initial':initial,'frames':rows})
+            cases.append({'id':scenario['id'],'initial':start,'frames':rows})
         trace={'schema':1,'engine':'nes','suite':suite,'suite_sha256':digest(suite),'rom_prg_sha1':PRG_SHA1,
                'core':core.info,'core_options':{k.decode():v.decode() for k,v in sorted(core.variables.items())},
-               'seed_sha256':hashlib.sha256(state).hexdigest(), 'bootstrap_frames':core.frame-sum(len(c['frames'])*2 for c in cases),
+               'seed_sha256':hashlib.sha256(state).hexdigest(), 'bootstrap_frames':core.frame-sum((len(c['frames'])+len(setup_frames(s)))*2 for c,s in zip(cases,suite['cases'])),
                'reference_replay_verified':True,'cases':cases}
         metadata=Path(core_path).parent/'nestopia.json'
         if metadata.exists():

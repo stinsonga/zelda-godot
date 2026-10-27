@@ -1,7 +1,7 @@
 # Movement comparison against the NES
 
-The harness runs twenty controller sequences starting in first-quest room
-`ow_77`, 3,836 compared frames:
+The harness runs twenty-two controller sequences starting in first-quest room
+`ow_77`, 6,551 compared frames:
 - walking and stopping, reversing, and turning between grid boundaries;
 - approaching obstacles on three sides and backing away;
 - turns before and after halfway in each direction;
@@ -11,7 +11,10 @@ The harness runs twenty controller sequences starting in first-quest room
 - walking out of the room to the east, west, and north, and back south;
 - diagonals held from a grid point, partway along a segment, and into a wall;
 - monsters in rooms $78, $67 and $76, and a 1,369-frame walk through rooms $76,
-  $66, $65 (with a Zora), $64 and $63 to the Moblins.
+  $66, $65 (with a Zora), $64 and $63 to the Moblins;
+- level 1's first room changes, left and back, with Keese and Stalfos;
+- a walk north through rooms $78, $68 and $58 (Octorok edge spawns) to the Red
+  Leevers and Zora of room $48.
 
 Each frame records a phase: free play (NES mode 5), or a transition between
 rooms (modes 6, 7, and 4). The phase is compared on every frame; room, position,
@@ -148,7 +151,30 @@ short horizontally: it had only the visible scroll, and it started a frame
 early. It also missed the settle frame after arrival. The fixes are in
 [SCROLLING.md](SCROLLING.md), and all three cases now match.
 
-This adapter covers the starting room and its neighbours.
+A case may list overworld rooms and first-quest level rooms (`l1_73`). It may
+also have `setup` segments, which the emulator plays first without comparing;
+the case then starts from the emulator's state, including Link's fraction and
+grid offset. `level_1_left_and_back` uses this to walk to level 1 (1,835 setup
+frames) and then compares Link out through l1_73's left door and back.
+
+### Dungeon room changes
+
+Measured in level 1, left and right, from the frame Link reaches the edge (A):
+- mode 6, then mode 7 lays out the next room; the scroll begins at A+35, with
+  lag frames at A+6 to A+8;
+- the scroll takes 128 frames, two pixels a frame (half the overworld's speed);
+- six more mode 7 and mode 4 frames; on the last, `InitMode_EnterRoom` sets
+  Link's grid offset to $18 or $28 (moving left or up; $E8 or $D8 the other
+  way), $18 for an open or key doorway and $28 for any other;
+- mode 4 moves him with `MoveObject` until the offset reaches 8: 16 pixels in
+  11 frames past an open door. Collision isn't checked, and the offset isn't
+  reset at 16 on the way. The fraction it leaves decides his next step;
+- mode 5 settles for a frame, as in the overworld.
+
+Vertical dungeon changes are not measured: the nearest vertical door in level 1
+is locked and the bootstrap has no key. Godot scrolls a row every fourth frame
+(`ScrollWorld`), and borrows the overworld's per-direction differences for the
+lead, tail and lag frames.
 
 ## Monsters
 
@@ -234,17 +260,41 @@ more differences, now fixed:
 - **Standing walkers.** `Walker_Move` checks tiles even while a walker stands
   still to shoot, so a blocked one turns in place.
 
-The case ends at frame 1,369. Frame 1,370 is a lag frame in room $63, which has
+Level 1 and room $48 found more:
+- **SpawnCycle** ($524) carries across rooms like the edge spawn cell, so cases
+  now seed it. Keese then took the same spawn spots.
+- **Keese** pick one of eight directions from `Random,X` on the spawn frame, and
+  choose between chasing and wandering with `Random+1`, unlike Ghini and Peahats.
+- **Walker searches** (`Walker_GetNextAltDir`): when the room bounds, not a
+  tile, refuse the random perpendicular, `CheckBoundary` leaves the moving
+  direction 0, so the next step tries nothing and the walker reverses instead.
+- **Tiles at the edges.** `GetCollidableTile` reads the tile underfoot instead of
+  the next one when moving right from X $F0, left below X $10, or down once
+  Y + $0B reaches $DD. Above the screen it reads into the neighbouring column
+  (the play area is stored a column at a time).
+- **Shoves** end with a frame that only resets them, and move a pixel at a time
+  inside the monsters' room bounds, checking tiles only at grid points.
+- **Red Leevers** (`UpdateRedLeever`) have no spawn cloud; `InitLeever` runs on
+  into the Octorok init, facing them by `ChaseTarget`. Underground, each frame
+  that `RedLeeverLongTimer` allows, a leever moves to a spot 40 pixels from Link
+  along his facing (reversed when `Random+1` >= $C0), keeping it even when it
+  can't rise there. The timer is a ten-frame long timer (5 at init, 2 after a
+  rise). A sinking leever frees its place at once, so a lower slot can rise the
+  same frame. The frame the timer changes state, the leever doesn't step.
+- **Room tile objects** (a bush, rock, or gravestone square) hold slot 11 for
+  the visit, so a Zora takes slot 10 (`tile_object_slot`).
+
+The `west_to_moblins` case ends at frame 1,369. Frame 1,370 is a lag frame in room $63, which has
 six monsters and their shots. Godot has no lag outside room changes.
 
 The random bytes line up frame for frame. Zelda's NMI scrambles them before
 running the frame's logic, as Godot's tick does, and both skip the two lag
 frames.
 
-**Further routes.** Mountain stairs, room $1F's false wall, and the dungeons are
-several screens away through monster rooms. The bootstrap has no sword, so a
-route must survive contact. Lynels (rooms $0x-$2x), Leevers and Peahats remain
-untraced.
+**Further routes.** Mountain stairs and room $1F's false wall are several
+screens away through monster rooms. The bootstrap has no sword, so a route must
+survive contact. Lynels, blue Leevers, Peahats, Ghini, and most dungeon
+monsters remain untraced.
 Known gaps the source shows but no case covers yet:
 - **Mountain stairs.** On tiles $74/$75, `InitLinkSpeed` halves the quarter speed
   to $30 and resets the fraction. This is now implemented from the source: rooms

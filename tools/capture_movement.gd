@@ -76,6 +76,11 @@ func run() -> void:
 		world.enter_room(world.rooms[room_id],Vector2i(int(initial.x),int(initial.y)),direction(int(initial.direction)),0,true)
 		# The NES seed has already completed its curtain and entry walk.
 		world.curtain = -1
+		# A case with setup frames may start partway through Link's movement.
+		var raw: Dictionary = initial.get("raw", {})
+		world.player.fraction = int(raw.get("fraction", 0))
+		var offset := int(raw.get("grid_offset", 0))
+		world.player.grid_offset = offset - 256 if offset >= 128 else offset
 		# Start from the reference's monster state, like its position: the random
 		# bytes ($18-$24), the edge spawn cursor and timer, and the phase of the
 		# ten-frame long-timer counter ($26 counts down; timers tick when it wraps).
@@ -89,6 +94,8 @@ func run() -> void:
 			world.combat.chase_target = Vector2i(int(chase[0]), int(chase[1]))
 			world.combat.chase_other = int(chase[2]) != 0
 			world.combat.chase_timer = int(chase[3])
+		# SpawnCycle ($524): where spawn lists resume, carried across rooms.
+		world.state.spawn_cycle = int(recorded.initial.get("spawn_cycle", 0))
 		if recorded.initial.has("timer_cycle"):
 			world.combat.frame_clock = posmod(-(int(recorded.initial.timer_cycle) + 1), 10)
 		var seed := snapshot(world)

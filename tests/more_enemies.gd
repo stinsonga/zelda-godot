@@ -64,7 +64,7 @@ func run() -> void:
 	var context := {"player":Vector2i(120,77),"player_facing":Vector2i.RIGHT,"ambush_timer":0,"active_ambush":0,"spawn_allowed":func(_at: Vector2i) -> bool: return true}
 	ambush.tick(Vector2i(120,77),func(_at: Vector2i) -> bool: return true,open_probe,true,context)
 	check(ambush.position() == Vector2i(160,77) and ambush.facing == Vector2i.LEFT and ambush.family.phase == 1, "Red Leever must emerge ahead of Link and face back toward him")
-	check(context.ambush_timer == 20 and context.active_ambush == 1, "Red Leevers must share emergence spacing and active-count controls")
+	check(context.ambush_timer == 2 and context.active_ambush == 1, "Red Leevers must share emergence spacing (two long-timer ticks) and active-count controls")
 	var blocked = actor(preload("res://content/enemies/ambush_leever.tres"))
 	context.ambush_timer = 0
 	context.active_ambush = 2

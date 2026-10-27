@@ -114,6 +114,24 @@ func apply_quarter_steps(forward: bool) -> void:
 		grid_offset = 0
 	moved_to = pixel_position()
 
+## Z_07 UpdateMode4and6EnterLeave: mode 4 walks Link into a dungeon room with
+## MoveObject alone, from the grid offset InitMode_EnterRoom set, until it reaches
+## +-8. The offset isn't reset at 16 on the way. Returns true when he has arrived.
+func walk_in_frame(direction: Vector2i) -> bool:
+	facing = direction
+	var forward := direction.x + direction.y > 0
+	for quarter in range(4):
+		fraction += quarter_speed if forward else -quarter_speed
+		var carry := fraction >= 256 if forward else fraction < 0
+		fraction = posmod(fraction, 256)
+		if carry and absi(grid_offset) != GRID_LIMIT:
+			subposition += direction * 256
+			grid_offset += 1 if forward else -1
+	moved_to = pixel_position()
+	if absi(grid_offset) != GRID_LIMIT: return false
+	grid_offset = 0
+	return true
+
 ## Z_05 InitLinkSpeed: $30 on stairs, else $60. Slowing down clears the fraction.
 func init_speed() -> void:
 	var speed := STAIRS_QUARTER_SPEED if collided_stairs else QUARTER_SPEED

@@ -422,9 +422,7 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	if transition != null:
 		if transition.tick():
-			var target: Resource = transition.target
-			enter_room(target, transition.destination, transition.direction, dungeon_entry_walk(target, transition.direction))
-			entry_walk_unchecked = target.dungeon_level > 0
+			enter_dungeon_walk(transition.target, transition.destination, transition.direction)
 			# Mode 4 ends by setting mode 5; InitMode5Play then spends a frame
 			# (measured in the overworld).
 			if room.dungeon_level == 0: settle_ticks = 1
@@ -494,21 +492,32 @@ func simulate_tick(direction: Vector2i, attack_pressed: bool = false, item_press
 		return
 	var before: Vector2i = player.pixel_position()
 	if entry_walk_remaining > 0:
-		# Mode 4 walks stop exactly on the target, unlike carried free movement.
-		var budget := mini(Player.SPEED_SUBPIXELS, entry_walk_subpixels)
-		if entry_walk_unchecked:
-			player.step(entry_direction, func(_at: Vector2i) -> bool: return true, func(_at: Vector2i, _direction: Vector2i) -> bool: return true, budget)
-		else:
+		if not entry_walk_unchecked:
+			# Portal walks stop exactly on the target, unlike carried free movement.
+			var budget := mini(Player.SPEED_SUBPIXELS, entry_walk_subpixels)
 			player.step(entry_direction, can_occupy, can_enter_segment, budget)
-		entry_walk_subpixels -= budget
-		entry_walk_remaining = ceili(entry_walk_subpixels / 256.0)
-		assert(budget < 256 or player.pixel_position() != before, "Portal entry walk is blocked")
+			entry_walk_subpixels -= budget
+			entry_walk_remaining = ceili(entry_walk_subpixels / 256.0)
+			assert(budget < 256 or player.pixel_position() != before, "Portal entry walk is blocked")
+		else:
+			# Mode 4 holds the room still to the end of the walk; mode 5 then
+			# settles for a frame, as after an overworld scroll.
+			if player.walk_in_frame(entry_direction):
+				entry_walk_remaining = 0
+				settle_ticks = 1
+			else:
+				entry_walk_remaining = maxi(1, absi(player.grid_offset) - Player.GRID_LIMIT)
+			walk_ticks += 1
+			if walk_ticks >= 6:
+				walk_ticks = 0
+				walk_pose = 1 - walk_pose
+			return
 	elif cave_halts:
 		return
 	elif cave_session == null and dialogue_visible() and dialogue_elapsed < room.dialogue.length() * room.dialogue_character_ticks:
 		dialogue_elapsed += 1
 		return
-	elif combat.shove_remaining > 0:
+	elif combat.shove_remaining > 0 or combat.shove_finishing:
 		combat.move_shoved_player(self)
 		combat.tick(self)
 		return
@@ -1143,6 +1152,14 @@ func dungeon_entry_walk(target: Resource, direction: Vector2i) -> int:
 		if door.direction == -direction: return 16 if door.kind in ["open", "key"] else 32
 	return 16
 
+## Enters the next room; in a dungeon, mode 4 then walks Link in from the grid
+## offset $18/$28 (moving left or up) or $E8/$D8 (right or down).
+func enter_dungeon_walk(target: Resource, at: Vector2i, direction: Vector2i) -> void:
+	var walk := dungeon_entry_walk(target, direction)
+	enter_room(target, at, direction, walk)
+	entry_walk_unchecked = walk > 0
+	if walk > 0: player.grid_offset = -(walk + 8) if direction.x + direction.y > 0 else walk + 8
+
 ## Z_07 CheckScreenEdge: Link must already stand on the edge when the frame
 ## begins (from), so the room changes on the frame after he reaches it.
 func try_exit(direction: Vector2i, from: Vector2i = Vector2i(-1000, -1000)) -> void:
@@ -1167,8 +1184,7 @@ func try_exit(direction: Vector2i, from: Vector2i = Vector2i(-1000, -1000)) -> v
 	# Z_07 CheckScreenEdge: Link reaches it "regardless of walkability" and never
 	# checks the next room, so he can arrive over water and walk on (room $0F).
 	if not scroll_transitions:
-		enter_room(target, destination, direction, dungeon_entry_walk(target, direction))
-		entry_walk_unchecked = target.dungeon_level > 0
+		enter_dungeon_walk(target, destination, direction)
 		return
 	transition = preload("res://scripts/room_transition.gd").new()
 	transition.source = room

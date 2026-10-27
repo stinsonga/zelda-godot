@@ -710,6 +710,7 @@ def import_rom(prg, output):
             ladder_water = [0] * 704
             stairs = [0] * 704
             codes = [0] * 704
+            tile_object = False
             coarse = []
             for y, row in enumerate(layout):
                 line = ''
@@ -717,6 +718,7 @@ def import_rom(prg, output):
                     palette = inner if 2 <= x < 14 and 2 <= y < 9 else outer
                     indices.append(palette * 64 + index)
                     parts = square_tiles(qprg, index)
+                    tile_object = tile_object or (index >= 16 and qprg[0x1697C + index] in TILE_OBJECTS)
                     solid = []
                     for part, tile in enumerate(parts):
                         blocked = int(tile >= 0x89 and tile not in WALKABLE)
@@ -857,6 +859,7 @@ def import_rom(prg, output):
 {f'false_wall_x = {FALSE_WALL[1]}{chr(10)}false_wall_below_y = {FALSE_WALL[2] - 64}' if room_id == FALSE_WALL[0] else ''}
     ladder_water = PackedByteArray({array(ladder_water)})
     {f'pair_collision = PackedByteArray({array(pairs)})' if pairs else ''}
+    {'tile_object_slot = true' if tile_object else ''}
     {f'stairs_tiles = PackedByteArray({array(stairs)})' if any(stairs) else ''}
     {'zora = ExtResource("zora")' if zora else ''}
     {MAZES.get(room_id, '')}

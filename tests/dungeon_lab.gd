@@ -26,7 +26,7 @@ func walk(direction: Vector2i, until: Callable, limit := 400) -> bool:
 	return false
 
 func in_room(id: StringName) -> Callable:
-	return func() -> bool: return world.room.id == id and world.transition == null and world.entry_walk_remaining == 0
+	return func() -> bool: return world.room.id == id and world.transition == null and world.entry_walk_remaining == 0 and world.settle_ticks == 0
 
 func at_x(x: int) -> Callable:
 	return func() -> bool: return world.player.pixel_position().x == x

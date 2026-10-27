@@ -308,26 +308,47 @@ func tick_burrow(actor: RefCounted, target: Vector2i, probe: Callable, context: 
 	var definition: Resource = actor.definition
 	var ambush: bool = definition.burrow_style == "ambush"
 	if ambush and phase == 0:
+		# Z_04 UpdateRedLeever, state 0: once RedLeeverLongTimer runs out, and with
+		# fewer than two up, take Link's direction (reversed when Random+1 >= $C0)
+		# and move underground to a spot that far from him. Rise only when the spot
+		# is on the play area (screen Y $5D or more), not wrapped around a side,
+		# and walkable. The leever keeps the spot and direction even when it stays.
 		if int(context.get("ambush_timer",0)) > 0 or int(context.get("active_ambush",0)) >= 2: return
 		var facing: Vector2i = context.get("player_facing",Vector2i.UP)
 		if actor.source_next_random >= 192: facing = -facing
-		var at: Vector2i = context.get("player",target)
-		at += facing * definition.ambush_distance
-		if facing.x != 0: at.x &= 248
-		else: at.y = (((at.y+64)&240)|13)-64
-		if at.x < 0 or at.x > 239 or at.y < 29 or at.y > 141 or not context.spawn_allowed.call(at): return
-		actor.subposition = at * 256
+		actor.facing = facing
+		var link: Vector2i = context.get("player",target)
+		var at: Vector2i = actor.position()
+		var distance: int = definition.ambush_distance
+		if facing.y != 0:
+			at = Vector2i(link.x, ((((link.y + 64 + facing.y * distance) & 255) & 240) | 13) - 64)
+			actor.subposition = at * 256
+			if at.y + 64 < 0x5D: return
+		else:
+			at.y = link.y
+			actor.subposition = at * 256
+			if link.y + 64 < 0x5D: return
+			at.x = ((link.x + facing.x * distance) & 255) & 248
+			actor.subposition = at * 256
+			if absi(at.x - link.x) >= 0x30: return
+		if not context.spawn_allowed.call(at): return
 		actor.facing = -facing
 		actor.source.grid_offset = 0
 		cycle_burrow(actor)
 		context.active_ambush = int(context.get("active_ambush",0)) + 1
-		context.ambush_timer = 20
-	elif timer == 0:
+		context.ambush_timer = 2
+	var cycled := false
+	if not (ambush and phase == 0) and timer == 0:
 		cycle_burrow(actor)
-		if ambush and phase == 0: return
+		cycled = true
+		if ambush and phase == 0:
+			# ActiveRedLeeverCount drops at once: a lower slot may rise this frame.
+			context.active_ambush = int(context.get("active_ambush",0)) - 1
+			return
 	actor.source.move_speed = definition.burrow_speeds[phase]
 	if ambush:
-		if phase == 3:
+		# UpdateRedLeever's timer path only cycles the state: no step that frame.
+		if phase == 3 and not cycled:
 			if not probe.call(actor.position(),actor.facing): cycle_burrow(actor)
 			else:
 				actor.source.advance_position(actor,actor.facing,definition.burrow_speeds[3])
@@ -357,7 +378,10 @@ func tick_flight(actor: RefCounted, target: Vector2i) -> void:
 			if definition.behavior == "gleeok_head": phase = 2 if actor.source_next_random < 208 else 3
 			# Flyer_PatraDecideState: chase or wander, never slowing down.
 			elif definition.behavior == "patra": phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3
-			else: phase = 2 if actor.source_random >= definition.flight_chase_threshold else 3 if actor.source_random >= definition.flight_rest_threshold else 4
+			else:
+				# Flyer_KeeseDecideState reads Random+1; Ghini and Peahats read Random.
+				var roll: int = actor.source_next_random if definition.nes_type in [0x1B, 0x1C, 0x1D] else actor.source_random
+				phase = 2 if roll >= definition.flight_chase_threshold else 3 if roll >= definition.flight_rest_threshold else 4
 			turns = definition.flight_turn_count
 		2,3:
 			if timer == 0:

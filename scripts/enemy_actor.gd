@@ -29,6 +29,8 @@ var shot_out := false
 var split_pending := false
 ## Set on the frame a monster comes in from the edge: it is initialized, not updated.
 var initializing := false
+## Set by a Red Leever's init, which restarts RedLeeverLongTimer.
+var resets_ambush_timer := false
 ## Whether the monster's init (Z_07 InitObject) has run; the spawn cloud starts then.
 var cloud_started := false
 ## Like Like and Wallmaster: ticks spent holding Link; 0 when free.
@@ -82,6 +84,16 @@ func start_cloud(target: Vector2i) -> void:
 		family.initialize(self)
 		spawn_remaining = family.timer + CLOUD_STEPS
 		family.timer = 6
+	elif definition.behavior == "burrower" and definition.burrow_style == "ambush":
+		# InitLeever runs on into InitSlowOctorockOrGhini: no cloud, and a facing
+		# by ChaseTarget (InitWalker). It also restarts RedLeeverLongTimer at 5.
+		spawn_remaining = 1
+		facing = Vector2i.ZERO
+		source.initialize_facing(self, target)
+		resets_ambush_timer = true
+	elif definition.behavior == "flyer" and family != null and family.has_method("initialize"):
+		# InitBlueKeese picks its direction from Random,X now; the timer stays the slot.
+		family.initialize(self)
 
 func position() -> Vector2i:
 	return Vector2i(floori(subposition.x / 256.0), floori(subposition.y / 256.0))
@@ -183,6 +195,7 @@ func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Call
 		if not cloud_started:
 			cloud_started = true
 			start_cloud(target)
+			if resets_ambush_timer: context["ambush_timer"] = 5
 		spawn_remaining -= 1
 		return false
 	if health <= 0:

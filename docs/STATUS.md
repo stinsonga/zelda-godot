@@ -62,21 +62,20 @@ These are recorded approximations, each small:
   - A drained pond keeps its water colour.
 - **Unverified rocks.** The shortcut-room rocks in $1D and $49 haven't been
   checked against an emulator.
-- **Movement.** A headless Nestopia/Godot harness compares 3,836 frames across
-  twenty scenarios, and all of them match. They cover `MoveObject`'s grid-point
+- **Movement.** A headless Nestopia/Godot harness compares 6,551 frames across
+  twenty-two scenarios, and all of them match. They cover `MoveObject`'s grid-point
   stop, the stateful grid offset, diagonal input, and overworld room changes in
   every direction, with the original's frames around the scroll. Mountain-stairs speed ($30 on tiles
   $74/$75) is translated from `InitLinkSpeed` but not yet checked against the
   emulator, since no scenario reaches stairs. Next:
   - monster comparisons. Octoroks (edge and spawn-list, with their rocks),
-    Tektites, a Zora and Moblins match the NES on every frame, including Link
-    being knocked back. Other families (Lynels, Leevers, Peahats, then the
-    dungeons) each need the same tracing. The remaining movement checks depend
-    on these;
-  - then dungeon transitions and doorways. After the scroll, Link walks in 16
-    pixels past an open or key doorway and 32 past any other, without collision,
-    as in `InitMode_EnterRoom`, so shutters close behind him. Frame timing is
-    unmeasured;
+    Tektites, Zoras, Moblins, Red Leevers, and level 1's Keese and Stalfos match
+    the NES on every frame, including Link being knocked back. Lynels, blue
+    Leevers, Peahats, Ghini, and the other dungeon monsters each need the same
+    tracing;
+  - dungeon room changes match the NES horizontally, including the walk-in
+    past the doorway (so shutters close behind Link). Vertical ones are
+    estimated from the source; measuring them needs a key;
     and routes to stairs and room $1F's false wall, all past monsters. See
   [MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md) for setup, safeguards and findings.
 

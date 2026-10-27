@@ -13,7 +13,8 @@ var chase_other := false
 var chase_timer := 0
 var frame_clock := 0
 var edge_timer := 0
-var ambush_timer := 50
+## RedLeeverLongTimer ($4D): a long timer, counted down every ten frames.
+var ambush_timer := 5
 var edge_cursor := 0x40
 var encounter_room: Resource
 var encounter_total := 0
@@ -28,6 +29,8 @@ var shove_remaining := 0
 var shove_direction := Vector2i.ZERO
 ## Z_07 Obj_Shove spends its first call initializing: Link moves from the next frame.
 var shove_starting := false
+## Obj_Shove's call after the distance runs out only resets it: one more held frame.
+var shove_finishing := false
 ## Z_05 ObjectRoomBoundsOW and ObjectRoomBoundsUW in play-area pixels.
 const BOUNDS_OVERWORLD := Rect2i(17, 14, 207, 127)
 const BOUNDS_UNDERWORLD := Rect2i(33, 30, 175, 95)
@@ -63,7 +66,8 @@ func enter_room(room: Resource, state: RefCounted, restoring: bool = false, entr
 	rocks.clear()
 	rewards.clear()
 	shove_remaining = 0
-	ambush_timer = 50
+	shove_finishing = false
+	ambush_timer = 5
 	encounter_room = room
 	bounds = room.monster_bounds if room.monster_bounds.has_area() else BOUNDS_UNDERWORLD if room.dungeon_level > 0 else BOUNDS_OVERWORLD
 	encounter_kills = 0
@@ -237,14 +241,30 @@ func move_shoved_player(world: Node) -> void:
 	if shove_starting:
 		shove_starting = false
 		return
-	var before: Vector2i = world.player.pixel_position()
-	var facing: Vector2i = world.player.facing
-	world.player.facing = shove_direction
-	world.player.step(shove_direction, world.can_occupy, world.can_enter_segment, mini(4, shove_remaining) * 256)
-	world.player.facing = facing
-	var moved: Vector2i = world.player.pixel_position() - before
-	if moved == Vector2i.ZERO: shove_remaining = 0
-	else: shove_remaining = maxi(0, shove_remaining - absi(moved.x) - absi(moved.y))
+	if shove_finishing:
+		shove_finishing = false
+		return
+	# Z_07 ShoveMoveMin: four pixels a frame. At a grid point the tile ahead must
+	# be walkable, and every pixel must stay inside the room bounds (the monsters'
+	# rectangle, not Link's walking limits); either ends the shove at once.
+	var player: RefCounted = world.player
+	var step: int = 1 if shove_direction.x + shove_direction.y > 0 else -1
+	for pixel in range(4):
+		var at: Vector2i = player.pixel_position()
+		if player.grid_offset == 0 and not world.ordinary_segment(at, shove_direction):
+			shove_remaining = 0
+			return
+		if (shove_direction.x < 0 and at.x < bounds.position.x) or (shove_direction.x > 0 and at.x >= bounds.end.x) \
+				or (shove_direction.y < 0 and at.y < bounds.position.y) or (shove_direction.y > 0 and at.y >= bounds.end.y):
+			shove_remaining = 0
+			return
+		shove_remaining -= 1
+		player.grid_offset += step
+		if player.grid_offset % 8 == 0: player.grid_offset = 0
+		player.subposition += shove_direction * 256
+		player.moved_to = player.pixel_position()
+	shove_finishing = shove_remaining <= 0
+	shove_remaining = maxi(0, shove_remaining)
 
 func tick(world: Node) -> void:
 	if world.state.health <= 0: return
@@ -267,7 +287,6 @@ func tick(world: Node) -> void:
 			if object.active and object.kind=="bait":food_target=object.position;break
 	update_chase_target(world.player.pixel_position(),food_target)
 	update_edge_spawns(world)
-	ambush_timer = maxi(0,ambush_timer-1)
 	wallmaster_cooldown = maxi(0, wallmaster_cooldown - 1)
 	var context := {"player":world.player.pixel_position(), "player_facing":world.player.facing, "bounds":bounds, "chase_target":chase_target, "rng":source_random, "random":source_random.at(0), "head_random":source_random.at(5),
 		"wallmaster_cooldown":wallmaster_cooldown, "player_moving":world.held.size() > 0, "frame":frame_clock,
@@ -289,6 +308,7 @@ func tick(world: Node) -> void:
 			continue
 		actor.source_random = source_random.at(actor.slot)
 		actor.source_next_random = source_random.at(actor.slot + 1)
+		actor.source.tile_probe = func(at: Vector2i, direction: Vector2i) -> bool: return source_tiles_open(world, at, direction)
 		if actor.targetable() and world.sword.hits(world.player.pixel_position(), actor.hit_position()):
 			if actor.receive_hit(world.sword.weapon.damage, world.sword.direction, "sword"):
 				world.audio.play(&"enemy_hit")
@@ -515,7 +535,10 @@ func tick_zora_spawn(world: Node) -> void:
 		var zora = Actor.new()
 		zora.setup(spawn)
 		zora.spawn_remaining = 0
+		# FindEmptyMonsterSlot: the highest free slot, below a room tile object's 11.
+		var used: Array = enemies.filter(func(a: RefCounted) -> bool: return a.alive()).map(func(a: RefCounted) -> int: return a.slot)
 		zora.slot = 11
+		while zora.slot > 1 and (zora.slot in used or (zora.slot == 11 and room.tile_object_slot)): zora.slot -= 1
 		# Like any new object, it initializes on the next frame's update.
 		zora.initializing = true
 		zora.family.zora_image = zora_image
@@ -607,7 +630,9 @@ func touch_player(world: Node, actor: RefCounted) -> void:
 				if actor.definition.behavior == "wallmaster": world.player.place(actor.position())
 			if actor.definition.contact_damage > 0: hurt_player(world, actor.definition.contact_damage, actor.position())
 			# UpdateLikeLike clears Link's shove; a held Link is never knocked away.
-			if world.captor == actor: shove_remaining = 0
+			if world.captor == actor:
+				shove_remaining = 0
+				shove_finishing = false
 		_:
 			if hurt_player(world, actor.definition.contact_damage, actor.position()) and actor.definition.turns_after_hitting_link:
 				# GetOppositeDir: the lowest direction bit, so horizontal first.
@@ -832,6 +857,7 @@ func advance_frame() -> void:
 	if frame_clock % 10 == 0:
 		chase_timer = maxi(0, chase_timer - 1)
 		edge_timer = maxi(0, edge_timer - 1)
+		ambush_timer = maxi(0, ambush_timer - 1)
 
 func update_chase_target(player: Vector2i, food: Variant = null) -> void:
 	if not chase_other: chase_target = player
@@ -852,13 +878,29 @@ func source_can_enter(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 	if direction == Vector2i.RIGHT and at.x >= bounds.end.x: return false
 	if direction == Vector2i.UP and at.y < bounds.position.y: return false
 	if direction == Vector2i.DOWN and at.y >= bounds.end.y: return false
+	return source_tiles_open(world, at, direction)
+
+## The tile half of source_can_enter, without the room bounds.
+## Z_07 GetCollidableTile skips the offset at the screen's edges: right from X
+## $F0, left below X $10, and down once Y + $0B reaches $DD; it reads the tile
+## underfoot instead.
+func source_tiles_open(world: Node, at: Vector2i, direction: Vector2i) -> bool:
 	var probe := at + Vector2i(0, 11)
 	if direction.x != 0:
-		probe.x += 16 if direction.x > 0 else -16
+		if direction.x > 0 and at.x < 0xF0: probe.x += 16
+		elif direction.x < 0 and at.x >= 0x10: probe.x -= 16
 		return not world.is_blocked(probe)
 	# Z_07 GetCollidingTileMoving: a monster or shot looks 8 pixels down, 16 up.
-	probe.y += 8 if direction.y > 0 else -16
-	return not world.is_pair_blocked(probe)
+	if direction.y < 0: probe.y -= 16
+	elif probe.y + 64 < 0xDD: probe.y += 8
+	return not world.is_pair_blocked(column_wrapped(probe))
+
+## The play area is stored a column at a time, 22 eight-pixel rows each. A row
+## past either end (the eight-bit row of Y - $40) reads into the next column.
+static func column_wrapped(pixel: Vector2i) -> Vector2i:
+	if pixel.y >= 0 and pixel.y < 176: return pixel
+	var index := (pixel.x / 8) * 22 + ((pixel.y & 255) >> 3)
+	return Vector2i((index / 22) * 8 + (pixel.x & 7), (index % 22) * 8 + (pixel.y & 7))
 
 func assign_source_spawns(room: Resource, state: RefCounted, player: Vector2i, direction: Vector2i) -> void:
 	# Traps keep their fixed spots; Wallmasters wait in the walls.
