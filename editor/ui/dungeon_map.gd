@@ -117,6 +117,12 @@ func _draw() -> void:
 				draw_rect(Rect2(middle-extent/2-Vector2(4,6),extent+Vector2(8,8)),Color("111b26"))
 				text(label,middle-extent/2+Vector2(0,7),color,12)
 	for room in pack.rooms:
+		for stair in room.get("stairs",[]):
+			if lookup.has(stair.target):
+				var a := center(room);var b := center(lookup[stair.target])
+				draw_dashed_line(a,b,Color("7ecad5"),2,5,true)
+				draw_circle(a.lerp(b,0.7),3,Color("7ecad5"))
+	for room in pack.rooms:
 		var at := center(room)
 		var rect := Rect2(at-cell_size*0.36,cell_size*0.72)
 		var color := Color("86d1ad") if room.id == selected_id else Color("8496a8")

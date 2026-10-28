@@ -36,6 +36,9 @@ func path_to(predicate: Callable) -> Array:
 			var path: Array = []
 			while at != start: path.push_front(at);at = parents[at]
 			return path
+		# An active portal is a terminal square, not a shortcut through its room.
+		if world.portal_armed or at != start:
+			if world.room.portals.any(func(portal): return portal.area.has_point(at) and (not portal.requires_secret or world.secrets.revealed)): continue
 		for direction in DIRS.values():
 			# Item/door input may stop Link between grid points. First finish
 			# that axis using real movement, then resume eight-pixel routing.
@@ -54,7 +57,7 @@ func path_to(predicate: Callable) -> Array:
 				if not world.can_occupy(at+direction*i): safe = false;break
 			if safe: parents[candidate] = at;queue.append(candidate)
 	return [Vector2i(-999,-999)]
-func walk_to(predicate: Callable) -> bool:
+func walk_to(predicate: Callable, arrival_room: String = "") -> bool:
 	var path := path_to(predicate)
 	if path == [Vector2i(-999,-999)]: return false
 	for waypoint in path:
@@ -63,6 +66,7 @@ func walk_to(predicate: Callable) -> bool:
 			if at == waypoint: break
 			var delta: Vector2i = waypoint-at
 			tick(Vector2i(signi(delta.x),0) if delta.x != 0 else Vector2i(0,signi(delta.y)))
+			if not arrival_room.is_empty() and String(world.room.id) == arrival_room: return true
 		if world.player.pixel_position() != waypoint: return false
 	return predicate.call(world.player.pixel_position())
 func replay(pack: Dictionary, proof: Dictionary) -> void:
@@ -77,16 +81,32 @@ func replay(pack: Dictionary, proof: Dictionary) -> void:
 		check(String(world.room.id) == event.room,"Native witness is in expected room for "+str(event))
 		if String(world.room.id) != event.room: break
 		if event.type == "pickup":
-			if world.state.has_collected(StringName(event.room),StringName(event.pickup)): continue
+			if world.state.has_collected(StringName(event.room),StringName(event.pickup)) and not event.has("at"): continue
 			var pickup: Resource
 			for item in world.room.pickups:
 				if String(item.id) == event.pickup: pickup = item;break
 			check(pickup != null,"Witness pickup exists")
 			if pickup == null: break
 			var at: Vector2i = pickup.position
-			check(walk_to(func(p): return absi(p.x-at.x)<=8 and absi(p.y-at.y)<=8),"Native geometry reaches witness pickup "+event.pickup)
+			var reached_pickup: bool
+			if event.has("at"):
+				var waypoint := Vector2i(int(event.at[0]),int(event.at[1]))
+				reached_pickup = walk_to(func(p): return p == waypoint)
+			else: reached_pickup = walk_to(func(p): return absi(p.x-at.x)<=8 and absi(p.y-at.y)<=8)
+			check(reached_pickup,"Native geometry reaches witness pickup "+event.pickup)
 			for i in range(4): tick()
 			check(world.state.has_collected(StringName(event.room),StringName(event.pickup)),"Native pickup collected "+event.pickup)
+		elif event.type == "walk":
+			var waypoint := Vector2i(int(event.at[0]),int(event.at[1]))
+			check(walk_to(func(p): return p == waypoint),"Native movement steps off arrival stair")
+		elif event.type == "stairs":
+			var trigger := Vector2i(int(event.at[0]),int(event.at[1]))
+			if world.player.pixel_position() == trigger and not world.portal_armed:
+				check(walk_to(func(p): return p != trigger),"Step off the suppressed arrival stair before returning")
+			check(walk_to(func(p): return p == trigger,event.target),"Native geometry reaches witness stair "+event.stairs)
+			if String(world.room.id) == event.room: tick()
+			check(String(world.room.id) == event.target,"Stair transitions to its authored destination")
+			prepare_room()
 		elif event.type == "push":
 			var approach := Vector2i(int(event.at[0]),int(event.at[1]))
 			check(walk_to(func(p): return p == approach),"Native geometry reaches the block's push approach")

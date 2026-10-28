@@ -126,7 +126,7 @@ walkable spawn/placement feet, room references, reverse door kinds and map
 positions are checked. Script/resource/asset paths and unsupported fields are
 rejected. Unsupported schema versions fail clearly. The format currently covers
 dungeon rooms, connections, spawns, five enemy behavior families, ten
-pickup types and directional block secrets; it does not import or round-trip arbitrary existing `.tres` rooms.
+pickup types, directional block secrets and stair/cellar links; it does not import or round-trip arbitrary existing `.tres` rooms.
 New packs begin with `custom_dungeon`; set a distinct Pack ID for each world.
 Changing it creates a new world identity rather than migrating existing saves.
 The GUI does not rename stable room or placement IDs yet.
@@ -148,12 +148,12 @@ This is the first usable editing loop, not the complete editor. Next:
 - Authored replacement libraries, more sprite layouts and an editable-copy
   workflow for locally imported rooms. The current local Art layer and terrain
   collision layer are separate; only supported ROM sprite sets/atlases resolve.
-- Hidden stairs, cellars, caves, other secret types, more items and advanced doors.
-  Directional blocks, secret pickups and block shutters are available; see
-  [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
+- Caves, other secret types, more items and advanced doors. Directional blocks,
+  secret pickups and block shutters are available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
+  Hidden stairs and linked cellars are available; see [STAIRS.md](STAIRS.md).
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
-- Broader generation: loops, multiple floors, advanced template dependencies and
+- Broader generation: loops, multiple floors, multi-room/cellar templates, advanced dependencies and
   more solver mechanics. The first seeded generator/progression search is now
   available; ordinary structural validation alone is still not a proof.
 

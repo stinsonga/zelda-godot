@@ -119,7 +119,10 @@ Current conservative limits:
 - 32 rooms, 48 pickups, 48 paired connections; default 20,000 states and 8 seconds.
 - Standard two-tile wall frames and dungeon-grid spawns. Edited boundary bypasses
   and off-grid spawns are reported unsupported.
-- No water/ladder deployment, raft routes, other secret types, caves, cellars,
+- Authored stair links and cellar rooms are modeled as forced portal transitions
+  with arrival suppression. See [STAIRS.md](STAIRS.md). Single-room templates
+  reject links that require other rooms; generated cellar networks are future work.
+- No water/ladder deployment, raft routes, other secret types, caves,
   money rules, boss vulnerabilities or enemy-drop dependencies.
 - At most eight total supplied bombs, including starting bundles. Larger supplies
   need capacity/timing-aware pickup routing and are explicitly unsupported, rather
@@ -135,7 +138,8 @@ problems by moving rewards across barriers or removing locks.
 
 Version-1 packs remain readable and editable. They keep the previous preview
 starting sword. Version 2 adds `starting_items`, `goals`, optional generation
-provenance, optional room role/template IDs and directional block secrets, pickup
+provenance, optional room role/template IDs, directional block secrets and stair
+links/cellar metadata, pickup
 `requires_clear` / `requires_secret`, and connection
 `requires`. Empty starting equipment really starts unarmed; preview code no longer
 adds a sword behind the pack's back. Draft packs may have no objectives, but cannot

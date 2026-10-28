@@ -24,6 +24,9 @@ var stroke_before: Dictionary = {}
 var selected_tool := "Select"
 var placement_key: Dictionary = {}
 var placement_inspector: VBoxContainer
+var stairs_inspector: VBoxContainer
+const TemplateData = preload("../shared/dungeon_templates.gd")
+const StairInspector = preload("stair_inspector.gd")
 var block_inspector: VBoxContainer
 const BlockInspector = preload("block_inspector.gd")
 const PlacementInspector = preload("placement_inspector.gd")
@@ -202,10 +205,10 @@ func build_ui() -> void:
 	var room_view := VBoxContainer.new()
 	room_view.name = "Room"
 	views.add_child(room_view)
-	var tools := HBoxContainer.new()
+	var tools := HFlowContainer.new()
 	room_view.add_child(tools)
 	var group := ButtonGroup.new()
-	for name in ["Select","Block","Floor","Wall","Water","Spawn","Enemy","Pickup","Erase","Art"]:
+	for name in ["Select","Block","Stairs","Floor","Wall","Water","Spawn","Enemy","Pickup","Erase","Art"]:
 		var tool := button(name,tools,func(): set_tool(name))
 		tool_buttons[name] = tool
 		tool.toggle_mode = true
@@ -228,6 +231,7 @@ func build_ui() -> void:
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	room_view.add_child(canvas)
 	canvas.stroke_started.connect(func(): stroke_before = pack.duplicate(true); stroke_appearance_before = appearance.duplicate(true))
+	canvas.stair_chosen.connect(inspect_stair)
 	canvas.secret_chosen.connect(func():
 		select_placement("","")
 		block_inspector.cell_x.get_line_edit().grab_focus())
@@ -292,6 +296,11 @@ func build_ui() -> void:
 	right.add_child(block_inspector)
 	block_inspector.applied.connect(apply_block)
 	block_inspector.removed.connect(remove_block)
+	stairs_inspector = StairInspector.new()
+	right.add_child(stairs_inspector)
+	stairs_inspector.applied.connect(apply_stair)
+	stairs_inspector.removed.connect(remove_stair)
+	stairs_inspector.cellar_requested.connect(create_cellar)
 	section("ROOM",right)
 	title_edit = LineEdit.new()
 	right.add_child(title_edit)
@@ -382,7 +391,7 @@ func refresh() -> void:
 	var target_selection := selected(destination)
 	rooms_list.clear()
 	for r in pack.rooms:
-		rooms_list.add_item(("★ " if r.id == pack.start_room else "") + r.title)
+		rooms_list.add_item(("★ " if r.id == pack.start_room else "") + r.title + (" (cellar)" if r.get("kind") == "cellar" else ""))
 		if r.id == current_id: rooms_list.select(rooms_list.item_count-1)
 	goal_pickup.clear()
 	for pickup in room.pickups: goal_pickup.add_item(pickup.id)
@@ -397,6 +406,7 @@ func refresh() -> void:
 	shutter.disabled = room.shutter_trigger == 4
 	shutter.tooltip_text = "Controlled by the push block" if shutter.disabled else ""
 	block_inspector.refresh(room)
+	stairs_inspector.refresh(room,pack)
 	start_button.disabled = current_id == pack.start_room
 	enemy_type.clear()
 	for id in pack.enemy_types:
@@ -473,6 +483,14 @@ func redo() -> void:
 	validate_pack()
 func paint(cell: Vector2i, erase: bool) -> void:
 	var room := current()
+	if selected_tool == "Stairs":
+		if erase:
+			for stair in room.get("stairs",[]).duplicate():
+				if Vector2i(int(stair.cell[0]),int(stair.cell[1])) == cell: remove_stair(stair.id)
+		else:
+			var stair: Dictionary = stairs_inspector.value()
+			stair.cell = [cell.x,cell.y];apply_stair(stair)
+		return
 	if selected_tool == "Block":
 		if erase: remove_block();return
 		var secret: Dictionary = block_inspector.value()
@@ -526,6 +544,7 @@ func duplicate_room() -> void:
 		room.title += " copy"
 		room.map_position = unused_map_position()
 		room.connections = {}
+		room.erase("stairs")
 		if appearance.room_tiles.has(current_id): appearance.room_tiles[room.id] = appearance.room_tiles[current_id].duplicate(true)
 		pack.rooms.append(room)
 		current_id = room.id)
@@ -536,6 +555,7 @@ func delete_room() -> void:
 		if pack.schema == 2: pack.goals = pack.goals.filter(func(g): return g.room != removed)
 		pack.rooms = pack.rooms.filter(func(r): return r.id != removed)
 		for room in pack.rooms:
+			if room.has("stairs"): room.stairs = room.stairs.filter(func(stair): return stair.target != removed)
 			for direction in room.connections.keys():
 				if room.connections[direction].target == removed: room.connections.erase(direction)
 		current_id = pack.rooms[0].id
@@ -596,6 +616,7 @@ func message(text: String) -> void: status.text = text
 func replace_pack(value: Dictionary, filename: String, load_local_art: bool = true) -> void:
 	placement_key = {}
 	canvas.dragging = false
+	stairs_inspector.room_id = ""
 	pack = value.duplicate(true)
 	var local := Appearance.read_local(game_root,pack) if load_local_art else {"overlay":Appearance.fresh(pack.id),"warnings":PackedStringArray()}
 	appearance = local.overlay
@@ -953,6 +974,9 @@ func apply_block(secret: Dictionary) -> void:
 	room.shutter_trigger = 4 if secret.reveal == "shutters" else (1 if room.shutter_trigger == 4 else room.shutter_trigger)
 	var errors := PackedStringArray()
 	Pack.validate_block(room,true,errors)
+	var lookup: Dictionary = {}
+	for entry in pack.rooms: lookup[entry.id] = room if entry.id == current_id else entry
+	Pack.validate_stairs(lookup,errors)
 	if not errors.is_empty(): message("\n".join(errors));return
 	if current().has("secret") and same_position(current().secret.cell,secret.cell) and current().secret.direction == secret.direction and current().secret.reveal == secret.reveal and current().shutter_trigger == room.shutter_trigger: return
 	var action := func():
@@ -967,5 +991,60 @@ func remove_block() -> void:
 		current().erase("secret")
 		if current().shutter_trigger == 4: current().shutter_trigger = 1
 		for pickup in current().pickups: pickup.erase("requires_secret")
+		for stair in current().get("stairs",[]): stair.erase("requires_secret")
 	if stroke_before.is_empty(): edit(action)
 	else: action.call();canvas.queue_redraw()
+
+func apply_stair(value: Dictionary) -> void:
+	var candidate := pack.duplicate(true);Pack.upgrade(candidate)
+	var room: Dictionary
+	for entry in candidate.rooms:
+		if entry.id == current_id: room = entry;break
+	var stair := value.duplicate(true)
+	var entries: Array = room.get("stairs",[])
+	if stair.id.is_empty(): stair.id = unique_placement_id(entries,"stairs")
+	var replaced := false
+	for i in entries.size():
+		if entries[i].id == stair.id: entries[i] = stair;replaced = true;break
+	if not replaced: entries.append(stair)
+	room.stairs = entries
+	var errors := Pack.validate(candidate)
+	if not errors.is_empty(): message("\n".join(errors));return
+	# Preserve numeric representation on a no-op loaded from JSON.
+	if TemplateData.canonical(candidate) == TemplateData.canonical(pack): return
+	stairs_inspector.selected_id = stair.id
+	if stroke_before.is_empty(): edit(func(): pack = candidate)
+	else: pack = candidate;canvas.room = current();canvas.queue_redraw()
+func remove_stair(id: String) -> void:
+	if not current().get("stairs",[]).any(func(stair): return stair.id == id): return
+	var action := func(): current().stairs = current().stairs.filter(func(stair): return stair.id != id)
+	if stroke_before.is_empty(): edit(action)
+	else: action.call();canvas.queue_redraw()
+func create_cellar(value: Dictionary) -> void:
+	if pack.rooms.size() >= 256 or current().get("stairs",[]).size() >= 4: message("Room or stair limit reached.");return
+	var candidate := pack.duplicate(true);Pack.upgrade(candidate)
+	var source: Dictionary
+	for room in candidate.rooms:
+		if room.id == current_id: source = room;break
+	var cellar := Pack.cellar(unique_room_id())
+	cellar.map_position = unused_map_position()
+	var stair := value.duplicate(true)
+	var entries: Array = source.get("stairs",[])
+	stair.id = unique_placement_id(entries,"stairs")
+	stair.target = cellar.id;stair.target_position = [48,61]
+	entries.append(stair);source.stairs = entries
+	cellar.stairs = [{"id":"return","cell":[3,3],"target":current_id,"target_position":source.spawn.duplicate()}]
+	candidate.rooms.append(cellar)
+	var errors := Pack.validate(candidate)
+	if not errors.is_empty(): message("\n".join(errors));return
+	stairs_inspector.selected_id = stair.id
+	edit(func(): pack = candidate)
+	message("Created " + String(cellar.id) + " with a return stair. Select it in the room list to paint or place items.")
+
+func inspect_stair(id: String) -> void:
+	select_placement("","")
+	stairs_inspector.choose(id)
+	stairs_inspector.cell_x.get_line_edit().grab_focus()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	stairs_inspector.get_parent().get_parent().scroll_vertical = int(stairs_inspector.position.y)

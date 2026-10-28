@@ -79,8 +79,9 @@ landing square, requires a clearable encounter and reachable push approach,
 opens trigger-4 shutters, and gates secret pickups. It resets push state when
 traveling to another room. Witness routes include explicit push events.
 Combat remains an assumption; this is not a survival or timing proof. Other secret
-types, hidden stairs, cellars, caves and persistent block arrangements are not
-supported in authored pack data yet and cannot receive a solvability claim.
+types, caves and persistent block arrangements are not supported in authored pack
+data yet and cannot receive a solvability claim. Hidden stairs and authored
+cellars are supported separately; see [STAIRS.md](STAIRS.md).
 
 ```sh
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path editor --script res://tests/blocks.gd --log-file /tmp/block-editor.log

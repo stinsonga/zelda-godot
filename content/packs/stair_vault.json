@@ -1,0 +1,187 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "goals": [
+    {
+      "pickup": "reward",
+      "room": "vault"
+    }
+  ],
+  "id": "stair_vault",
+  "rooms": [
+    {
+      "connections": {
+        "up": {
+          "kind": "open",
+          "requires": [
+            "bow"
+          ],
+          "target": "vault"
+        }
+      },
+      "enemies": [],
+      "id": "entry",
+      "map_position": [
+        0,
+        0
+      ],
+      "pickups": [],
+      "secret": {
+        "cell": [
+          6,
+          5
+        ],
+        "direction": "right",
+        "reveal": "item"
+      },
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            6,
+            5
+          ],
+          "id": "hidden_stairs",
+          "requires_secret": true,
+          "target": "cellar",
+          "target_position": [
+            48,
+            61
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Entrance"
+    },
+    {
+      "connections": {
+
+      },
+      "enemies": [],
+      "id": "cellar",
+      "kind": "cellar",
+      "map_position": [
+        1,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "bow",
+          "item": "bow",
+          "position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            3,
+            3
+          ],
+          "id": "return",
+          "target": "entry",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Cellar"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "open",
+          "requires": [
+            "bow"
+          ],
+          "target": "entry"
+        }
+      },
+      "enemies": [],
+      "id": "vault",
+      "map_position": [
+        0,
+        -1
+      ],
+      "pickups": [
+        {
+          "id": "reward",
+          "item": "rupee",
+          "position": [
+            120,
+            77
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "The stair reward"
+    }
+  ],
+  "schema": 2,
+  "start_room": "entry",
+  "starting_items": [
+    "wooden_sword"
+  ],
+  "title": "Stair vault"
+}

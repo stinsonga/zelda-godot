@@ -1,6 +1,8 @@
 class_name PortalDefinition
 extends Resource
 
+## Authored stair marker; original themed portals keep their existing tile art.
+@export var show_stairs: bool = false
 @export var area: Rect2i
 @export var required_direction: Vector2i = Vector2i.ZERO
 @export var target_room: StringName

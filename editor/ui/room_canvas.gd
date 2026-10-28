@@ -1,4 +1,5 @@
 extends Control
+signal stair_chosen(id: String)
 signal secret_chosen
 signal entity_chosen(kind: String, id: String)
 signal entity_moved(room_id: String, position: Array)
@@ -110,6 +111,11 @@ func _draw() -> void:
 	var spawn := rect.position+(Vector2(room.spawn[0],room.spawn[1]+3)+Vector2(8,8))/16.0*step
 	draw_circle(spawn,minf(step.x,step.y)*0.38,Color("86d1ad"),false,3)
 	label_at("S",spawn+Vector2(-5,5),Color("86d1ad"))
+	for stair in room.get("stairs",[]):
+		var top := rect.position+Vector2(stair.cell[0],stair.cell[1])*step
+		var color := Color("7ecad5") if not stair.get("requires_secret",false) else Color("c2a5ee")
+		draw_rect(Rect2(top,step),Color("111b26"));draw_rect(Rect2(top,step),color,false,2)
+		for i in range(4): draw_line(top+Vector2(i*0.12,0.18+i*0.2)*step,top+Vector2(0.9,0.18+i*0.2)*step,color,2)
 	if room.has("secret"):
 		var cell := Vector2(room.secret.cell[0],room.secret.cell[1])
 		var direction: Vector2 = {"up":Vector2.UP,"right":Vector2.RIGHT,"down":Vector2.DOWN,"left":Vector2.LEFT}[room.secret.direction]
@@ -138,6 +144,10 @@ func select_input(event: InputEvent) -> void:
 		var at := room_pixel(event.position)
 		if room.has("secret") and Rect2(Vector2(room.secret.cell[0],room.secret.cell[1])*16,Vector2(16,16)).has_point(at) and not event.alt_pressed:
 			dragging = false;secret_chosen.emit();accept_event();return
+		if not event.alt_pressed:
+			for stair in room.get("stairs",[]):
+				if Rect2(Vector2(stair.cell[0],stair.cell[1])*16,Vector2(16,16)).has_point(at):
+					dragging = false;stair_chosen.emit(stair.id);accept_event();return
 		var hits: Array = []
 		for kind in ["enemies","pickups","spawn"]:
 			var entries: Array = [{"id":"","position":room.spawn}] if kind == "spawn" else room[kind]

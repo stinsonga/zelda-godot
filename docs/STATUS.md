@@ -108,13 +108,20 @@ solver state and native witness replay. Blocks reset on room re-entry; original
 unrestricted blocks retain their behavior. A ROM-free Block vault example is in
 `content/packs/block_vault.json`. See [PUSH_BLOCKS.md](../editor/PUSH_BLOCKS.md).
 
+Hidden/visible stairs and editable cellars now use native portal destinations, with
+one-step linked-cellar creation, incoming-link cleanup, undo, map links and solver
+witness replay. Arrival suppression and forced stair transitions are modeled.
+Try `content/packs/stair_vault.json`; see [STAIRS.md](../editor/STAIRS.md). Cellars use
+authored dungeon geometry; original cellar animation and multi-room templates
+remain future work.
+
 Missing:
 
 - authored replacement libraries, richer sprite
   layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
-- authoring support for hidden stairs, other secret types, caves and cellars, plus broader
-  generation layouts and solver support for water, advanced dependencies and
+- authoring support for other secret types and caves, original cellar transitions, plus broader
+  generation layouts, multi-room templates and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
 - automatic ID remapping when content is renamed, so older saves keep loading
   ([SAVING.md](SAVING.md)).

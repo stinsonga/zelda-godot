@@ -1405,6 +1405,13 @@ func draw_named_sprite(name: StringName, position_in_room: Vector2, tint: Color 
 		draw_clipped_texture(texture,Rect2(position_in_room + Vector2(0,HUD_HEIGHT),size),Rect2(Vector2.ZERO,texture.get_size()),tint)
 
 func draw_room_objects() -> void:
+	for portal in room.portals:
+		if not portal.show_stairs or (portal.requires_secret and not secrets.revealed): continue
+		var top := Vector2(portal.area.position)+Vector2(0,HUD_HEIGHT+3)
+		draw_rect(Rect2(top,Vector2(16,16)),Color("111b26"))
+		for i in range(4):
+			var inset := float(i*2)
+			draw_line(top+Vector2(inset,3+i*3),top+Vector2(15,3+i*3),Color("d3c6a1"),1)
 	for decoration in room.decorations:
 		if not decoration_visible(decoration):
 			continue

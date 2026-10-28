@@ -100,9 +100,10 @@ static func validate(pack) -> PackedStringArray:
 		if ids.has(id): errors.append("Duplicate room ID: " + id)
 		ids[id] = r
 		var room_fields: Array = ROOM_FIELDS.duplicate()
-		if version == 2: room_fields.append_array(["template_id","role","secret"])
+		if version == 2: room_fields.append_array(["template_id","role","secret","stairs","kind"])
 		unknown_fields(r,room_fields,id,errors)
 		if version == 2:
+			if r.has("kind") and r.kind not in ["dungeon","cellar"]: errors.append(id + ": room kind must be dungeon or cellar")
 			if r.has("template_id") and not identifier(r.template_id): errors.append(id + ": invalid template ID")
 			if r.has("role") and r.role not in ["start","key","item","combat","treasure","goal"]: errors.append(id + ": invalid template role")
 		if not r.get("title") is String: errors.append(id + ": title must be text")
@@ -172,7 +173,9 @@ static func validate(pack) -> PackedStringArray:
 			var reverse = back.get(OPPOSITE[edge],{})
 			if not reverse is Dictionary or reverse.get("target") != id or reverse.get("kind") != link.get("kind") or requirements(reverse) != requirements(link):
 				errors.append(id + ": connection " + edge + " needs a reciprocal door of the same kind")
-	if version == 2: validate_progression(pack,ids,errors)
+	if version == 2:
+		validate_stairs(ids,errors)
+		validate_progression(pack,ids,errors)
 	return errors
 
 static func read(path: String) -> Dictionary:
@@ -214,7 +217,9 @@ static func layout_warnings(pack: Dictionary) -> PackedStringArray:
 	var pending: Array = [pack.start_room]
 	while not pending.is_empty():
 		var id: String = pending.pop_back()
-		for link in rooms[id].connections.values():
+		var links: Array = rooms[id].connections.values().duplicate()
+		for stair in rooms[id].get("stairs",[]): links.append({"target":stair.target,"kind":"open"})
+		for link in links:
 			if link.kind == "wall" or visited.has(link.target): continue
 			visited[link.target] = true
 			pending.append(link.target)
@@ -298,3 +303,45 @@ static func block_overlaps(secret: Dictionary, at: Array, pushed: bool) -> bool:
 	for offset in [0,8]:
 		if Vector2i((int(at[0])+offset)/16,(int(at[1])+11)/16) == cell: return true
 	return false
+
+static func stair_position(stair: Dictionary) -> Vector2i:
+	return Vector2i(int(stair.cell[0])*16,int(stair.cell[1])*16-3)
+static func validate_stairs(rooms: Dictionary, errors: PackedStringArray) -> void:
+	for id in rooms:
+		var room: Dictionary = rooms[id]
+		var stairs = room.get("stairs",[])
+		if not stairs is Array or stairs.size()>4: errors.append(id+": stairs must be a list of at most four links");continue
+		var ids: Dictionary = {}
+		var cells: Dictionary = {}
+		for stair in stairs:
+			var prefix := String(id)+": stairs "
+			if not stair is Dictionary: errors.append(prefix+"must be an object");continue
+			unknown_fields(stair,["id","cell","target","target_position","requires_secret"],prefix,errors)
+			if not identifier(stair.get("id")) or ids.has(stair.get("id")): errors.append(prefix+"IDs must be unique")
+			else: ids[stair.id] = true
+			if stair.has("requires_secret") and not stair.requires_secret is bool: errors.append(prefix+"requires_secret must be true or false")
+			if stair.get("requires_secret") == true and not room.has("secret"): errors.append(prefix+"hidden stairs need a block secret")
+			if not point(stair.get("cell"),3,12,3,7): errors.append(prefix+"cell must lie at X 3..12, Y 3..7, clear of door approaches");continue
+			var at := stair_position(stair)
+			if cells.has(at): errors.append(prefix+"cells must be unique")
+			cells[at] = true
+			if not room.get("tiles") is Array or not walkable(room.tiles,[at.x,at.y]): errors.append(prefix+"cell needs walkable floor")
+			if point(room.get("spawn"),0,240,0,157) and at == Vector2i(int(room.spawn[0]),int(room.spawn[1])): errors.append(prefix+"cannot cover the room's initial spawn")
+			var secret = room.get("secret")
+			if secret is Dictionary and point(secret.get("cell"),2,13,2,8) and secret.get("direction") in EDGES:
+				if block_overlaps(secret,[at.x,at.y],false) and stair.get("requires_secret") != true: errors.append(prefix+"under a block must require its secret")
+				if block_overlaps(secret,[at.x,at.y],true): errors.append(prefix+"cannot occupy the block's landing square")
+			if not identifier(stair.get("target")) or not rooms.has(stair.get("target")) or stair.target == id: errors.append(prefix+"needs a different existing destination room");continue
+			var target: Dictionary = rooms[stair.target]
+			var position = stair.get("target_position")
+			if not point(position,0,240,0,157): errors.append(prefix+"invalid arrival position");continue
+			if int(position[0])%8 != 0 or posmod(int(position[1])-5,8) != 0: errors.append(prefix+"arrival must lie on the eight-pixel dungeon grid")
+			if not target.get("tiles") is Array or not walkable(target.tiles,position): errors.append(prefix+"arrival feet are blocked")
+			secret = target.get("secret")
+			if secret is Dictionary and point(secret.get("cell"),2,13,2,8) and secret.get("direction") in EDGES and block_overlaps(secret,position,false): errors.append(prefix+"arrival overlaps the destination's reset block")
+
+static func cellar(id: String) -> Dictionary:
+	var result := room(id,"Cellar")
+	result.kind = "cellar"
+	for y in range(2,8): result.tiles[y] = "###.########.###"
+	return result

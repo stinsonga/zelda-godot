@@ -7,6 +7,7 @@ const World = preload("res://scripts/world_definition.gd")
 const Enemy = preload("res://scripts/enemy_definition.gd")
 const Spawn = preload("res://scripts/enemy_spawn.gd")
 const Door = preload("res://scripts/door_definition.gd")
+const Portal = preload("res://scripts/portal_definition.gd")
 const Secret = preload("res://scripts/secret_definition.gd")
 const Pickup = preload("res://scripts/pickup_definition.gd")
 const DIRECTIONS := {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}
@@ -77,6 +78,14 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 			door.kind = link.kind
 			for item in link.get("requires",[]): door.required_items[StringName(Contract.ITEM_SLOTS[item])] = 1
 			room.doors.append(door)
+		for stair in source.get("stairs",[]):
+			var portal = Portal.new()
+			portal.area = Rect2i(Contract.stair_position(stair),Vector2i.ONE)
+			portal.target_room = StringName(stair.target)
+			portal.target_position = Vector2i(int(stair.target_position[0]),int(stair.target_position[1]))
+			portal.requires_secret = stair.get("requires_secret",false)
+			portal.show_stairs = true
+			room.portals.append(portal)
 		for placement in source.enemies:
 			var spawn = Spawn.new()
 			spawn.id = StringName(placement.id)

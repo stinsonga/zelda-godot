@@ -42,6 +42,7 @@ static func validate(data) -> PackedStringArray:
 				if value not in (Pack.EDGES if field == "ports" else Pack.REQUIRED_ITEMS) or value in seen: errors.append(entry.id+": invalid or duplicate "+field)
 				seen.append(value)
 		if not entry.get("room") is Dictionary: errors.append(entry.id+": missing room");continue
+		if entry.room.get("stairs",[]) != []: errors.append(entry.id+": linked stairs need a multi-room template; single-room capture is unsupported")
 		if entry.room.get("connections") != {}: errors.append(entry.id+": template connections must be empty")
 		var pack := {"schema":2,"id":"template_check","title":"Template","start_room":entry.room.get("id",""),"enemy_types":data.enemy_types,"rooms":[entry.room],"starting_items":[],"goals":[]}
 		for error in Pack.validate(pack): errors.append(entry.id+": "+error)
@@ -73,6 +74,7 @@ static func capture(catalog: Dictionary, pack: Dictionary, room_id: String, id: 
 	if output.templates.any(func(t): return t.id == id): return {"errors":PackedStringArray(["Template ID already exists; choose a new ID"])}
 	var matches: Array = pack.rooms.filter(func(r): return r.id == room_id)
 	if matches.is_empty(): return {"errors":PackedStringArray(["Room is missing"])}
+	if not matches[0].get("stairs",[]).is_empty(): return {"errors":PackedStringArray(["Linked stairs require multi-room templates; remove the links before capturing a single room."])}
 	var room: Dictionary = matches[0].duplicate(true)
 	room.connections = {}
 	room.erase("template_id");room.erase("role")
