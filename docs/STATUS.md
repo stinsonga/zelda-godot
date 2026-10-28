@@ -112,8 +112,13 @@ Hidden/visible stairs and editable cellars now use native portal destinations, w
 one-step linked-cellar creation, incoming-link cleanup, undo, map links and solver
 witness replay. Arrival suppression and forced stair transitions are modeled.
 Try `content/packs/stair_vault.json`; see [STAIRS.md](../editor/STAIRS.md). Cellars use
-authored dungeon geometry; original cellar animation and multi-room templates
-remain future work.
+authored dungeon geometry; original cellar animation remains future work.
+Primary-room/cellar templates now capture and instantiate up to three linked
+annexes, with per-instance target IDs and configurable progression reward rooms.
+Seeded generation verifies key-return and goal-cellar routes. Format-1 recipes
+remain compatible; format-2 libraries use generator version 2. Try
+`content/templates/cellar_templates.json`; see
+[MULTI_ROOM_TEMPLATES.md](../editor/MULTI_ROOM_TEMPLATES.md).
 
 Missing:
 
@@ -121,7 +126,7 @@ Missing:
   layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
 - authoring support for other secret types and caves, original cellar transitions, plus broader
-  generation layouts, multi-room templates and solver support for water, advanced dependencies and
+  generation layouts, general room-group templates and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
 - automatic ID remapping when content is renamed, so older saves keep loading
   ([SAVING.md](SAVING.md)).

@@ -11,7 +11,8 @@ Generation and progression checking run in a worker thread.
 2. Choose a template-library JSON file. The default is
    `content/templates/dungeon_templates.json`: ten authored rooms/variants for
    start, key, item, combat, treasure and goal roles.
-3. Enter an integer seed (0..2147483647), choose 6..16 rooms and a required item.
+3. Enter an integer seed (0..2147483647), choose 6..16 primary rooms and a required item. Cellar annexes are additional
+   rooms, with at most 32 rooms total.
 4. Click **Generate and verify**. A candidate is offered only when the solver
    finds a route collecting every objective under its stated model. Failures,
    unsupported cases and search limits remain failures/inconclusive; they are
@@ -30,7 +31,8 @@ room. Branch treasure pickups are also objectives, so the successful route must
 reach them, rather than certifying only the main path. This is a first generator,
 not yet a general procedural puzzle designer with loops or multiple floors.
 
-The generated pack contains a recipe: `authored_tree`, algorithm version 1,
+The generated pack contains a recipe: `authored_tree`, algorithm version 1 for
+format-1 libraries or version 2 for format-2 libraries,
 seed, requested size/item, selected template IDs and the library's canonical
 SHA256. Its PRNG is an explicit 32-bit LCG, independent of Godot's random-number
 implementation. The same algorithm, library contents and recipe reproduce the
@@ -55,10 +57,12 @@ variants so changing one template cannot alter older definitions. Local ROM
 appearance overlays are omitted. The library is ordinary editable JSON under
 `content/templates/`; no ROM or imported geometry is needed.
 
-Each library has `format_version: 1`, an ID, an enemy-definition dictionary and
+Each library has `format_version: 1` or `2`, an ID, an enemy-definition dictionary and
 up to 128 weighted templates. All six roles must be represented. Each template
 has an ID, role, positive weight, nonempty `ports`, permanent-item `requires`,
-and a room document with no connections. The generator selects templates whose
+and a primary room document with no connections. Format 2 optionally includes
+up to three stair-linked cellar annexes and a generated reward room/position. See
+[MULTI_ROOM_TEMPLATES.md](MULTI_ROOM_TEMPLATES.md). The generator selects templates whose
 ports fit their assigned neighbours. Start templates may require only the starting
 sword; other unmet dependencies cause candidate rejection. Arbitrary dependency
 planning for every user-defined tool is not implemented: the recipe places its
@@ -120,8 +124,9 @@ Current conservative limits:
 - Standard two-tile wall frames and dungeon-grid spawns. Edited boundary bypasses
   and off-grid spawns are reported unsupported.
 - Authored stair links and cellar rooms are modeled as forced portal transitions
-  with arrival suppression. See [STAIRS.md](STAIRS.md). Single-room templates
-  reject links that require other rooms; generated cellar networks are future work.
+  with arrival suppression. See [STAIRS.md](STAIRS.md). Enable linked-cellar
+  capture for bounded room/cellar units; general room groups and internal door
+  networks remain outside template support.
 - No water/ladder deployment, raft routes, other secret types, caves,
   money rules, boss vulnerabilities or enemy-drop dependencies.
 - At most eight total supplied bombs, including starting bundles. Larger supplies

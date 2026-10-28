@@ -1,0 +1,608 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "goal_cellar_crawler_1580e1d5": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 3,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "key_cellar_crawler_e4758e7d": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 3,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "format_version": 2,
+  "id": "cellar_templates",
+  "templates": [
+    {
+      "id": "start_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "start",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "start",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Start chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "item_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "item",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "item",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Item chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "combat_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "combat",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [
+          {
+            "id": "guard",
+            "position": [
+              80,
+              61
+            ],
+            "type": "crawler"
+          }
+        ],
+        "id": "combat",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Combat chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "treasure_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "treasure",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "treasure",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Treasure chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "item_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "item",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "id": "treasure_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "treasure",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "id": "combat_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "combat",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [
+          {
+            "id": "guard",
+            "position": [
+              80,
+              77
+            ],
+            "type": "crawler"
+          }
+        ],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                125
+              ],
+              "type": "key_cellar_crawler_e4758e7d"
+            }
+          ],
+          "id": "cellar",
+          "kind": "cellar",
+          "map_position": [
+            1,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "stairs": [
+            {
+              "cell": [
+                3,
+                3
+              ],
+              "id": "return",
+              "target": "entry",
+              "target_position": [
+                120,
+                125
+              ]
+            }
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Cellar"
+        }
+      ],
+      "id": "key_cellar",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          125
+        ],
+        "room": "cellar"
+      },
+      "role": "key",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "secret": {
+          "cell": [
+            6,
+            5
+          ],
+          "direction": "right",
+          "reveal": "item"
+        },
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "stairs": [
+          {
+            "cell": [
+              6,
+              5
+            ],
+            "id": "hidden_stairs",
+            "requires_secret": true,
+            "target": "cellar",
+            "target_position": [
+              48,
+              61
+            ]
+          }
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                125
+              ],
+              "type": "goal_cellar_crawler_1580e1d5"
+            }
+          ],
+          "id": "cellar",
+          "kind": "cellar",
+          "map_position": [
+            1,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "stairs": [
+            {
+              "cell": [
+                3,
+                3
+              ],
+              "id": "return",
+              "target": "entry",
+              "target_position": [
+                120,
+                125
+              ]
+            }
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "###.########.###",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Cellar"
+        }
+      ],
+      "id": "goal_cellar",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          125
+        ],
+        "room": "cellar"
+      },
+      "role": "goal",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "secret": {
+          "cell": [
+            6,
+            5
+          ],
+          "direction": "right",
+          "reveal": "item"
+        },
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "stairs": [
+          {
+            "cell": [
+              6,
+              5
+            ],
+            "id": "hidden_stairs",
+            "requires_secret": true,
+            "target": "cellar",
+            "target_position": [
+              48,
+              61
+            ]
+          }
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    }
+  ]
+}

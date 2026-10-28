@@ -265,7 +265,7 @@ static func validate_progression(pack: Dictionary, rooms: Dictionary, errors: Pa
 		var g = pack.generation
 		if not g is Dictionary: errors.append("Generation provenance must be an object"); return
 		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"],"Generation",errors)
-		if g.get("algorithm") != "authored_tree" or g.get("version") != 1 or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
+		if g.get("algorithm") != "authored_tree" or not integer(g.get("version"),1,2) or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
 		var hash = g.get("template_sha256")
 		if not hash is String or hash.length() != 64 or not hash.is_valid_hex_number(): errors.append("Invalid template fingerprint")
 		if g.get("required_item") not in REQUIRED_ITEMS or not g.get("templates") is Dictionary: errors.append("Invalid generator template metadata")

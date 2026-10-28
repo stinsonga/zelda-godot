@@ -26,6 +26,12 @@ var template_id: LineEdit
 var role: OptionButton
 var port_checks: Array[CheckBox] = []
 var requirement_checks: Array[CheckBox] = []
+var include_linked: CheckBox
+var custom_reward: CheckBox
+var reward_room: OptionButton
+var reward_x: SpinBox
+var reward_y: SpinBox
+var capture_info: Label
 var random_seed_button: Button
 var browse_button: Button
 var picker: FileDialog
@@ -52,7 +58,7 @@ func _ready() -> void:
 	label("Seed",recipe);seed_input = LineEdit.new();seed_input.text = "42";seed_input.custom_minimum_size.x = 145;recipe.add_child(seed_input)
 	seed_input.text_changed.connect(func(_value): invalidate_recipe())
 	random_seed_button = button("Random seed",recipe,func(): seed_input.text = str(Time.get_ticks_usec()%2147483648);invalidate_recipe())
-	label("Rooms",recipe);count = SpinBox.new();count.min_value = 6;count.max_value = 16;count.value = 8;recipe.add_child(count)
+	label("Primary rooms",recipe);count = SpinBox.new();count.min_value = 6;count.max_value = 16;count.value = 8;recipe.add_child(count)
 	count.value_changed.connect(func(_value): invalidate_recipe())
 	required_item = OptionButton.new()
 	for item in ["blue_candle","bow","ladder","recorder","magic_key"]: required_item.add_item(item)
@@ -65,7 +71,7 @@ func _ready() -> void:
 	use_button.disabled = true
 	label("The required item is placed before its gate. Two key locks and optional bomb branches are checked.\nUsing a result replaces the document after any unsaved-change confirmation. No ROM assets are generated.",generate)
 	var capture := VBoxContainer.new();capture.name = "Templates";tabs.add_child(capture)
-	label("Capture the selected room as a new authored template. Connections and local graphics are omitted; enemy definitions are namespaced. Existing templates are preserved.",capture)
+	label("Capture a primary room, optionally with linked cellars. External doors and local graphics are omitted; enemy definitions and generated stair destinations are namespaced.",capture)
 	var identity := HBoxContainer.new();capture.add_child(identity)
 	template_id = LineEdit.new();template_id.placeholder_text = "unique_template_id";template_id.size_flags_horizontal = Control.SIZE_EXPAND_FILL;identity.add_child(template_id)
 	role = OptionButton.new()
@@ -77,11 +83,23 @@ func _ready() -> void:
 	var requirements := HFlowContainer.new();capture.add_child(requirements);label("Incoming item requirements",requirements)
 	for item in Pack.REQUIRED_ITEMS:
 		var check := CheckBox.new();check.text = item;requirements.add_child(check);requirement_checks.append(check)
-	save_button = button("Save room as new template…",capture,func(): picker.file_mode = FileDialog.FILE_MODE_SAVE_FILE;picker.current_file = "custom_templates.json";picker.popup_centered_ratio(0.7))
+	include_linked = CheckBox.new();include_linked.text = "Include linked cellar rooms (up to three)";capture.add_child(include_linked)
+	include_linked.toggled.connect(func(_value): refresh_capture_rooms())
+	custom_reward = CheckBox.new();custom_reward.text = "Choose generated reward location";capture.add_child(custom_reward)
+	custom_reward.toggled.connect(func(_value): refresh_reward_controls())
+	var reward_row := HBoxContainer.new();capture.add_child(reward_row)
+	label("Reward room",reward_row);reward_room = OptionButton.new();reward_room.clip_text = true;reward_room.custom_minimum_size.x = 180;reward_row.add_child(reward_room)
+	reward_room.item_selected.connect(func(_i):
+		for room in source_pack.rooms:
+			if room.id == reward_room.get_item_text(reward_room.selected): reward_x.value = room.spawn[0];reward_y.value = room.spawn[1])
+	label("X",reward_row);reward_x = SpinBox.new();reward_x.min_value = 0;reward_x.max_value = 240;reward_x.value = 120;reward_row.add_child(reward_x)
+	label("Y",reward_row);reward_y = SpinBox.new();reward_y.min_value = 0;reward_y.max_value = 157;reward_y.value = 77;reward_row.add_child(reward_y)
+	capture_info = Label.new();capture_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART;capture.add_child(capture_info)
+	save_button = button("Save selection as new template…",capture,func(): picker.file_mode = FileDialog.FILE_MODE_SAVE_FILE;picker.current_file = "custom_templates.json";picker.popup_centered_ratio(0.7))
 	var solve := VBoxContainer.new();solve.name = "Progression";tabs.add_child(solve)
 	label("Checks a snapshot of the current pack, starting equipment and objective pickups. Keys/bombs are finite; opened doors remain open on both sides. Reachability is checked within each room, not just on the map.",solve)
 	solve_button = button("Check current dungeon",solve,start_solver)
-	report = TextEdit.new();report.editable = false;report.add_theme_color_override("font_readonly_color",Color("dce5ed"));report.size_flags_vertical = Control.SIZE_EXPAND_FILL;report.custom_minimum_size = Vector2(820,280);content.add_child(report)
+	report = TextEdit.new();report.editable = false;report.add_theme_color_override("font_readonly_color",Color("dce5ed"));report.size_flags_vertical = Control.SIZE_EXPAND_FILL;report.custom_minimum_size = Vector2(820,200);content.add_child(report)
 	picker = FileDialog.new();picker.access = FileDialog.ACCESS_FILESYSTEM;picker.filters = PackedStringArray(["*.json ; Template library"]);picker.current_dir = game_root.path_join("content/templates");picker.file_selected.connect(file_selected);add_child(picker)
 	size_changed.connect(func(): call_deferred("layout_content"));visibility_changed.connect(func(): call_deferred("layout_content"));call_deferred("layout_content")
 func layout_content() -> void:
@@ -90,6 +108,10 @@ func open_for(pack: Dictionary, selected_room: String, tab: int = 0) -> void:
 	if not busy:
 		source_pack = pack.duplicate(true);room_id = selected_room
 		template_id.text = selected_room.left(40)+"_template"
+		include_linked.button_pressed = source_pack.rooms.any(func(room): return room.id == room_id and not room.get("stairs",[]).is_empty())
+		custom_reward.button_pressed = false
+		reward_x.value = 120;reward_y.value = 77
+		refresh_capture_rooms()
 		tabs.current_tab = tab
 		report.text = "Ready. Results refer to this document snapshot. Recheck after editing."
 	popup_centered()
@@ -106,6 +128,8 @@ func set_busy(value: bool) -> void:
 	required_item.disabled = value
 	browse_button.disabled = value
 	random_seed_button.disabled = value
+	include_linked.disabled = value;custom_reward.disabled = value
+	refresh_reward_controls()
 	use_button.disabled = value or candidate.is_empty()
 func start_generation() -> void:
 	if busy: return
@@ -135,13 +159,14 @@ func _process(_delta: float) -> void:
 	if job_kind == "generate":
 		if result.errors.is_empty():
 			candidate = result.pack
-			report.text = "Seed %d • %d rooms • attempt %d\nTemplate SHA256: %s\n\n%s" % [candidate.generation.seed,candidate.rooms.size(),result.attempts,candidate.generation.template_sha256,Solver.format_report(result.proof)]
+			report.text = "Seed %d • %d primary / %d total rooms • attempt %d\nTemplate SHA256: %s\n\n%s" % [candidate.generation.seed,candidate.generation.room_count,candidate.rooms.size(),result.attempts,candidate.generation.template_sha256,Solver.format_report(result.proof)]
 		else: report.text = "Generation failed:\n"+"\n".join(result.errors)+("\n\n"+Solver.format_report(result.proof) if result.has("proof") and not result.proof.is_empty() else "")
 	else: report.text = Solver.format_report(result)
 	set_busy(false)
 func file_selected(path: String) -> void:
 	if picker.file_mode == FileDialog.FILE_MODE_OPEN_FILE: catalog_path.text = path;invalidate_recipe();return
 	if busy: return
+	if path.get_extension().to_lower() != "json": path += ".json"
 	var absolute := path.simplify_path()
 	for folder in ["imported","reference-inputs",".godot","editor/.godot"]:
 		if absolute.begins_with(game_root.path_join(folder)+"/"): report.text = "Save authored templates outside generated/local folders.";return
@@ -152,9 +177,8 @@ func file_selected(path: String) -> void:
 		if check.button_pressed: ports.append(check.text)
 	for check in requirement_checks:
 		if check.button_pressed: requirements.append(check.text)
-	var result := Templates.capture(loaded.catalog,source_pack,room_id,template_id.text,role.get_item_text(role.selected),ports,requirements)
+	var result := Templates.capture(loaded.catalog,source_pack,room_id,template_id.text,role.get_item_text(role.selected),ports,requirements,include_linked.button_pressed,reward_room.get_item_text(reward_room.selected) if custom_reward.button_pressed and reward_room.selected>=0 else "",[int(reward_x.value),int(reward_y.value)])
 	if not result.errors.is_empty(): report.text = "Cannot save template:\n"+"\n".join(result.errors);return
-	if path.get_extension().to_lower() != "json": path += ".json"
 	var error := Pack.write(path,result.catalog)
 	if error != OK: report.text = "Template save failed: "+error_string(error);return
 	catalog_path.text = path;invalidate_recipe();report.text = "Saved new authored template to "+path+"\nFingerprint: "+Templates.fingerprint(result.catalog)
@@ -168,3 +192,23 @@ func use_candidate() -> void:
 	if busy or candidate.is_empty(): return
 	generated.emit(candidate.duplicate(true))
 	hide()
+
+func refresh_capture_rooms() -> void:
+	if reward_room == null or source_pack.is_empty(): return
+	var old := reward_room.get_item_text(reward_room.selected) if reward_room.selected>=0 else ""
+	reward_room.clear()
+	var rooms: Array = source_pack.rooms.filter(func(room): return room.id == room_id)
+	if include_linked.button_pressed:
+		var group := Templates.linked_rooms(source_pack,room_id)
+		if group.errors.is_empty(): rooms = group.rooms;capture_info.text = "Capturing %d rooms. Generated rewards use the selected location, or the primary room's default (120,77)." % rooms.size()
+		else: capture_info.text = "\n".join(group.errors)
+	else: capture_info.text = "Single-room capture. Enable linked cellars to preserve stair destinations."
+	for room in rooms: reward_room.add_item(room.id)
+	for i in reward_room.item_count:
+		if reward_room.get_item_text(i) == old: reward_room.select(i)
+	refresh_reward_controls()
+func refresh_reward_controls() -> void:
+	if reward_room == null: return
+	var enabled := not busy and custom_reward.button_pressed
+	reward_room.disabled = not enabled
+	reward_x.editable = enabled;reward_y.editable = enabled

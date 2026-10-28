@@ -96,11 +96,11 @@ actual stand positions. Native tests replay those positions, departures and
 transitions through real player movement. Combat remains the documented
 sword-vulnerable encounter assumption, not a survival proof.
 
-Single-room templates with linked stairs are rejected clearly, including capture.
-They require multi-room templates and destination-ID remapping, which are future
-work. Do not assume seeded generation can yet create cellar networks. Other
-secret triggers, cave interiors and the original cellar animation remain separate
-features.
+Single-room capture still rejects linked stairs. Enable linked-cellar capture to
+save a primary room and up to three cellar annexes as one reusable unit. These
+units can participate in seeded generation with remapped destinations and reward
+positions; see [MULTI_ROOM_TEMPLATES.md](MULTI_ROOM_TEMPLATES.md). Other secret
+triggers, cave interiors and the original cellar animation remain separate features.
 
 ## Checks
 

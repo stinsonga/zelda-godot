@@ -153,9 +153,14 @@ This is the first usable editing loop, not the complete editor. Next:
   Hidden stairs and linked cellars are available; see [STAIRS.md](STAIRS.md).
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
-- Broader generation: loops, multiple floors, multi-room/cellar templates, advanced dependencies and
+- Broader generation: loops, multiple floors, general room-group templates, advanced dependencies and
   more solver mechanics. The first seeded generator/progression search is now
   available; ordinary structural validation alone is still not a proof.
+
+Primary rooms with up to three stair-linked cellar annexes can now be captured
+and reused during generation, including configurable reward positions. See
+[MULTI_ROOM_TEMPLATES.md](MULTI_ROOM_TEMPLATES.md) and the ROM-free
+`content/templates/cellar_templates.json` library.
 
 Generated dungeons use the same concrete content model and remain editable.
 Their recipes record seed, algorithm and template fingerprint. Only the explicit

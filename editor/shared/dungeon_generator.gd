@@ -20,15 +20,18 @@ func generate(catalog: Dictionary, seed_value: int, room_count: int = 8, require
 	if seed_value<0 or seed_value>2147483647 or room_count<6 or room_count>16 or required_item not in Pack.REQUIRED_ITEMS: return {"errors":PackedStringArray(["Seed must be 0..2147483647, rooms 6..16, required item supported"])}
 	rng_state = seed_value
 	var last_report: Dictionary = {}
+	var build_errors := PackedStringArray()
 	for attempt in range(12):
 		var candidate := build(catalog,seed_value,room_count,required_item)
-		if not candidate.has("pack"): continue
+		if not candidate.has("pack"):
+			build_errors = candidate.get("errors",PackedStringArray())
+			continue
 		var proof := Solver.new().solve(candidate.pack,16000,verification_ms)
 		if proof.status == "solved": return {"errors":PackedStringArray(),"pack":candidate.pack,"proof":proof,"attempts":attempt+1}
 		if proof.status == "limit" and proof.get("limit_kind") == "time":
 			return {"errors":PackedStringArray(["Verification exceeded its time budget. No alternate candidate was published, preserving seed determinism. Reduce complexity or retry verification."]),"proof":proof}
 		last_report = proof
-	return {"errors":PackedStringArray(["No verified dungeon found in 12 attempts. Templates may block entrances, rewards or required items."]),"proof":last_report}
+	return {"errors":PackedStringArray(["No verified dungeon found in 12 attempts. Templates may block entrances, rewards or required items."])+build_errors,"proof":last_report}
 func build(catalog: Dictionary, seed_value: int, count: int, required_item: String) -> Dictionary:
 	var branch_count := count/4 if count>=8 else 0
 	var main_count := count-branch_count
@@ -69,17 +72,29 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	pack.start_room = "room_0"
 	pack.enemy_types = catalog.enemy_types.duplicate(true)
 	pack.rooms = []
-	pack.generation = {"algorithm":"authored_tree","version":1,"seed":seed_value,"template_sha256":Templates.fingerprint(catalog),"room_count":count,"required_item":required_item,"templates":{}}
+	pack.generation = {"algorithm":"authored_tree","version":int(catalog.format_version),"seed":seed_value,"template_sha256":Templates.fingerprint(catalog),"room_count":count,"required_item":required_item,"templates":{}}
+	var units: Array = []
 	for i in range(count):
 		var template: Dictionary = chosen[i]
-		var room: Dictionary = template.room.duplicate(true)
-		room.id = "room_"+str(i)
+		var unit := Templates.instantiate(template,"room_"+str(i))
+		units.append(unit)
+		var room: Dictionary = unit.primary
 		room.title = String(template.room.title)+" "+str(i+1)
 		room.connections = {}
 		room.map_position = [positions[i].x,positions[i].y]
 		room.role = roles[i];room.template_id = template.id
 		pack.generation.templates[room.id] = template.id
 		pack.rooms.append(room)
+	# Keep the first `count` slots as the critical-path/branch rooms. Annexes
+	# are placed afterward, without consuming PRNG values or colliding on the map.
+	for i in range(count):
+		for annex in units[i].annexes:
+			if pack.rooms.size()>=32: return {"errors":PackedStringArray(["Template expansion exceeds the 32-room progression limit; reduce primary rooms or cellar annexes"])}
+			annex.map_position = annex_position(pack.rooms,positions[i])
+			annex.title = String(annex.title)+" "+str(i+1)
+			annex.template_id = chosen[i].id
+			pack.rooms.append(annex)
+			pack.generation.templates[annex.id] = chosen[i].id
 	for i in range(1,count):
 		var source: Dictionary = pack.rooms[parents[i]]
 		var target: Dictionary = pack.rooms[i]
@@ -88,22 +103,34 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 		if i == 4 and required_item not in requirements: requirements.append(required_item)
 		source.connections[edges[i]] = {"target":target.id,"kind":kind,"requires":requirements.duplicate()}
 		target.connections[Pack.OPPOSITE[edges[i]]] = {"target":source.id,"kind":kind,"requires":requirements.duplicate()}
-	add_pickup(pack.rooms[1],"key","progress_key")
-	if branch_count>0: add_pickup(pack.rooms[1],"bombs","branch_bombs")
-	add_pickup(pack.rooms[3],required_item,"required_item")
-	add_pickup(pack.rooms[4],"key","final_key")
-	var goal := add_pickup(pack.rooms[main_count-1],"rupee","goal_reward",true)
-	pack.goals.append({"room":pack.rooms[main_count-1].id,"pickup":goal})
+	add_pickup(units[1].reward_room,"key","progress_key",false,units[1].reward_position)
+	if branch_count>0: add_pickup(units[1].reward_room,"bombs","branch_bombs",false,units[1].reward_position)
+	add_pickup(units[3].reward_room,required_item,"required_item",false,units[3].reward_position)
+	add_pickup(units[4].reward_room,"key","final_key",false,units[4].reward_position)
+	var goal := add_pickup(units[main_count-1].reward_room,"rupee","goal_reward",true,units[main_count-1].reward_position)
+	pack.goals.append({"room":units[main_count-1].reward_room.id,"pickup":goal})
 	for i in range(main_count,count):
-		var pickup := add_pickup(pack.rooms[i],"rupee","branch_reward")
-		pack.goals.append({"room":pack.rooms[i].id,"pickup":pickup})
+		var pickup := add_pickup(units[i].reward_room,"rupee","branch_reward",false,units[i].reward_position)
+		pack.goals.append({"room":units[i].reward_room.id,"pickup":pickup})
 	return {"pack":pack}
-func add_pickup(room: Dictionary, item: String, prefix: String, requires_clear: bool = false) -> String:
+func add_pickup(room: Dictionary, item: String, prefix: String, requires_clear: bool = false, position: Array = [120,77]) -> String:
 	var id := prefix
 	var n := 1
 	while room.pickups.any(func(p): return p.id == id): id = prefix+"_"+str(n);n += 1
 	# A template may block this point; the progression solver must reject it.
-	var pickup := {"id":id,"item":item,"position":[120,77],"requires_clear":requires_clear}
+	var pickup := {"id":id,"item":item,"position":position.duplicate(),"requires_clear":requires_clear}
 	if room.has("secret") and room.secret.reveal == "item": pickup.requires_secret = true
 	room.pickups.append(pickup)
 	return id
+
+func annex_position(rooms: Array, primary: Vector2i) -> Array:
+	var used: Dictionary = {}
+	for room in rooms: used[Vector2i(int(room.map_position[0]),int(room.map_position[1]))] = true
+	var best := Vector2i(-1,1)
+	var distance := 1000
+	for y in range(-15,1):
+		for x in range(16):
+			var at := Vector2i(x,y)
+			var delta := absi(x-primary.x)+absi(y-primary.y)
+			if not used.has(at) and delta<distance: best = at;distance = delta
+	return [best.x,best.y]
