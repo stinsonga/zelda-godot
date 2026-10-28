@@ -116,7 +116,7 @@ retains its schematic view. See [LOCAL_APPEARANCE.md](LOCAL_APPEARANCE.md),
 ## Shared format and runtime
 
 `shared/room_pack.gd` is the one pack contract: both projects load that same file.
-It parses, validates and saves version-1 JSON. The game adapter
+It parses, validates and saves version-1 and version-2 JSON. The game adapter
 `../scripts/authored_pack.gd` builds existing WorldDefinition, RoomDefinition,
 DoorDefinition, EnemyDefinition and pickup resources in memory. These are not a
 second implementation of combat or doors. Existing `.tres` content remains valid.
@@ -125,8 +125,8 @@ The pack is data only. IDs, dimensions, enum values, bounds, placement IDs,
 walkable spawn/placement feet, room references, reverse door kinds and map
 positions are checked. Script/resource/asset paths and unsupported fields are
 rejected. Unsupported schema versions fail clearly. The format currently covers
-plain dungeon rooms, connections, spawns, five enemy behavior families and five
-pickup types; it does not import or round-trip arbitrary existing `.tres` rooms.
+dungeon rooms, connections, spawns, five enemy behavior families, ten
+pickup types and directional block secrets; it does not import or round-trip arbitrary existing `.tres` rooms.
 New packs begin with `custom_dungeon`; set a distinct Pack ID for each world.
 Changing it creates a new world identity rather than migrating existing saves.
 The GUI does not rename stable room or placement IDs yet.
@@ -148,7 +148,9 @@ This is the first usable editing loop, not the complete editor. Next:
 - Authored replacement libraries, more sprite layouts and an editable-copy
   workflow for locally imported rooms. The current local Art layer and terrain
   collision layer are separate; only supported ROM sprite sets/atlases resolve.
-- Secrets, push blocks, cellars, caves, more item types and advanced doors.
+- Hidden stairs, cellars, caves, other secret types, more items and advanced doors.
+  Directional blocks, secret pickups and block shutters are available; see
+  [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
 - Broader generation: loops, multiple floors, advanced template dependencies and

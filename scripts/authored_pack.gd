@@ -7,6 +7,7 @@ const World = preload("res://scripts/world_definition.gd")
 const Enemy = preload("res://scripts/enemy_definition.gd")
 const Spawn = preload("res://scripts/enemy_spawn.gd")
 const Door = preload("res://scripts/door_definition.gd")
+const Secret = preload("res://scripts/secret_definition.gd")
 const Pickup = preload("res://scripts/pickup_definition.gd")
 const DIRECTIONS := {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}
 static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root: String = "") -> Dictionary:
@@ -56,6 +57,15 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 		room.shutter_trigger = int(source.shutter_trigger)
 		room.enemy_persistence = "reset"
 		room.music = &""
+		if source.has("secret"):
+			var secret = Secret.new()
+			secret.trigger = "block"
+			secret.cell = Vector2i(int(source.secret.cell[0]),int(source.secret.cell[1]))
+			secret.reveal_cell = secret.cell
+			secret.block_direction = DIRECTIONS[source.secret.direction]
+			secret.reveal_kind = source.secret.reveal
+			secret.persistent = false
+			room.secret = secret
 		room.tile_atlas = library.room_texture(source,appearance)
 		if room.tile_atlas != null:
 			for index in range(176): room.tile_indices.append(index)
@@ -81,6 +91,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 			pickup.tolerance = Vector2i(8,8)
 			pickup.lift_ticks = 0
 			pickup.requires_clear = placement.get("requires_clear",false)
+			pickup.requires_secret = placement.get("requires_secret",false)
 			room.pickups.append(pickup)
 		errors.append_array(room.validation_errors())
 		world.rooms.append(room)

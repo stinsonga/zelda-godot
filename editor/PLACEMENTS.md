@@ -23,7 +23,8 @@ and copy its local sprite selection. An unshared definition is updated in place.
 The older enemy brush settings still edit a definition for all of its users.
 
 Pickup controls choose an item, room-clear requirement and objective membership.
-Enabling the latter features upgrades a v1 pack to v2. Moving or changing an item
+Secret visibility after a block push is also available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
+Enabling these features upgrades a v1 pack to v2. Moving or changing an item
 preserves its stable placement ID and objective reference. Deleting removes its
 objective reference; Undo restores both. A duplicate gets a fresh ID and nearby
 free position, and does not become an objective automatically. Room placement

@@ -11,6 +11,8 @@ extends Resource
 ## What a revealed block opens: stairs at reveal_cell, or the room's shutters.
 ## "item" shows floor and lets the room's requires_secret pickups appear.
 @export_enum("entrance", "stairs", "shutters", "item") var reveal_kind: String = "entrance"
+## Optional authored restriction; ZERO retains the original any-direction behavior.
+@export var block_direction: Vector2i = Vector2i.ZERO
 @export var cell: Vector2i
 ## Where the entrance appears. Pushes use the room's shortcut position.
 @export var reveal_cell: Vector2i
@@ -26,6 +28,7 @@ extends Resource
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
+	if block_direction not in [Vector2i.ZERO,Vector2i.UP,Vector2i.RIGHT,Vector2i.DOWN,Vector2i.LEFT]: errors.append("Block direction must be cardinal or unrestricted")
 	for value in [cell, reveal_cell]:
 		if value.x < 0 or value.x >= 16 or value.y < 0 or value.y >= 11: errors.append("Secret cell is outside the room")
 	if reveal_collision.size() != 4 or object_collision.size() != 4: errors.append("Secret collision needs four eight-pixel cells")

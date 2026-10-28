@@ -14,7 +14,7 @@ var reasons: Dictionary = {}
 var reached: Dictionary = {}
 var goal_mask := 0
 var started := 0
-const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, water/ladder deployment, secrets or resource farming."
+const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, water/ladder deployment, other secret types or resource farming. Directional blocks reset on room entry and require the room to be cleared."
 func item_bit(item: String) -> int: return 1 << Pack.REQUIRED_ITEMS.find(item)
 func owns(state: Dictionary, item: String) -> bool: return (state.items & item_bit(item)) != 0
 func requires_met(state: Dictionary, link: Dictionary) -> bool:
@@ -59,7 +59,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 		if entry.pickup.item == "bombs": bomb_supply += 4
 	if bomb_supply>8: return report("unsupported","More than eight supplied bombs needs pickup-capacity/timing search; no solvability claim.")
 	var first: Dictionary = rooms[pack.start_room]
-	var initial := {"room":pack.start_room,"at":Vector2i(int(first.spawn[0]),int(first.spawn[1])),"keys":0,"bombs":0,"items":0,"collected":0,"opened":0,"parent":-1,"action":"Start in " + String(pack.start_room),"event":{"type":"start","room":pack.start_room}}
+	var initial := {"room":pack.start_room,"at":Vector2i(int(first.spawn[0]),int(first.spawn[1])),"keys":0,"bombs":0,"items":0,"collected":0,"opened":0,"pushed":false,"parent":-1,"action":"Start in " + String(pack.start_room),"event":{"type":"start","room":pack.start_room}}
 	for item in pack.starting_items: take(initial,item)
 	var states: Array = [initial]
 	var pending: Array[int] = [0]
@@ -85,9 +85,22 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 		var cells: Dictionary = view.cells
 		if cells.is_empty(): reason(state.room + ": entry position is blocked"); continue
 		var actions: Array = []
+		if room.has("secret") and not state.pushed:
+			var secret: Dictionary = room.secret
+			var cell := Vector2i(int(secret.cell[0]),int(secret.cell[1]))
+			var direction: Vector2i = DIRS[secret.direction]
+			var approach := (cell-direction)*16+Vector2i(0,-3)
+			if view.monsters_clear and cells.has(approach):
+				var next: Dictionary = state.duplicate()
+				next.pushed = true;next.at = approach
+				next.event = {"type":"push","room":state.room,"direction":secret.direction,"at":[approach.x,approach.y]}
+				next.action = "Push block %s %s" % [state.room,secret.direction]
+				actions.append(next)
+			else: reason(state.room+": block requires a cleared room and reachable push approach")
 		for i in range(pickups.size()):
 			if pickups[i].room != state.room or (state.collected & (1<<i)) != 0: continue
 			var pickup: Dictionary = pickups[i].pickup
+			if pickup.get("requires_secret",false) and not state.pushed: reason(state.room+"/"+pickup.id+": requires pushing the block");continue
 			if pickup.get("requires_clear",false) and not view.clear: reason(state.room+"/"+pickup.id+": requires clearing the room with a sword");continue
 			if not near(cells,pickup.position): reason(state.room+"/"+pickup.id+": pickup lies outside the entry's walkable region");continue
 			var next: Dictionary = state.duplicate()
@@ -122,6 +135,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 			var next: Dictionary = state.duplicate()
 			next.event = {"type":"travel","room":state.room,"edge":edge,"target":target.id}
 			next.room = target.id
+			next.pushed = false
 			next.at = arrival
 			var transit_mask := door_mask(next,false) | (1 << Pack.EDGES.find(reverse))
 			var safe := true
@@ -142,7 +156,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 			pending.append(states.size()-1)
 	return report("blocked","No route collects every objective under the stated model.",states.size())
 func signature(state: Dictionary) -> String:
-	return "%s/%d/%d/%d/%d/%d/%d/%d" % [state.room,state.at.x,state.at.y,state.keys,state.bombs,state.items,state.collected,state.opened]
+	return "%s/%d/%d/%d/%d/%d/%d/%d/%s" % [state.room,state.at.x,state.at.y,state.keys,state.bombs,state.items,state.collected,state.opened,state.pushed]
 func take(state: Dictionary, item: String) -> void:
 	match item:
 		"key": state.keys = mini(255,state.keys+1)
@@ -159,25 +173,29 @@ func door_mask(state: Dictionary, cleared: bool) -> int:
 		if not requires_met(state,link): continue
 		var passable: bool = link.kind in ["open","false"]
 		if link.kind in ["key","bombable"]: passable = (state.opened & (1<<int(door_ids[state.room+"/"+edge]))) != 0
-		if link.kind == "shutter": passable = room.shutter_trigger == 1 and cleared
+		if link.kind == "shutter": passable = (room.shutter_trigger == 1 and cleared) or (room.shutter_trigger == 4 and state.pushed)
 		if passable: mask |= 1<<i
 	return mask
 func reachable(state: Dictionary) -> Dictionary:
 	var mask := door_mask(state,false)
-	var cells := flood(rooms[state.room],state.at,mask)
+	var cells := flood(rooms[state.room],state.at,mask,state.pushed)
 	var clear: bool = rooms[state.room].enemies.is_empty()
 	if not clear and owns(state,"wooden_sword"):
 		clear = rooms[state.room].enemies.all(func(enemy): return near(cells,enemy.position))
-	if clear: cells = flood(rooms[state.room],state.at,door_mask(state,true))
-	return {"cells":cells,"clear":clear}
+	if clear: cells = flood(rooms[state.room],state.at,door_mask(state,true),state.pushed)
+	return {"cells":cells,"monsters_clear":clear,"clear":clear and (rooms[state.room].shutter_trigger != 4 or state.pushed)}
 func near(cells: Dictionary, at: Array) -> bool:
 	for y in range(-3,158,8):
 		if absi(y-int(at[1])) > 8: continue
 		for x in range(0,241,8):
 			if absi(x-int(at[0])) <= 8 and cells.has(Vector2i(x,y)): return true
 	return false
-func blocked(room: Dictionary, pixel: Vector2i, mask: int) -> bool:
+func blocked(room: Dictionary, pixel: Vector2i, mask: int, pushed: bool = false) -> bool:
 	if pixel.x<0 or pixel.x>=256 or pixel.y<0 or pixel.y>=176: return true
+	if room.has("secret"):
+		var block := Vector2i(int(room.secret.cell[0]),int(room.secret.cell[1]))
+		if pushed: block += DIRS[room.secret.direction]
+		if Vector2i(pixel.x/16,pixel.y/16) == block: return true
 	var cell := (pixel.y/16)*16+pixel.x/16
 	for i in range(Pack.EDGES.size()):
 		if (mask & (1<<i)) == 0: continue
@@ -187,13 +205,13 @@ func blocked(room: Dictionary, pixel: Vector2i, mask: int) -> bool:
 		var bit := ((pixel.x%16)/8)*2 + (pixel.y%16)/8
 		return (int(COLLISION[edge][part]) & (1<<bit)) != 0
 	return room.tiles[pixel.y/16][pixel.x/16] != "."
-func standing(room: Dictionary, at: Vector2i, mask: int) -> bool:
-	return at.x>=0 and at.x<=240 and at.y>=-3 and at.y<=157 and not blocked(room,at+Vector2i(0,11),mask) and not blocked(room,at+Vector2i(8,11),mask)
-func flood(room: Dictionary, origin: Vector2i, mask: int) -> Dictionary:
-	var key := "%s/%d/%d/%d" % [room.id,origin.x,origin.y,mask]
+func standing(room: Dictionary, at: Vector2i, mask: int, pushed: bool = false) -> bool:
+	return at.x>=0 and at.x<=240 and at.y>=-3 and at.y<=157 and not blocked(room,at+Vector2i(0,11),mask,pushed) and not blocked(room,at+Vector2i(8,11),mask,pushed)
+func flood(room: Dictionary, origin: Vector2i, mask: int, pushed: bool = false) -> Dictionary:
+	var key := "%s/%d/%d/%d/%s" % [room.id,origin.x,origin.y,mask,pushed]
 	if cache.has(key): return cache[key]
 	var cells: Dictionary = {}
-	if not standing(room,origin,mask): cache[key] = cells;return cells
+	if not standing(room,origin,mask,pushed): cache[key] = cells;return cells
 	var pending: Array[Vector2i] = [origin]
 	cells[origin] = true
 	var cursor := 0
@@ -201,14 +219,14 @@ func flood(room: Dictionary, origin: Vector2i, mask: int) -> Dictionary:
 		var at: Vector2i = pending[cursor];cursor += 1
 		for direction in DIRS.values():
 			var candidate: Vector2i = at+direction*8
-			if cells.has(candidate) or not standing(room,candidate,mask): continue
+			if cells.has(candidate) or not standing(room,candidate,mask,pushed): continue
 			var probe := at+Vector2i(0,11)
 			if direction.x != 0: probe.x += 16 if direction.x>0 else -8
 			else: probe.y += 8 if direction.y>0 else -8
-			if blocked(room,probe,mask) or (direction.y != 0 and blocked(room,probe+Vector2i(8,0),mask)): continue
+			if blocked(room,probe,mask,pushed) or (direction.y != 0 and blocked(room,probe+Vector2i(8,0),mask,pushed)): continue
 			var safe := true
 			for step in range(1,9):
-				if not standing(room,at+direction*step,mask): safe = false;break
+				if not standing(room,at+direction*step,mask,pushed): safe = false;break
 			if safe: cells[candidate] = true;pending.append(candidate)
 	cache[key] = cells
 	return cells

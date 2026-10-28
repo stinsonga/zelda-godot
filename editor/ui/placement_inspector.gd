@@ -20,6 +20,7 @@ var health: SpinBox
 var speed: SpinBox
 var damage: SpinBox
 var item: OptionButton
+var secret_reward: CheckBox
 var clear_reward: CheckBox
 var objective: CheckBox
 var duplicate_button: Button
@@ -66,6 +67,7 @@ func _ready() -> void:
 	pickup_fields = VBoxContainer.new();form.add_child(pickup_fields)
 	item = options(Pack.ITEMS,pickup_fields)
 	clear_reward = CheckBox.new();clear_reward.text = "Appears after room clear";pickup_fields.add_child(clear_reward)
+	secret_reward = CheckBox.new();secret_reward.text = "Appears after block push";pickup_fields.add_child(secret_reward)
 	objective = CheckBox.new();objective.text = "Required objective";pickup_fields.add_child(objective)
 	button("Apply selected changes",form,apply)
 	button("Reset fields",form,func(): reset_requested.emit())
@@ -95,6 +97,7 @@ func refresh(room: Dictionary, pack: Dictionary, key: Dictionary, data: Dictiona
 		pick(variant,data.type);refresh_variant()
 	if current_kind == "pickups":
 		pick(item,data.item);clear_reward.button_pressed = data.get("requires_clear",false)
+		secret_reward.button_pressed = data.get("requires_secret",false)
 		objective.button_pressed = is_objective(pack,room.id,key.id)
 func refresh_variant() -> void:
 	if variant.selected<0 or not definitions.has(choice(variant)): return
@@ -105,7 +108,7 @@ func apply() -> void:
 	if current_kind.is_empty(): return
 	var properties := {"position":[int(x.value),int(y.value)]}
 	if current_kind == "enemies": properties.merge({"type":choice(variant),"settings":{"title":enemy_title.text,"behavior":choice(behavior),"health":int(health.value),"speed_subpixels":int(speed.value),"contact_damage":int(damage.value)}})
-	if current_kind == "pickups": properties.merge({"item":choice(item),"requires_clear":clear_reward.button_pressed,"objective":objective.button_pressed})
+	if current_kind == "pickups": properties.merge({"item":choice(item),"requires_clear":clear_reward.button_pressed,"requires_secret":secret_reward.button_pressed,"objective":objective.button_pressed})
 	properties_applied.emit(properties)
 static func is_objective(pack: Dictionary, room: String, id: String) -> bool:
 	return pack.get("goals",[]).any(func(goal): return goal.room == room and goal.pickup == id)

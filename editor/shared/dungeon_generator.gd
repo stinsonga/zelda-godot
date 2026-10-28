@@ -103,5 +103,7 @@ func add_pickup(room: Dictionary, item: String, prefix: String, requires_clear: 
 	var n := 1
 	while room.pickups.any(func(p): return p.id == id): id = prefix+"_"+str(n);n += 1
 	# A template may block this point; the progression solver must reject it.
-	room.pickups.append({"id":id,"item":item,"position":[120,77],"requires_clear":requires_clear})
+	var pickup := {"id":id,"item":item,"position":[120,77],"requires_clear":requires_clear}
+	if room.has("secret") and room.secret.reveal == "item": pickup.requires_secret = true
+	room.pickups.append(pickup)
 	return id

@@ -102,11 +102,18 @@ and unsupported mechanics. Structural validation alone is not a proof.
 Individual enemies, pickups and player spawns can now be selected, moved and
 edited with undo. Shared enemy definitions are copied when individual stats change;
 objective references survive movement and are restored by undo after deletion.
-See [PLACEMENTS.md](../editor/PLACEMENTS.md). Missing:
+See [PLACEMENTS.md](../editor/PLACEMENTS.md). Directional push blocks now control
+shutters and secret-gated pickups, with editor undo, template capture/generation,
+solver state and native witness replay. Blocks reset on room re-entry; original
+unrestricted blocks retain their behavior. A ROM-free Block vault example is in
+`content/packs/block_vault.json`. See [PUSH_BLOCKS.md](../editor/PUSH_BLOCKS.md).
+
+Missing:
+
 - authored replacement libraries, richer sprite
   layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
-- authoring support for secrets, push blocks, caves and cellars, plus broader
+- authoring support for hidden stairs, other secret types, caves and cellars, plus broader
   generation layouts and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
 - automatic ID remapping when content is renamed, so older saves keep loading

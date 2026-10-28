@@ -24,6 +24,8 @@ var stroke_before: Dictionary = {}
 var selected_tool := "Select"
 var placement_key: Dictionary = {}
 var placement_inspector: VBoxContainer
+var block_inspector: VBoxContainer
+const BlockInspector = preload("block_inspector.gd")
 const PlacementInspector = preload("placement_inspector.gd")
 var syncing := false
 var pending_action: Callable
@@ -190,7 +192,7 @@ func build_ui() -> void:
 		pending_action = delete_room
 		confirmation.popup_centered())
 	start_button = button("Make starting room",left,func(): edit(func(): pack.start_room = current_id))
-	label("S = spawn  •  E = enemy\nGold = pickup\nErase brush: right-click erases",left)
+	label("S = spawn  •  E = enemy\nGold = pickup\nRight-click: erase entities",left)
 	var center := VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(center)
@@ -203,7 +205,7 @@ func build_ui() -> void:
 	var tools := HBoxContainer.new()
 	room_view.add_child(tools)
 	var group := ButtonGroup.new()
-	for name in ["Select","Floor","Wall","Water","Spawn","Enemy","Pickup","Erase","Art"]:
+	for name in ["Select","Block","Floor","Wall","Water","Spawn","Enemy","Pickup","Erase","Art"]:
 		var tool := button(name,tools,func(): set_tool(name))
 		tool_buttons[name] = tool
 		tool.toggle_mode = true
@@ -226,6 +228,9 @@ func build_ui() -> void:
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	room_view.add_child(canvas)
 	canvas.stroke_started.connect(func(): stroke_before = pack.duplicate(true); stroke_appearance_before = appearance.duplicate(true))
+	canvas.secret_chosen.connect(func():
+		select_placement("","")
+		block_inspector.cell_x.get_line_edit().grab_focus())
 	canvas.entity_chosen.connect(select_placement)
 	canvas.entity_moved.connect(move_placement)
 	canvas.entity_delete.connect(delete_placement)
@@ -283,6 +288,10 @@ func build_ui() -> void:
 	placement_inspector.snap_requested.connect(func():
 		var data := selected_placement()
 		if not data.is_empty(): move_placement(current_id,[clampi(roundi(data.position[0]/8.0)*8,0,240),clampi(roundi((data.position[1]-5)/8.0)*8+5,5,157)]))
+	block_inspector = BlockInspector.new()
+	right.add_child(block_inspector)
+	block_inspector.applied.connect(apply_block)
+	block_inspector.removed.connect(remove_block)
 	section("ROOM",right)
 	title_edit = LineEdit.new()
 	right.add_child(title_edit)
@@ -297,7 +306,7 @@ func build_ui() -> void:
 	shutter.text = "Clear enemies opens shutters"
 	right.add_child(shutter)
 	shutter.toggled.connect(func(value):
-		if not syncing: edit(func(): current().shutter_trigger = 1 if value else 0))
+		if not syncing and not (current().has("secret") and current().secret.reveal == "shutters"): edit(func(): current().shutter_trigger = 1 if value else 0))
 	section("ENEMY BRUSH / VARIANT",right)
 	enemy_type = options([],right)
 	enemy_type.item_selected.connect(func(_index): refresh_enemy())
@@ -385,6 +394,9 @@ func refresh() -> void:
 	map_x.value = room.map_position[0]
 	map_y.value = room.map_position[1]
 	shutter.button_pressed = room.shutter_trigger == 1
+	shutter.disabled = room.shutter_trigger == 4
+	shutter.tooltip_text = "Controlled by the push block" if shutter.disabled else ""
+	block_inspector.refresh(room)
 	start_button.disabled = current_id == pack.start_room
 	enemy_type.clear()
 	for id in pack.enemy_types:
@@ -461,6 +473,12 @@ func redo() -> void:
 	validate_pack()
 func paint(cell: Vector2i, erase: bool) -> void:
 	var room := current()
+	if selected_tool == "Block":
+		if erase: remove_block();return
+		var secret: Dictionary = block_inspector.value()
+		secret.cell = [cell.x,cell.y]
+		apply_block(secret)
+		return
 	if selected_tool == "Art":
 		paint_art(cell,erase)
 		return
@@ -840,12 +858,13 @@ func selected_placement() -> Dictionary:
 func select_placement(kind: String, id: String) -> void:
 	placement_key = {} if kind.is_empty() else {"room":current_id,"kind":kind,"id":id}
 	refresh()
-func valid_placement(at: Array) -> bool:
-	return Pack.point(at,0,240,0,157) and Pack.walkable(current().tiles,at)
+func valid_placement(at: Array, secret_pickup: bool = false) -> bool:
+	if not Pack.point(at,0,240,0,157) or not Pack.walkable(current().tiles,at): return false
+	return secret_pickup or not current().has("secret") or not Pack.block_overlaps(current().secret,at,false)
 func move_placement(room_id: String, at: Array) -> void:
 	if room_id != current_id or selected_placement().is_empty(): return
 	if same_position(selected_placement().position,at): return
-	if not valid_placement(at): message("Choose a position inside the room with walkable ground under its feet.");return
+	if not valid_placement(at,placement_key.kind == "pickups" and selected_placement().get("requires_secret",false)): message("Choose walkable ground outside the block, or mark this pickup to appear after the push.");return
 	edit(func():
 		if placement_key.kind == "spawn": current().spawn = at
 		else: selected_placement().position = at)
@@ -883,7 +902,8 @@ func duplicate_placement() -> void:
 func apply_placement(properties: Dictionary) -> void:
 	var data := selected_placement()
 	if data.is_empty(): return
-	if not valid_placement(properties.position): message("Choose a position with walkable ground under its feet.");return
+	if not valid_placement(properties.position,placement_key.kind == "pickups" and properties.get("requires_secret",false)): message("Choose walkable ground outside the block, or mark this pickup to appear after the push.");return
+	if properties.get("requires_secret",false) and not current().has("secret"): message("Add a block secret to this room first.");return
 	var variant := String(properties.get("type",""))
 	var changed := false
 	var uses := 0
@@ -915,6 +935,8 @@ func apply_placement(properties: Dictionary) -> void:
 			data.type = target
 		else:
 			data.item = properties.item
+			if properties.get("requires_secret",false): Pack.upgrade(pack);data.requires_secret = true
+			else: data.erase("requires_secret")
 			if properties.requires_clear: Pack.upgrade(pack);data.requires_clear = true
 			else: data.erase("requires_clear")
 			if properties.objective: Pack.upgrade(pack)
@@ -924,3 +946,26 @@ func apply_placement(properties: Dictionary) -> void:
 
 func same_position(a: Array, b: Array) -> bool:
 	return int(a[0]) == int(b[0]) and int(a[1]) == int(b[1])
+
+func apply_block(secret: Dictionary) -> void:
+	var room := current().duplicate(true)
+	room.secret = secret.duplicate(true)
+	room.shutter_trigger = 4 if secret.reveal == "shutters" else (1 if room.shutter_trigger == 4 else room.shutter_trigger)
+	var errors := PackedStringArray()
+	Pack.validate_block(room,true,errors)
+	if not errors.is_empty(): message("\n".join(errors));return
+	if current().has("secret") and same_position(current().secret.cell,secret.cell) and current().secret.direction == secret.direction and current().secret.reveal == secret.reveal and current().shutter_trigger == room.shutter_trigger: return
+	var action := func():
+		Pack.upgrade(pack)
+		current().secret = secret.duplicate(true)
+		current().shutter_trigger = room.shutter_trigger
+	if stroke_before.is_empty(): edit(action)
+	else: action.call();canvas.queue_redraw()
+func remove_block() -> void:
+	if not current().has("secret"): return
+	var action := func():
+		current().erase("secret")
+		if current().shutter_trigger == 4: current().shutter_trigger = 1
+		for pickup in current().pickups: pickup.erase("requires_secret")
+	if stroke_before.is_empty(): edit(action)
+	else: action.call();canvas.queue_redraw()

@@ -1,4 +1,5 @@
 extends Control
+signal secret_chosen
 signal entity_chosen(kind: String, id: String)
 signal entity_moved(room_id: String, position: Array)
 signal entity_delete
@@ -109,6 +110,16 @@ func _draw() -> void:
 	var spawn := rect.position+(Vector2(room.spawn[0],room.spawn[1]+3)+Vector2(8,8))/16.0*step
 	draw_circle(spawn,minf(step.x,step.y)*0.38,Color("86d1ad"),false,3)
 	label_at("S",spawn+Vector2(-5,5),Color("86d1ad"))
+	if room.has("secret"):
+		var cell := Vector2(room.secret.cell[0],room.secret.cell[1])
+		var direction: Vector2 = {"up":Vector2.UP,"right":Vector2.RIGHT,"down":Vector2.DOWN,"left":Vector2.LEFT}[room.secret.direction]
+		var block := Rect2(rect.position+cell*step,step)
+		draw_rect(block,Color("a78bd4"));draw_rect(block,Color("e4d7fa"),false,2)
+		label_at("B",block.get_center()+Vector2(-5,5),Color("18232e"))
+		var target := block.get_center()+direction*step
+		draw_rect(Rect2(block.position+direction*step,step),Color("c2a5ee"),false,2)
+		draw_line(block.get_center(),target,Color("e4d7fa"),2)
+		draw_circle(target,3,Color("e4d7fa"))
 	draw_selection()
 	if hover.x >= 0 and not select_mode: draw_rect(Rect2(rect.position+Vector2(hover)*step,step),Color("e4edf2"),false,2)
 
@@ -125,6 +136,8 @@ func select_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		grab_focus()
 		var at := room_pixel(event.position)
+		if room.has("secret") and Rect2(Vector2(room.secret.cell[0],room.secret.cell[1])*16,Vector2(16,16)).has_point(at) and not event.alt_pressed:
+			dragging = false;secret_chosen.emit();accept_event();return
 		var hits: Array = []
 		for kind in ["enemies","pickups","spawn"]:
 			var entries: Array = [{"id":"","position":room.spawn}] if kind == "spawn" else room[kind]

@@ -106,7 +106,9 @@ required enemies share the reachable region. A mere path through the room graph
 is insufficient: isolated keys, walled-off exits and blocked arrivals are detected.
 
 Shutters with trigger 1 can open after a reachable sword-vulnerable encounter;
-trigger 0 stays closed. Clear-room rewards likewise require a clearable room.
+trigger 0 stays closed. Trigger 4 requires the room's authored block push.
+Clear-room rewards likewise require a clearable room, and trigger-4 rooms must
+also have their block pushed. See [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
 **Combat is an explicit assumption:** reachable vulnerable enemies can be beaten
 with a sword, without spending progression supplies. Health, reflexes, precise
 combat timing and survival difficulty are not proved. Earlier automatic collection
@@ -117,7 +119,7 @@ Current conservative limits:
 - 32 rooms, 48 pickups, 48 paired connections; default 20,000 states and 8 seconds.
 - Standard two-tile wall frames and dungeon-grid spawns. Edited boundary bypasses
   and off-grid spawns are reported unsupported.
-- No water/ladder deployment, raft routes, secrets, push blocks, caves, cellars,
+- No water/ladder deployment, raft routes, other secret types, caves, cellars,
   money rules, boss vulnerabilities or enemy-drop dependencies.
 - At most eight total supplied bombs, including starting bundles. Larger supplies
   need capacity/timing-aware pickup routing and are explicitly unsupported, rather
@@ -133,7 +135,8 @@ problems by moving rewards across barriers or removing locks.
 
 Version-1 packs remain readable and editable. They keep the previous preview
 starting sword. Version 2 adds `starting_items`, `goals`, optional generation
-provenance, optional room role/template IDs, pickup `requires_clear`, and connection
+provenance, optional room role/template IDs and directional block secrets, pickup
+`requires_clear` / `requires_secret`, and connection
 `requires`. Empty starting equipment really starts unarmed; preview code no longer
 adds a sword behind the pack's back. Draft packs may have no objectives, but cannot
 be certified until objectives are selected.

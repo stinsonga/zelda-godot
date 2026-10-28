@@ -125,7 +125,7 @@ func try_block(world: Node, input: Vector2i) -> bool:
 		wanted = Vector2i.UP if at.y + 3 >= block.y else Vector2i.DOWN
 	elif at.y + 3 == block.y and absi(at.x - block.x) < 0x11:
 		wanted = Vector2i.LEFT if at.x >= block.x else Vector2i.RIGHT
-	if wanted == Vector2i.ZERO or input != wanted:
+	if wanted == Vector2i.ZERO or input != wanted or (room.secret.block_direction != Vector2i.ZERO and input != room.secret.block_direction):
 		push_timer = 0
 		return false
 	push_timer += 1

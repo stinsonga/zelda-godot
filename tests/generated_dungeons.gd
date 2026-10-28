@@ -37,11 +37,20 @@ func path_to(predicate: Callable) -> Array:
 			while at != start: path.push_front(at);at = parents[at]
 			return path
 		for direction in DIRS.values():
-			var candidate: Vector2i = at+direction*8
+			# Item/door input may stop Link between grid points. First finish
+			# that axis using real movement, then resume eight-pixel routing.
+			var stride := 8
+			if posmod(at.x,8) != 0:
+				if direction.y != 0: continue
+				stride = 8-posmod(at.x,8) if direction.x>0 else posmod(at.x,8)
+			elif posmod(at.y-5,8) != 0:
+				if direction.x != 0: continue
+				stride = 8-posmod(at.y-5,8) if direction.y>0 else posmod(at.y-5,8)
+			var candidate: Vector2i = at+direction*stride
 			if parents.has(candidate) or not world.room.movement_bounds.has_point(candidate): continue
 			if not world.can_enter_segment(at,direction): continue
 			var safe := true
-			for i in range(1,9):
+			for i in range(1,stride+1):
 				if not world.can_occupy(at+direction*i): safe = false;break
 			if safe: parents[candidate] = at;queue.append(candidate)
 	return [Vector2i(-999,-999)]
@@ -78,6 +87,14 @@ func replay(pack: Dictionary, proof: Dictionary) -> void:
 			check(walk_to(func(p): return absi(p.x-at.x)<=8 and absi(p.y-at.y)<=8),"Native geometry reaches witness pickup "+event.pickup)
 			for i in range(4): tick()
 			check(world.state.has_collected(StringName(event.room),StringName(event.pickup)),"Native pickup collected "+event.pickup)
+		elif event.type == "push":
+			var approach := Vector2i(int(event.at[0]),int(event.at[1]))
+			check(walk_to(func(p): return p == approach),"Native geometry reaches the block's push approach")
+			for i in range(16): tick(DIRS[event.direction])
+			for i in range(40): tick()
+			check(world.secrets.revealed and world.secrets.pushed,"Native block push reveals the secret")
+			var original: Vector2i = world.room.secret.cell*16+Vector2i(0,8)
+			check(not world.is_blocked(original) and world.is_blocked(original+DIRS[event.direction]*16),"Native pushed collision agrees with solver")
 		elif event.type == "door":
 			var hotspot: Vector2i = HOT[event.edge]
 			check(walk_to(func(p): return p == hotspot),"Native geometry reaches door approach")

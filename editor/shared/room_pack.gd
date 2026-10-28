@@ -100,7 +100,7 @@ static func validate(pack) -> PackedStringArray:
 		if ids.has(id): errors.append("Duplicate room ID: " + id)
 		ids[id] = r
 		var room_fields: Array = ROOM_FIELDS.duplicate()
-		if version == 2: room_fields.append_array(["template_id","role"])
+		if version == 2: room_fields.append_array(["template_id","role","secret"])
 		unknown_fields(r,room_fields,id,errors)
 		if version == 2:
 			if r.has("template_id") and not identifier(r.template_id): errors.append(id + ": invalid template ID")
@@ -121,7 +121,9 @@ static func validate(pack) -> PackedStringArray:
 			var map_key := "%d,%d" % [int(r.map_position[0]),int(r.map_position[1])]
 			if map_cells.has(map_key): errors.append(id + ": map position overlaps " + str(map_cells[map_key]))
 			map_cells[map_key] = id
-		if not integer(r.get("shutter_trigger"),0,1): errors.append(id + ": shutter trigger must be 0 (one-way) or 1 (clear enemies)")
+		if not integer(r.get("shutter_trigger"),0,4) or int(r.get("shutter_trigger")) not in ([0,1,4] if version == 2 else [0,1]): errors.append(id + ": shutter trigger must be 0 (one-way), 1 (clear enemies), or 4 (push block)")
+		if r.has("secret"): validate_block(r,good_tiles,errors)
+		elif r.get("shutter_trigger") == 4: errors.append(id + ": push-block shutters require a block secret")
 		for field in ["enemies","pickups"]:
 			var entries = r.get(field)
 			if not entries is Array or entries.size() > (10 if field == "enemies" else 32): errors.append(id + ": invalid " + field + " list"); continue
@@ -129,9 +131,11 @@ static func validate(pack) -> PackedStringArray:
 			for entry in entries:
 				if not entry is Dictionary: errors.append(id + ": invalid placement"); continue
 				var placement_fields := ["id","type","position"] if field == "enemies" else ["id","item","position"]
-				if version == 2 and field == "pickups": placement_fields.append("requires_clear")
+				if version == 2 and field == "pickups": placement_fields.append_array(["requires_clear","requires_secret"])
 				unknown_fields(entry,placement_fields,id,errors)
-				if entry.has("requires_clear") and not entry.requires_clear is bool: errors.append(id + ": requires_clear must be true or false")
+				for flag in ["requires_clear","requires_secret"]:
+					if entry.has(flag) and not entry[flag] is bool: errors.append(id + ": " + flag + " must be true or false")
+				if entry.get("requires_secret") == true and not r.has("secret"): errors.append(id + ": secret-gated pickup needs a room secret")
 				var spawn_id = entry.get("id")
 				if not identifier(spawn_id) or spawn_ids.has(spawn_id): errors.append(id + ": placement IDs must be unique within each list")
 				else: spawn_ids[spawn_id] = true
@@ -264,3 +268,33 @@ static func validate_progression(pack: Dictionary, rooms: Dictionary, errors: Pa
 		else:
 			for id in g.templates:
 				if not identifier(id) or not identifier(g.templates[id]): errors.append("Invalid generation template ID")
+
+## One directional dungeon block. Base tiles remain floor; collision is an overlay.
+static func validate_block(room: Dictionary, good_tiles: bool, errors: PackedStringArray) -> void:
+	var prefix := String(room.id) + ": "
+	var secret = room.secret
+	if not secret is Dictionary: errors.append(prefix+"secret must be a block object");return
+	unknown_fields(secret,["cell","direction","reveal"],prefix+"secret",errors)
+	if not point(secret.get("cell"),2,13,2,8) or secret.get("direction") not in EDGES or secret.get("reveal") not in ["shutters","item"]:
+		errors.append(prefix+"block needs an interior cell, cardinal direction and shutters/item reveal");return
+	if secret.reveal == "shutters" and room.get("shutter_trigger") != 4: errors.append(prefix+"block-controlled shutters need shutter trigger 4")
+	if secret.reveal == "item" and room.get("shutter_trigger") == 4: errors.append(prefix+"use a shutters reveal for shutter trigger 4")
+	var cell := Vector2i(int(secret.cell[0]),int(secret.cell[1]))
+	var direction: Vector2i = {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[secret.direction]
+	for square in [cell,cell+direction,cell-direction]:
+		if square.x<2 or square.x>13 or square.y<2 or square.y>8:
+			errors.append(prefix+"block, landing and push approach must lie inside the wall frame")
+		elif good_tiles and room.tiles[square.y][square.x] != ".": errors.append(prefix+"block, landing and push approach need floor tiles")
+	if good_tiles and point(room.get("spawn"),0,240,0,157) and block_overlaps(secret,room.spawn,false): errors.append(prefix+"player spawn overlaps the block")
+	for kind in ["enemies","pickups"]:
+		var entries = room.get(kind,[])
+		if not entries is Array: continue
+		for entry in entries:
+			if not entry is Dictionary or not point(entry.get("position"),0,240,0,157): continue
+			if block_overlaps(secret,entry.position,false) and not (kind == "pickups" and entry.get("requires_secret") == true): errors.append(prefix+"placement overlaps the initial block")
+static func block_overlaps(secret: Dictionary, at: Array, pushed: bool) -> bool:
+	var cell := Vector2i(int(secret.cell[0]),int(secret.cell[1]))
+	if pushed: cell += {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[secret.direction]
+	for offset in [0,8]:
+		if Vector2i((int(at[0])+offset)/16,(int(at[1])+11)/16) == cell: return true
+	return false
