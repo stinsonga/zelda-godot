@@ -21,7 +21,10 @@ var saved_text := ""
 var undo_stack: Array = []
 var redo_stack: Array = []
 var stroke_before: Dictionary = {}
-var selected_tool := "Floor"
+var selected_tool := "Select"
+var placement_key: Dictionary = {}
+var placement_inspector: VBoxContainer
+const PlacementInspector = preload("placement_inspector.gd")
 var syncing := false
 var pending_action: Callable
 var preview_pids: Array[int] = []
@@ -187,7 +190,7 @@ func build_ui() -> void:
 		pending_action = delete_room
 		confirmation.popup_centered())
 	start_button = button("Make starting room",left,func(): edit(func(): pack.start_room = current_id))
-	label("S = spawn  •  E = enemy\nGold = pickup\nRight-click erases entities",left)
+	label("S = spawn  •  E = enemy\nGold = pickup\nErase brush: right-click erases",left)
 	var center := VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(center)
@@ -200,8 +203,8 @@ func build_ui() -> void:
 	var tools := HBoxContainer.new()
 	room_view.add_child(tools)
 	var group := ButtonGroup.new()
-	for name in ["Floor","Wall","Water","Spawn","Enemy","Pickup","Erase","Art"]:
-		var tool := button(name,tools,func(): selected_tool = name)
+	for name in ["Select","Floor","Wall","Water","Spawn","Enemy","Pickup","Erase","Art"]:
+		var tool := button(name,tools,func(): set_tool(name))
 		tool_buttons[name] = tool
 		tool.toggle_mode = true
 		tool.button_group = group
@@ -223,9 +226,13 @@ func build_ui() -> void:
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	room_view.add_child(canvas)
 	canvas.stroke_started.connect(func(): stroke_before = pack.duplicate(true); stroke_appearance_before = appearance.duplicate(true))
+	canvas.entity_chosen.connect(select_placement)
+	canvas.entity_moved.connect(move_placement)
+	canvas.entity_delete.connect(delete_placement)
+	canvas.entity_duplicate.connect(duplicate_placement)
 	canvas.cell_clicked.connect(paint)
 	canvas.stroke_finished.connect(func(): commit(stroke_before,stroke_appearance_before); stroke_before = {}; stroke_appearance_before = {})
-	label("Paint with the left mouse button. One drag is one undo step.",room_view)
+	label("Select: drag placements; arrows move 8 pixels, Shift moves 1. Paint: one drag is one undo step.",room_view)
 	var map_view := VBoxContainer.new()
 	map_view.name = "Dungeon"
 	views.add_child(map_view)
@@ -248,6 +255,7 @@ func build_ui() -> void:
 	dungeon_map.room_moved.connect(move_room)
 	dungeon_map.empty_cell_selected.connect(func(cell): selected_map_cell = cell; message("Empty map cell (%d,%d) selected. Use Add at empty cell, or Add adjacent room to create and connect a neighbour." % [cell.x,cell.y]))
 	views.tab_changed.connect(func(index):
+		canvas.dragging = false
 		if index == 1 and not dungeon_map.fitted: dungeon_map.call_deferred("fit_to_rooms"))
 	label("Click to select; double-click to edit. Drag rooms. Wheel zooms; middle-drag pans.",map_view).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label("Green: open  •  Gold: key  •  Red: bombable  •  Purple: shutter  •  Dashed pink: misplaced",map_view).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -265,6 +273,16 @@ func build_ui() -> void:
 	right.custom_minimum_size.x = 255
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(right)
+	placement_inspector = PlacementInspector.new()
+	right.add_child(placement_inspector)
+	placement_inspector.entity_chosen.connect(select_placement)
+	placement_inspector.properties_applied.connect(apply_placement)
+	placement_inspector.delete_requested.connect(delete_placement)
+	placement_inspector.duplicate_requested.connect(duplicate_placement)
+	placement_inspector.reset_requested.connect(refresh)
+	placement_inspector.snap_requested.connect(func():
+		var data := selected_placement()
+		if not data.is_empty(): move_placement(current_id,[clampi(roundi(data.position[0]/8.0)*8,0,240),clampi(roundi((data.position[1]-5)/8.0)*8+5,5,157)]))
 	section("ROOM",right)
 	title_edit = LineEdit.new()
 	right.add_child(title_edit)
@@ -379,6 +397,9 @@ func refresh() -> void:
 		if r.id != current_id: destination.add_item(r.id)
 	pick(destination,target_selection)
 	canvas.room = room
+	canvas.selection = placement_key
+	placement_inspector.visible = selected_tool == "Select"
+	placement_inspector.refresh(room,pack,placement_key,selected_placement())
 	refresh_appearance_canvas()
 	dungeon_map.update_pack(pack,current_id)
 	canvas.queue_redraw()
@@ -421,6 +442,7 @@ func commit(before: Dictionary, before_art = null) -> void:
 	refresh()
 	validate_pack()
 func undo() -> void:
+	canvas.dragging = false
 	if undo_stack.is_empty(): return
 	redo_stack.append(document_snapshot())
 	var previous: Dictionary = undo_stack.pop_back()
@@ -429,6 +451,7 @@ func undo() -> void:
 	refresh()
 	validate_pack()
 func redo() -> void:
+	canvas.dragging = false
 	if redo_stack.is_empty(): return
 	undo_stack.append(document_snapshot())
 	var following: Dictionary = redo_stack.pop_back()
@@ -553,6 +576,8 @@ func validate_pack() -> void:
 	message("Valid pack: %d rooms. Progression and key solvability are not checked." % pack.rooms.size() if errors.is_empty() else "Fix before saving or playing:\n" + "\n".join(errors))
 func message(text: String) -> void: status.text = text
 func replace_pack(value: Dictionary, filename: String, load_local_art: bool = true) -> void:
+	placement_key = {}
+	canvas.dragging = false
 	pack = value.duplicate(true)
 	var local := Appearance.read_local(game_root,pack) if load_local_art else {"overlay":Appearance.fresh(pack.id),"warnings":PackedStringArray()}
 	appearance = local.overlay
@@ -669,6 +694,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func select_room(id: String) -> void:
+	placement_key = {}
+	canvas.dragging = false
 	flush_text_edits()
 	current_id = id
 	refresh()
@@ -746,7 +773,7 @@ func apply_enemy_art(group_id: String) -> void:
 	message("Applied local art to variant " + id + ". All placements share it; behavior and stats are unchanged.")
 func choose_tile_brush(atlas_id: String, index: int) -> void:
 	art_brush = {"atlas":atlas_id,"index":index}
-	selected_tool = "Art"
+	set_tool("Art")
 	tool_buttons.Art.button_pressed = true
 	views.current_tab = 0
 	message("Art brush: tile %d. Paint appearance; terrain collision is unchanged. Right-click erases art." % index)
@@ -796,3 +823,104 @@ func apply_starting_items() -> void:
 	for check in starting_checks:
 		if check.button_pressed: items.append(check.get_meta("item"))
 	edit(func(): Pack.upgrade(pack);pack.starting_items = items)
+
+func set_tool(value: String) -> void:
+	selected_tool = value
+	placement_key = {}
+	canvas.dragging = false
+	canvas.select_mode = value == "Select"
+	tool_buttons[value].button_pressed = true
+	refresh()
+func selected_placement() -> Dictionary:
+	if placement_key.get("room") != current_id: return {}
+	if placement_key.get("kind") == "spawn": return {"position":current().spawn}
+	for entry in current().get(placement_key.get("kind",""),[]):
+		if entry.id == placement_key.get("id"): return entry
+	return {}
+func select_placement(kind: String, id: String) -> void:
+	placement_key = {} if kind.is_empty() else {"room":current_id,"kind":kind,"id":id}
+	refresh()
+func valid_placement(at: Array) -> bool:
+	return Pack.point(at,0,240,0,157) and Pack.walkable(current().tiles,at)
+func move_placement(room_id: String, at: Array) -> void:
+	if room_id != current_id or selected_placement().is_empty(): return
+	if same_position(selected_placement().position,at): return
+	if not valid_placement(at): message("Choose a position inside the room with walkable ground under its feet.");return
+	edit(func():
+		if placement_key.kind == "spawn": current().spawn = at
+		else: selected_placement().position = at)
+func delete_placement() -> void:
+	if selected_placement().is_empty() or placement_key.kind == "spawn": return
+	edit(func():
+		var entries: Array = current()[placement_key.kind]
+		for i in entries.size():
+			if entries[i].id == placement_key.id: entries.remove_at(i);break
+		if placement_key.kind == "pickups" and pack.has("goals"):
+			pack.goals = pack.goals.filter(func(g): return not (g.room == current_id and g.pickup == placement_key.id)))
+func duplicate_placement() -> void:
+	var source := selected_placement()
+	if source.is_empty() or placement_key.kind == "spawn": return
+	var entries: Array = current()[placement_key.kind]
+	if entries.size() >= (10 if placement_key.kind == "enemies" else 32): message("This room has reached its placement limit.");return
+	var candidates: Array = []
+	for y in range(5,158,8):
+		for x in range(0,241,8):
+			var at := [x,y]
+			if not valid_placement(at): continue
+			var blocked := false
+			for other in current().enemies+current().pickups+[{"position":current().spawn}]:
+				if absi(x-int(other.position[0]))<16 and absi(y-int(other.position[1]))<16: blocked = true;break
+			if not blocked: candidates.append(at)
+	if candidates.is_empty(): message("No free walkable position for a duplicate.");return
+	var origin := Vector2(source.position[0],source.position[1])
+	candidates.sort_custom(func(a,b): return Vector2(a[0],a[1]).distance_squared_to(origin)<Vector2(b[0],b[1]).distance_squared_to(origin))
+	edit(func():
+		var copy := source.duplicate(true)
+		copy.id = unique_placement_id(entries,"enemy" if placement_key.kind == "enemies" else "item")
+		copy.position = candidates[0]
+		entries.append(copy)
+		placement_key.id = copy.id)
+func apply_placement(properties: Dictionary) -> void:
+	var data := selected_placement()
+	if data.is_empty(): return
+	if not valid_placement(properties.position): message("Choose a position with walkable ground under its feet.");return
+	var variant := String(properties.get("type",""))
+	var changed := false
+	var uses := 0
+	if placement_key.kind == "enemies":
+		if not pack.enemy_types.has(variant): return
+		var original: Dictionary = pack.enemy_types[variant]
+		for field in properties.settings:
+			if field in ["health","speed_subpixels","contact_damage"]:
+				if int(properties.settings[field]) != int(original[field]): changed = true
+			elif properties.settings[field] != original[field]: changed = true
+		for room in pack.rooms:
+			for enemy in room.enemies:
+				if enemy.type == variant: uses += 1
+		if changed and uses>1 and pack.enemy_types.size()>=128: message("Enemy variant limit reached.");return
+	edit(func():
+		if placement_key.kind == "spawn":
+			if not same_position(current().spawn,properties.position): current().spawn = properties.position
+			return
+		if not same_position(data.position,properties.position): data.position = properties.position
+		if placement_key.kind == "enemies":
+			var target := variant
+			if changed:
+				if uses>1:
+					var n := 1
+					target = variant.left(40)+"_instance_"+str(n)
+					while pack.enemy_types.has(target): n+=1;target = variant.left(40)+"_instance_"+str(n)
+					if appearance.enemy_sprites.has(variant): appearance.enemy_sprites[target] = appearance.enemy_sprites[variant]
+				pack.enemy_types[target] = properties.settings.duplicate(true)
+			data.type = target
+		else:
+			data.item = properties.item
+			if properties.requires_clear: Pack.upgrade(pack);data.requires_clear = true
+			else: data.erase("requires_clear")
+			if properties.objective: Pack.upgrade(pack)
+			if pack.has("goals") and properties.objective != PlacementInspector.is_objective(pack,current_id,placement_key.id):
+				pack.goals = pack.goals.filter(func(g): return not (g.room == current_id and g.pickup == placement_key.id))
+				if properties.objective: pack.goals.append({"room":current_id,"pickup":placement_key.id}))
+
+func same_position(a: Array, b: Array) -> bool:
+	return int(a[0]) == int(b[0]) and int(a[1]) == int(b[1])

@@ -143,8 +143,8 @@ This is the first usable editing loop, not the complete editor. Next:
 
 - Room-ID management and pack migration, with explicit handling rather than
   silently breaking saves. Unique IDs for independently authored packs matter.
-- A visual inspector/selection tool for moving individual placements and their
-  stable IDs; room filters, enemy variants' names, and more item/enemy properties.
+- Room filters and more item/enemy properties. Individual placement selection,
+  movement and isolated enemy stat editing are available; see [PLACEMENTS.md](PLACEMENTS.md).
 - Authored replacement libraries, more sprite layouts and an editable-copy
   workflow for locally imported rooms. The current local Art layer and terrain
   collision layer are separate; only supported ROM sprite sets/atlases resolve.
@@ -175,3 +175,5 @@ occupancy rejection, adjacent-room creation, spatial warnings and connectivity. 
 collecting the sample key, opening its door, clearing guards, opening the shutter,
 collecting the reward, and applying edited variant settings. They need no ROM.
 `tools/prepare_public_project.py` includes both projects and excludes nested caches.
+
+Individual placement controls and verification: [PLACEMENTS.md](PLACEMENTS.md).

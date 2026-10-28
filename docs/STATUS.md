@@ -98,8 +98,12 @@ provide authored template capture, stable seeded generation and a bounded
 inventory/room-geometry solver with witness routes. Version-2 packs support
 starting equipment, required-item gates and collectible objectives, enforced in
 playtests. See [DUNGEON_GENERATION.md](../editor/DUNGEON_GENERATION.md) for assumptions
-and unsupported mechanics. Structural validation alone is not a proof. Missing:
-- an advanced placement inspector, authored replacement libraries, richer sprite
+and unsupported mechanics. Structural validation alone is not a proof.
+Individual enemies, pickups and player spawns can now be selected, moved and
+edited with undo. Shared enemy definitions are copied when individual stats change;
+objective references survive movement and are restored by undo after deletion.
+See [PLACEMENTS.md](../editor/PLACEMENTS.md). Missing:
+- authored replacement libraries, richer sprite
   layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
 - authoring support for secrets, push blocks, caves and cellars, plus broader

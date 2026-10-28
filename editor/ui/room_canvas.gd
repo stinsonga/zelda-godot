@@ -1,4 +1,15 @@
 extends Control
+signal entity_chosen(kind: String, id: String)
+signal entity_moved(room_id: String, position: Array)
+signal entity_delete
+signal entity_duplicate
+var select_mode := true
+var selection: Dictionary = {}
+var dragging := false
+var drag_start := Vector2.ZERO
+var drag_origin := Vector2.ZERO
+var drag_position := Vector2.ZERO
+const Pack = preload("../shared/room_pack.gd")
 signal stroke_started
 signal cell_clicked(cell: Vector2i, erase: bool)
 signal stroke_finished
@@ -21,9 +32,13 @@ func cell_at(at: Vector2) -> Vector2i:
 func _ready() -> void:
 	custom_minimum_size = Vector2(450,330)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_ALL
 	resized.connect(queue_redraw)
 	mouse_exited.connect(func(): hover = Vector2i(-1,-1); queue_redraw())
 func _gui_input(event: InputEvent) -> void:
+	if select_mode:
+		select_input(event)
+		return
 	if event is InputEventMouseButton and event.button_index in [MOUSE_BUTTON_LEFT,MOUSE_BUTTON_RIGHT]:
 		if event.pressed:
 			painting = true
@@ -36,6 +51,10 @@ func _gui_input(event: InputEvent) -> void:
 		if painting: paint_at(event.position,(event.button_mask & MOUSE_BUTTON_MASK_RIGHT) != 0)
 		queue_redraw()
 func _input(event: InputEvent) -> void:
+	if dragging and event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		dragging = false
+		entity_moved.emit(room.id,[int(drag_position.x),int(drag_position.y)])
+		queue_redraw()
 	if painting and event is InputEventMouseButton and not event.pressed and event.button_index in [MOUSE_BUTTON_LEFT,MOUSE_BUTTON_RIGHT]:
 		painting = false
 		stroke_finished.emit()
@@ -90,4 +109,65 @@ func _draw() -> void:
 	var spawn := rect.position+(Vector2(room.spawn[0],room.spawn[1]+3)+Vector2(8,8))/16.0*step
 	draw_circle(spawn,minf(step.x,step.y)*0.38,Color("86d1ad"),false,3)
 	label_at("S",spawn+Vector2(-5,5),Color("86d1ad"))
-	if hover.x >= 0: draw_rect(Rect2(rect.position+Vector2(hover)*step,step),Color("e4edf2"),false,2)
+	draw_selection()
+	if hover.x >= 0 and not select_mode: draw_rect(Rect2(rect.position+Vector2(hover)*step,step),Color("e4edf2"),false,2)
+
+func placement() -> Dictionary:
+	if selection.get("room") != room.get("id"): return {}
+	if selection.get("kind") == "spawn": return {"position":room.spawn}
+	for entry in room.get(selection.get("kind",""),[]):
+		if entry.id == selection.get("id"): return entry
+	return {}
+func room_pixel(at: Vector2) -> Vector2:
+	var rect := geometry()
+	return (at-rect.position)/rect.size*Vector2(256,176)
+func select_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		grab_focus()
+		var at := room_pixel(event.position)
+		var hits: Array = []
+		for kind in ["enemies","pickups","spawn"]:
+			var entries: Array = [{"id":"","position":room.spawn}] if kind == "spawn" else room[kind]
+			for entry in entries:
+				if Rect2(Vector2(entry.position[0],entry.position[1]),Vector2(16,19)).has_point(at): hits.push_front({"kind":kind,"id":entry.id})
+		if hits.is_empty(): entity_chosen.emit("","")
+		else:
+			var index := 0
+			for i in hits.size():
+				if hits[i].kind == selection.get("kind") and hits[i].id == selection.get("id"): index = (i+1)%hits.size() if event.alt_pressed else i;break
+			entity_chosen.emit(hits[index].kind,hits[index].id)
+			var data := placement()
+			if not data.is_empty():
+				dragging = true;drag_start = at;drag_origin = Vector2(data.position[0],data.position[1]);drag_position = drag_origin
+		accept_event();queue_redraw()
+	if event is InputEventMouseMotion and dragging:
+		drag_position = drag_origin+((room_pixel(event.position)-drag_start)/8.0).round()*8.0
+		queue_redraw()
+	if event is InputEventKey and event.pressed and not event.echo:
+		var data := placement()
+		if event.keycode == KEY_ESCAPE: dragging = false;entity_chosen.emit("","");accept_event();queue_redraw();return
+		if data.is_empty(): return
+		var delta := Vector2i.ZERO
+		match event.keycode:
+			KEY_LEFT: delta.x = -1
+			KEY_RIGHT: delta.x = 1
+			KEY_UP: delta.y = -1
+			KEY_DOWN: delta.y = 1
+			KEY_DELETE, KEY_BACKSPACE: entity_delete.emit();accept_event()
+			KEY_D:
+				if event.ctrl_pressed or event.meta_pressed: entity_duplicate.emit();accept_event()
+		if delta != Vector2i.ZERO:
+			var step := 1 if event.shift_pressed else 8
+			entity_moved.emit(room.id,[int(data.position[0])+delta.x*step,int(data.position[1])+delta.y*step]);accept_event()
+func draw_selection() -> void:
+	if not select_mode: return
+	var data := placement()
+	if data.is_empty(): return
+	var rect := geometry()
+	var scale := rect.size/Vector2(256,176)
+	var at := Vector2(data.position[0],data.position[1])
+	draw_rect(Rect2(rect.position+at*scale,Vector2(16,19)*scale),Color("86d1ad"),false,2)
+	if dragging:
+		var pos := [int(drag_position.x),int(drag_position.y)]
+		var valid := Pack.point(pos,0,240,0,157) and Pack.walkable(room.tiles,pos)
+		draw_rect(Rect2(rect.position+drag_position*scale,Vector2(16,19)*scale),Color(0.4,1,0.6,0.5) if valid else Color(1,0.2,0.2,0.5))
