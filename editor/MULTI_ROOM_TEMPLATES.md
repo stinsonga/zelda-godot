@@ -89,8 +89,9 @@ reward-room reference use template-local IDs before instantiation. All six roles
 weights, item requirements and primary door ports retain their existing meaning.
 A format-2 library may mix ordinary templates and multi-room units.
 
-Format-1 libraries retain generation algorithm version 1. Format-2 libraries use
-version 2. Provenance `room_count` records primary rooms; the result report shows
+Without residents, format-1 libraries retain generation algorithm version 1 and format-2 libraries use
+version 2. Libraries containing residents use recipe version 3 and a separate
+world ID prefix; see [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md). Provenance `room_count` records primary rooms; the result report shows
 primary and total counts. The library fingerprint includes annex geometry, links,
 rewards, weights and order. Fingerprints normalize string-key types and integral
 JSON numbers, so saving/reloading a library preserves the seed result and world

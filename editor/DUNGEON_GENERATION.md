@@ -32,7 +32,8 @@ reach them, rather than certifying only the main path. This is a first generator
 not yet a general procedural puzzle designer with loops or multiple floors.
 
 The generated pack contains a recipe: `authored_tree`, algorithm version 1 for
-format-1 libraries or version 2 for format-2 libraries,
+format-1 libraries or version 2 for format-2 libraries; resident-bearing libraries
+use version 3 with a separate world ID prefix,
 seed, requested size/item, selected template IDs and the library's canonical
 SHA256. Its PRNG is an explicit 32-bit LCG, independent of Godot's random-number
 implementation. The same algorithm, library contents and recipe reproduce the
@@ -127,11 +128,14 @@ Current conservative limits:
   with arrival suppression. See [STAIRS.md](STAIRS.md). Enable linked-cellar
   capture for bounded room/cellar units; general room groups and internal door
   networks remain outside template support.
-- Resident packs are explicitly unsupported pending gift/shop/economy state.
-  They can be authored and playtested; see [RESIDENTS.md](RESIDENTS.md).
-- No water/ladder deployment, raft routes, other secret types, resident cave routes,
+- Residents support gifts, finite coin budgets, shop choices/return visits and
+  native barriers under conservative offer routing. Repeatable money offers and
+  mixed shop/finite bomb supplies remain unsupported. See
+  [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
+- No water/ladder deployment, raft routes, other secret types,
   money rules, boss vulnerabilities or enemy-drop dependencies.
-- At most eight total supplied bombs, including starting bundles. Larger supplies
+- Without a bomb shop: at most eight total finite bombs, including gifts and
+  starting bundles. Bomb shops are supported only without other finite bomb sources. Larger supplies
   need capacity/timing-aware pickup routing and are explicitly unsupported, rather
   than pretending the eight-bomb cap cannot waste an early pickup.
 - Supported pack enemy families are modeled as sword-vulnerable encounters.

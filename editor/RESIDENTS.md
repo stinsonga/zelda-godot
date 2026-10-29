@@ -78,13 +78,15 @@ Exactly three slots are required; `null` means empty. The adapter constructs
 `CaveDefinition` and `CaveWare` resources. No scripts, resource paths or ROM art
 are accepted in this data. Existing packs without residents behave as before.
 
-**Progression certification is not available for resident packs yet.** The solver
-explicitly reports unsupported rather than assuming gifts or purchases are free
-progression pickups. Price timing, wallets, repeat purchases, gift choices and
-resident collection flags need their own search model. Ordinary validation and
-game playtests remain available. Ware transactions cannot be named as pickup
-objectives in this pass. Cave networks are also outside the current cellar-only
-multi-room template capture scope.
+Progression checking now supports hint barriers, one-time gifts, finite coins,
+shop choices and return visits. It waits for transactions to settle and reports
+conservative offer-routing and resource limits. Repeatable money offers and mixed
+shop/finite bomb supply are explicitly unsupported. See
+[RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md) and
+`content/packs/shop_route.json` for a certified example. Ware transactions cannot
+be named directly as pickup objectives; use the item they supply to reach a
+normal objective pickup. Cave networks remain outside the current cellar-only
+multi-room capture scope.
 
 Future resident features include paid hints, money games, charges, heart
 requirements, letter/bait interactions, alternative portraits and cave entrance

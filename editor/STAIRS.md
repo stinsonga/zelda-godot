@@ -102,7 +102,8 @@ save a primary room and up to three cellar annexes as one reusable unit. These
 units can participate in seeded generation with remapped destinations and reward
 positions; see [MULTI_ROOM_TEMPLATES.md](MULTI_ROOM_TEMPLATES.md). Other secret
 triggers and the original cellar animation remain separate features. Hint/gift/shop
-cave interiors are now authorable, but not progression-certified; see [RESIDENTS.md](RESIDENTS.md).
+cave interiors are authorable and supported by bounded resident progression
+checking; see [RESIDENTS.md](RESIDENTS.md) and [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
 
 ## Checks
 

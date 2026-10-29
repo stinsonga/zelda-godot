@@ -39,6 +39,7 @@ func path_to(predicate: Callable) -> Array:
 		# An active portal is a terminal square, not a shortcut through its room.
 		if world.portal_armed or at != start:
 			if world.room.portals.any(func(portal): return portal.area.has_point(at) and (not portal.requires_secret or world.secrets.revealed)): continue
+		if resident_offer_slot(at)>=0: continue
 		for direction in DIRS.values():
 			# Item/door input may stop Link between grid points. First finish
 			# that axis using real movement, then resume eight-pixel routing.
@@ -66,6 +67,7 @@ func walk_to(predicate: Callable, arrival_room: String = "") -> bool:
 			if at == waypoint: break
 			var delta: Vector2i = waypoint-at
 			tick(Vector2i(signi(delta.x),0) if delta.x != 0 else Vector2i(0,signi(delta.y)))
+			after_walk_tick()
 			if not arrival_room.is_empty() and String(world.room.id) == arrival_room: return true
 		if world.player.pixel_position() != waypoint: return false
 	return predicate.call(world.player.pixel_position())
@@ -80,7 +82,9 @@ func replay(pack: Dictionary, proof: Dictionary) -> void:
 		if event.type == "start": continue
 		check(String(world.room.id) == event.room,"Native witness is in expected room for "+str(event))
 		if String(world.room.id) != event.room: break
-		if event.type == "pickup":
+		if event.type in ["coins","resident"]:
+			replay_economy_event(event)
+		elif event.type == "pickup":
 			if world.state.has_collected(StringName(event.room),StringName(event.pickup)) and not event.has("at"): continue
 			var pickup: Resource
 			for item in world.room.pickups:
@@ -180,3 +184,14 @@ func run() -> void:
 	world.combat.encounter_room = null;world.free()
 	print("Generated native replay checks: ","PASS" if failures == 0 else "FAIL")
 	quit(0 if failures == 0 else 1)
+
+func after_walk_tick() -> void:
+	pass
+func replay_economy_event(_event: Dictionary) -> void:
+	check(false,"This replay suite does not implement resident economy events")
+func resident_offer_slot(at: Vector2i) -> int:
+	var session: RefCounted = world.cave_session
+	if session == null or session.phase != "shop" or not session.cave.choose: return -1
+	for i in range(3):
+		if session.ware_visible(i) and at.x == session.WARE_X[i] and absi(at.y-session.WARE_Y)<6: return i
+	return -1

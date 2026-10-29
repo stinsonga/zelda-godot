@@ -115,15 +115,20 @@ Try `content/packs/stair_vault.json`; see [STAIRS.md](../editor/STAIRS.md). Cell
 authored dungeon geometry; original cellar animation remains future work.
 Primary-room/cellar templates now capture and instantiate up to three linked
 annexes, with per-instance target IDs and configurable progression reward rooms.
-Seeded generation verifies key-return and goal-cellar routes. Format-1 recipes
-remain compatible; format-2 libraries use generator version 2. Try
+Seeded generation verifies key-return and goal-cellar routes. Resident-free
+format-1/format-2 libraries retain generator versions 1/2. Try
 `content/templates/cellar_templates.json`; see
 [MULTI_ROOM_TEMPLATES.md](../editor/MULTI_ROOM_TEMPLATES.md).
 
 Hint, gift and shop residents can now be authored in linked cave interiors, using
 the native cave-session system. Gifts persist, shops charge rupees and reopen on
-re-entry, and return stairs avoid the native resident barrier. The solver declines
-resident packs until transaction/economy state is modeled. Try
+re-entry, and return stairs avoid the native resident barrier. Progression now
+tracks gifts, wallets, purchases, return visits and the resident barrier, with
+native witness replay. Offer-routing, repeatable-income and mixed-bomb limits are
+explicit. Resident-bearing generation uses version 3 with a new world ID prefix;
+resident-free recipes retain their identities. See
+[RESIDENT_PROGRESSION.md](../editor/RESIDENT_PROGRESSION.md) and
+`content/packs/shop_route.json`. Try
 `content/packs/resident_village.json`; see [RESIDENTS.md](../editor/RESIDENTS.md).
 
 Missing:

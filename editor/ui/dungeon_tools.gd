@@ -97,7 +97,7 @@ func _ready() -> void:
 	capture_info = Label.new();capture_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART;capture.add_child(capture_info)
 	save_button = button("Save selection as new template…",capture,func(): picker.file_mode = FileDialog.FILE_MODE_SAVE_FILE;picker.current_file = "custom_templates.json";picker.popup_centered_ratio(0.7))
 	var solve := VBoxContainer.new();solve.name = "Progression";tabs.add_child(solve)
-	label("Checks a snapshot of the current pack, starting equipment and objective pickups. Keys/bombs are finite; opened doors remain open on both sides. Reachability is checked within each room, not just on the map.",solve)
+	label("Checks a snapshot of the current pack, starting equipment and objective pickups. Keys, bombs and rupees are finite; gifts persist and shops reset per visit. Opened doors remain open. The report states movement and transaction limits.",solve)
 	solve_button = button("Check current dungeon",solve,start_solver)
 	report = TextEdit.new();report.editable = false;report.add_theme_color_override("font_readonly_color",Color("dce5ed"));report.size_flags_vertical = Control.SIZE_EXPAND_FILL;report.custom_minimum_size = Vector2(820,200);content.add_child(report)
 	picker = FileDialog.new();picker.access = FileDialog.ACCESS_FILESYSTEM;picker.filters = PackedStringArray(["*.json ; Template library"]);picker.current_dir = game_root.path_join("content/templates");picker.file_selected.connect(file_selected);add_child(picker)

@@ -65,14 +65,18 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 		for t in eligible:
 			roll -= int(t.weight)
 			if roll<0: chosen.append(t);break
+	# Resident solvability changes candidate acceptance. Give those libraries
+	# a new recipe and world identity, preserving existing v1/v2 seed results.
+	var resident_library: bool = catalog.templates.any(func(t): return t.room.has("resident") or t.get("annexes",[]).any(func(room): return room.has("resident")))
+	var algorithm_version := 3 if resident_library else int(catalog.format_version)
 	var pack := Pack.fresh()
 	Pack.upgrade(pack)
-	pack.id = "generated_%d_%d_%s_%s" % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
+	pack.id = ("generated_v3_%d_%d_%s_%s" if resident_library else "generated_%d_%d_%s_%s") % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
 	pack.title = "Seed %d dungeon" % seed_value
 	pack.start_room = "room_0"
 	pack.enemy_types = catalog.enemy_types.duplicate(true)
 	pack.rooms = []
-	pack.generation = {"algorithm":"authored_tree","version":int(catalog.format_version),"seed":seed_value,"template_sha256":Templates.fingerprint(catalog),"room_count":count,"required_item":required_item,"templates":{}}
+	pack.generation = {"algorithm":"authored_tree","version":algorithm_version,"seed":seed_value,"template_sha256":Templates.fingerprint(catalog),"room_count":count,"required_item":required_item,"templates":{}}
 	var units: Array = []
 	for i in range(count):
 		var template: Dictionary = chosen[i]

@@ -1,0 +1,244 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "goals": [
+    {
+      "pickup": "goal",
+      "room": "hall_1"
+    }
+  ],
+  "id": "shop_route",
+  "rooms": [
+    {
+      "connections": {
+        "up": {
+          "kind": "key",
+          "target": "hall_0"
+        }
+      },
+      "enemies": [],
+      "id": "entry",
+      "map_position": [
+        0,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "coin_0",
+          "item": "rupee",
+          "position": [
+            48,
+            109
+          ]
+        },
+        {
+          "id": "coin_1",
+          "item": "rupee",
+          "position": [
+            64,
+            109
+          ]
+        },
+        {
+          "id": "coin_2",
+          "item": "rupee",
+          "position": [
+            80,
+            109
+          ]
+        },
+        {
+          "id": "coin_3",
+          "item": "rupee",
+          "position": [
+            96,
+            109
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            4,
+            3
+          ],
+          "id": "market",
+          "target": "market",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Entrance"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "key",
+          "target": "entry"
+        },
+        "up": {
+          "kind": "key",
+          "target": "hall_1"
+        }
+      },
+      "enemies": [],
+      "id": "hall_0",
+      "map_position": [
+        0,
+        -1
+      ],
+      "pickups": [],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "New room"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "key",
+          "target": "hall_0"
+        }
+      },
+      "enemies": [],
+      "id": "hall_1",
+      "map_position": [
+        0,
+        -2
+      ],
+      "pickups": [
+        {
+          "id": "goal",
+          "item": "heart",
+          "position": [
+            120,
+            77
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "New room"
+    },
+    {
+      "connections": {},
+      "enemies": [],
+      "id": "market",
+      "kind": "cave",
+      "map_position": [
+        1,
+        0
+      ],
+      "pickups": [],
+      "resident": {
+        "mode": "shop",
+        "text": "A KEY FOR YOUR ROUTE.",
+        "wares": [
+          null,
+          {
+            "item": "key",
+            "price": 2
+          },
+          null
+        ]
+      },
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            3,
+            7
+          ],
+          "id": "return",
+          "target": "entry",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Key market"
+    }
+  ],
+  "schema": 2,
+  "start_room": "entry",
+  "starting_items": [
+    "wooden_sword"
+  ],
+  "title": "Shop route"
+}

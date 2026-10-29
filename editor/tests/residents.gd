@@ -11,7 +11,7 @@ func run() -> void:
 	check(Pack.validate(pack).is_empty(),"Resident village validates")
 	check(Pack.layout_warnings(pack).is_empty(),"Caves connect through stair links")
 	check(Pack.validate(JSON.parse_string(JSON.stringify(pack))).is_empty(),"Resident data survives JSON")
-	check(Solver.new().solve(pack).status == "unsupported","Resident transactions never receive an unsupported solvability claim")
+	check(Solver.new().solve(pack).status == "solved","Ordinary resident village objective can be certified")
 	for malformed in [null,{}, {"mode":"hint","text":"X","wares":[null]}, {"mode":"gift","text":"X","wares":[null,null,null]}, {"mode":"shop","text":"X","wares":[null,null,null]}, {"mode":"hint","text":"X".repeat(25),"wares":[null,null,null]}, {"mode":"hint","text":"X\nX\nX\nX","wares":[null,null,null]}, {"mode":"gift","text":"X","wares":[null,{"item":"bow","price":1},null]}, {"mode":"shop","text":"X","wares":[null,{"item":"../../bad","price":1},null]}]:
 		var broken := pack.duplicate(true);broken.rooms[1].resident = malformed
 		check(not Pack.validate(broken).is_empty(),"Malformed resident is rejected")

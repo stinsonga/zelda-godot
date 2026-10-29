@@ -152,6 +152,8 @@ This is the first usable editing loop, not the complete editor. Next:
   secret pickups and block shutters are available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
   Hidden stairs and linked cellars are available; see [STAIRS.md](STAIRS.md).
   Hint/gift/shop residents and linked caves are available; see [RESIDENTS.md](RESIDENTS.md).
+  Their bounded progression model covers gifts, coins and purchases; see
+  [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
 - Broader generation: loops, multiple floors, general room-group templates, advanced dependencies and
