@@ -1,6 +1,7 @@
 extends VBoxContainer
 signal applied(stair: Dictionary)
 signal removed(id: String)
+signal cave_requested(stair: Dictionary)
 signal cellar_requested(stair: Dictionary)
 const Pack = preload("../shared/room_pack.gd")
 var list: ItemList
@@ -41,6 +42,7 @@ func _ready() -> void:
 	button("Apply stair link",func(): applied.emit(value()))
 	button("Delete selected stair",func():
 		if not selected_id.is_empty(): removed.emit(selected_id))
+	button("Create linked cave",func(): cave_requested.emit(value()))
 	button("Create linked cellar",func(): cellar_requested.emit(value()))
 	caption("Stairs activate when stepped on. Cellars are editable rooms with a return stair. Arrival uses the dungeon grid; links can be one-way.")
 func choice() -> String: return target.get_item_text(target.selected) if target.selected>=0 else ""

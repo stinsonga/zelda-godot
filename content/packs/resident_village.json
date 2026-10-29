@@ -1,0 +1,422 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "goals": [],
+  "id": "resident_village",
+  "rooms": [
+    {
+      "connections": {},
+      "enemies": [],
+      "id": "entry",
+      "map_position": [
+        0,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "review_goal",
+          "item": "rupee",
+          "position": [
+            120,
+            77
+          ]
+        },
+        {
+          "id": "coin_1",
+          "item": "rupee",
+          "position": [
+            48,
+            109
+          ]
+        },
+        {
+          "id": "coin_2",
+          "item": "rupee",
+          "position": [
+            64,
+            109
+          ]
+        },
+        {
+          "id": "coin_3",
+          "item": "rupee",
+          "position": [
+            80,
+            109
+          ]
+        },
+        {
+          "id": "coin_4",
+          "item": "rupee",
+          "position": [
+            96,
+            109
+          ]
+        },
+        {
+          "id": "coin_5",
+          "item": "rupee",
+          "position": [
+            112,
+            109
+          ]
+        },
+        {
+          "id": "coin_6",
+          "item": "rupee",
+          "position": [
+            128,
+            109
+          ]
+        },
+        {
+          "id": "coin_7",
+          "item": "rupee",
+          "position": [
+            144,
+            109
+          ]
+        },
+        {
+          "id": "coin_8",
+          "item": "rupee",
+          "position": [
+            160,
+            109
+          ]
+        },
+        {
+          "id": "coin_9",
+          "item": "rupee",
+          "position": [
+            176,
+            109
+          ]
+        },
+        {
+          "id": "coin_10",
+          "item": "rupee",
+          "position": [
+            192,
+            109
+          ]
+        },
+        {
+          "id": "coin_11",
+          "item": "rupee",
+          "position": [
+            48,
+            125
+          ]
+        },
+        {
+          "id": "coin_12",
+          "item": "rupee",
+          "position": [
+            64,
+            125
+          ]
+        },
+        {
+          "id": "coin_13",
+          "item": "rupee",
+          "position": [
+            80,
+            125
+          ]
+        },
+        {
+          "id": "coin_14",
+          "item": "rupee",
+          "position": [
+            96,
+            125
+          ]
+        },
+        {
+          "id": "coin_15",
+          "item": "rupee",
+          "position": [
+            112,
+            125
+          ]
+        },
+        {
+          "id": "coin_16",
+          "item": "rupee",
+          "position": [
+            128,
+            125
+          ]
+        },
+        {
+          "id": "coin_17",
+          "item": "rupee",
+          "position": [
+            144,
+            125
+          ]
+        },
+        {
+          "id": "coin_18",
+          "item": "rupee",
+          "position": [
+            160,
+            125
+          ]
+        },
+        {
+          "id": "coin_19",
+          "item": "rupee",
+          "position": [
+            176,
+            125
+          ]
+        },
+        {
+          "id": "coin_20",
+          "item": "rupee",
+          "position": [
+            192,
+            125
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            4,
+            3
+          ],
+          "id": "hint",
+          "target": "hint",
+          "target_position": [
+            120,
+            125
+          ]
+        },
+        {
+          "cell": [
+            7,
+            3
+          ],
+          "id": "gift",
+          "target": "gift",
+          "target_position": [
+            120,
+            125
+          ]
+        },
+        {
+          "cell": [
+            10,
+            3
+          ],
+          "id": "shop",
+          "target": "shop",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Entrance"
+    },
+    {
+      "connections": {},
+      "enemies": [],
+      "id": "hint",
+      "kind": "cave",
+      "map_position": [
+        1,
+        0
+      ],
+      "pickups": [],
+      "resident": {
+        "mode": "hint",
+        "text": "THE PATH LOOPS BACK.",
+        "wares": [
+          null,
+          null,
+          null
+        ]
+      },
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            3,
+            7
+          ],
+          "id": "return",
+          "target": "entry",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Hint cave"
+    },
+    {
+      "connections": {},
+      "enemies": [],
+      "id": "gift",
+      "kind": "cave",
+      "map_position": [
+        2,
+        0
+      ],
+      "pickups": [],
+      "resident": {
+        "mode": "gift",
+        "text": "A SMALL GIFT FOR YOU.",
+        "wares": [
+          null,
+          {
+            "item": "bow",
+            "price": 0
+          },
+          null
+        ]
+      },
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            3,
+            7
+          ],
+          "id": "return",
+          "target": "entry",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Gift cave"
+    },
+    {
+      "connections": {},
+      "enemies": [],
+      "id": "shop",
+      "kind": "cave",
+      "map_position": [
+        3,
+        0
+      ],
+      "pickups": [],
+      "resident": {
+        "mode": "shop",
+        "text": "SUPPLIES FOR YOUR ROAD.",
+        "wares": [
+          null,
+          {
+            "item": "key",
+            "price": 20
+          },
+          null
+        ]
+      },
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            3,
+            7
+          ],
+          "id": "return",
+          "target": "entry",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Shop cave"
+    }
+  ],
+  "schema": 2,
+  "start_room": "entry",
+  "starting_items": [
+    "wooden_sword"
+  ],
+  "title": "Resident village"
+}

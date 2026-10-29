@@ -1,4 +1,5 @@
 extends Control
+signal resident_chosen
 signal stair_chosen(id: String)
 signal secret_chosen
 signal entity_chosen(kind: String, id: String)
@@ -111,6 +112,14 @@ func _draw() -> void:
 	var spawn := rect.position+(Vector2(room.spawn[0],room.spawn[1]+3)+Vector2(8,8))/16.0*step
 	draw_circle(spawn,minf(step.x,step.y)*0.38,Color("86d1ad"),false,3)
 	label_at("S",spawn+Vector2(-5,5),Color("86d1ad"))
+	if room.has("resident"):
+		var top := rect.position+Vector2(120,64)/16.0*step
+		draw_rect(Rect2(top,step),Color("e0a060"));label_at("N",top+step*0.5+Vector2(-5,5),Color("18232e"))
+		for i in range(3):
+			if room.resident.wares[i] == null: continue
+			var ware_top := rect.position+Vector2(88+i*32,88)/16.0*step
+			draw_rect(Rect2(ware_top+step*0.2,step*0.6),Color("e5c46a"))
+			label_at(String(room.resident.wares[i].item).left(1).to_upper(),ware_top+step*0.5+Vector2(-4,4),Color("18232e"),12)
 	for stair in room.get("stairs",[]):
 		var top := rect.position+Vector2(stair.cell[0],stair.cell[1])*step
 		var color := Color("7ecad5") if not stair.get("requires_secret",false) else Color("c2a5ee")
@@ -142,6 +151,8 @@ func select_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		grab_focus()
 		var at := room_pixel(event.position)
+		if room.has("resident") and Rect2(Vector2(120,64),Vector2(16,16)).has_point(at) and not event.alt_pressed:
+			dragging = false;resident_chosen.emit();accept_event();return
 		if room.has("secret") and Rect2(Vector2(room.secret.cell[0],room.secret.cell[1])*16,Vector2(16,16)).has_point(at) and not event.alt_pressed:
 			dragging = false;secret_chosen.emit();accept_event();return
 		if not event.alt_pressed:

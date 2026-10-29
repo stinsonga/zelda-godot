@@ -35,7 +35,8 @@ that link; a return link is independent and may remain intentionally one-way.
 Select-click a visible stair to focus its inspector, or choose a link in the stair
 list. The list also exposes stairs covered by a block. New/edited links are
 validated before mutation. An unchanged Apply does not create undo history, even
-for a pack read from JSON. The room toolbar wraps when space is limited.
+for a pack read from JSON. The room toolbar wraps when space is limited. **Create linked cave** adds a
+resident interior with a barrier-safe return stair; see [RESIDENTS.md](RESIDENTS.md).
 
 Deleting a destination room removes incoming stairs together with existing door
 and objective cleanup; Undo restores them. Copying a room drops its outgoing stair
@@ -100,7 +101,8 @@ Single-room capture still rejects linked stairs. Enable linked-cellar capture to
 save a primary room and up to three cellar annexes as one reusable unit. These
 units can participate in seeded generation with remapped destinations and reward
 positions; see [MULTI_ROOM_TEMPLATES.md](MULTI_ROOM_TEMPLATES.md). Other secret
-triggers, cave interiors and the original cellar animation remain separate features.
+triggers and the original cellar animation remain separate features. Hint/gift/shop
+cave interiors are now authorable, but not progression-certified; see [RESIDENTS.md](RESIDENTS.md).
 
 ## Checks
 

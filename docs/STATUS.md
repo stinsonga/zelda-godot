@@ -120,12 +120,18 @@ remain compatible; format-2 libraries use generator version 2. Try
 `content/templates/cellar_templates.json`; see
 [MULTI_ROOM_TEMPLATES.md](../editor/MULTI_ROOM_TEMPLATES.md).
 
+Hint, gift and shop residents can now be authored in linked cave interiors, using
+the native cave-session system. Gifts persist, shops charge rupees and reopen on
+re-entry, and return stairs avoid the native resident barrier. The solver declines
+resident packs until transaction/economy state is modeled. Try
+`content/packs/resident_village.json`; see [RESIDENTS.md](../editor/RESIDENTS.md).
+
 Missing:
 
 - authored replacement libraries, richer sprite
   layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
-- authoring support for other secret types and caves, original cellar transitions, plus broader
+- additional resident modes, cave entrance/original cellar transitions, other secret types, plus broader
   generation layouts, general room-group templates and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
 - automatic ID remapping when content is renamed, so older saves keep loading

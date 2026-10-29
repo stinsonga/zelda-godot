@@ -34,6 +34,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 	if pack.schema != 2 or pack.goals.is_empty(): return report("unsupported","Choose at least one objective pickup (version 2) before checking progression.")
 	if pack.rooms.size() > 32: return report("unsupported","This solver supports at most 32 rooms.")
 	for room in pack.rooms:
+		if room.has("resident"): return report("unsupported",String(room.id)+": resident gifts, purchases and rupee timing are not modeled; playtest this pack instead.")
 		rooms[room.id] = room
 		if not room.get("stairs",[]).is_empty(): has_stairs = true
 		if int(room.spawn[0])%8 != 0 or posmod(int(room.spawn[1])-5,8) != 0: return report("unsupported",room.id + ": solver requires the dungeon's eight-pixel spawn grid.")

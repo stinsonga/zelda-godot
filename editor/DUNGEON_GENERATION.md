@@ -127,7 +127,9 @@ Current conservative limits:
   with arrival suppression. See [STAIRS.md](STAIRS.md). Enable linked-cellar
   capture for bounded room/cellar units; general room groups and internal door
   networks remain outside template support.
-- No water/ladder deployment, raft routes, other secret types, caves,
+- Resident packs are explicitly unsupported pending gift/shop/economy state.
+  They can be authored and playtested; see [RESIDENTS.md](RESIDENTS.md).
+- No water/ladder deployment, raft routes, other secret types, resident cave routes,
   money rules, boss vulnerabilities or enemy-drop dependencies.
 - At most eight total supplied bombs, including starting bundles. Larger supplies
   need capacity/timing-aware pickup routing and are explicitly unsupported, rather

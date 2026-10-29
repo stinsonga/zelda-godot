@@ -100,10 +100,10 @@ static func validate(pack) -> PackedStringArray:
 		if ids.has(id): errors.append("Duplicate room ID: " + id)
 		ids[id] = r
 		var room_fields: Array = ROOM_FIELDS.duplicate()
-		if version == 2: room_fields.append_array(["template_id","role","secret","stairs","kind"])
+		if version == 2: room_fields.append_array(["template_id","role","secret","stairs","kind","resident"])
 		unknown_fields(r,room_fields,id,errors)
 		if version == 2:
-			if r.has("kind") and r.kind not in ["dungeon","cellar"]: errors.append(id + ": room kind must be dungeon or cellar")
+			if r.has("kind") and r.kind not in ["dungeon","cellar","cave"]: errors.append(id + ": room kind must be dungeon, cellar or cave")
 			if r.has("template_id") and not identifier(r.template_id): errors.append(id + ": invalid template ID")
 			if r.has("role") and r.role not in ["start","key","item","combat","treasure","goal"]: errors.append(id + ": invalid template role")
 		if not r.get("title") is String: errors.append(id + ": title must be text")
@@ -123,6 +123,7 @@ static func validate(pack) -> PackedStringArray:
 			if map_cells.has(map_key): errors.append(id + ": map position overlaps " + str(map_cells[map_key]))
 			map_cells[map_key] = id
 		if not integer(r.get("shutter_trigger"),0,4) or int(r.get("shutter_trigger")) not in ([0,1,4] if version == 2 else [0,1]): errors.append(id + ": shutter trigger must be 0 (one-way), 1 (clear enemies), or 4 (push block)")
+		if r.has("resident"): validate_resident(r,errors)
 		if r.has("secret"): validate_block(r,good_tiles,errors)
 		elif r.get("shutter_trigger") == 4: errors.append(id + ": push-block shutters require a block secret")
 		for field in ["enemies","pickups"]:
@@ -323,6 +324,7 @@ static func validate_stairs(rooms: Dictionary, errors: PackedStringArray) -> voi
 			if stair.get("requires_secret") == true and not room.has("secret"): errors.append(prefix+"hidden stairs need a block secret")
 			if not point(stair.get("cell"),3,12,3,7): errors.append(prefix+"cell must lie at X 3..12, Y 3..7, clear of door approaches");continue
 			var at := stair_position(stair)
+			if room.has("resident") and at.y<77: errors.append(prefix+"resident interiors need stairs at row 5 or below, clear of the native resident barrier")
 			if cells.has(at): errors.append(prefix+"cells must be unique")
 			cells[at] = true
 			if not room.get("tiles") is Array or not walkable(room.tiles,[at.x,at.y]): errors.append(prefix+"cell needs walkable floor")
@@ -345,3 +347,46 @@ static func cellar(id: String) -> Dictionary:
 	result.kind = "cellar"
 	for y in range(2,8): result.tiles[y] = "###.########.###"
 	return result
+
+static func resident(mode: String = "hint") -> Dictionary:
+	var wares: Array = [null,null,null]
+	if mode == "gift": wares[1] = {"item":"wooden_sword","price":0}
+	if mode == "shop": wares = [{"item":"bombs","price":10},{"item":"key","price":20},{"item":"heart","price":5}]
+	return {"mode":mode,"text":"WELCOME, TRAVELER.","wares":wares}
+static func validate_resident(room: Dictionary, errors: PackedStringArray) -> void:
+	var prefix := String(room.id)+": resident "
+	var data = room.resident
+	if not data is Dictionary: errors.append(prefix+"must be an object");return
+	unknown_fields(data,["mode","text","wares"],prefix,errors)
+	if data.get("mode") not in ["hint","gift","shop"]: errors.append(prefix+"mode must be hint, gift or shop")
+	var text = data.get("text")
+	if not text is String: errors.append(prefix+"text must be a string")
+	elif text.length()>74: errors.append(prefix+"text supports three lines of at most 24 characters")
+	else:
+		var lines: PackedStringArray = text.split("\n")
+		if lines.size()>3: errors.append(prefix+"text supports at most three lines")
+		for line in lines:
+			if line.length()>24: errors.append(prefix+"text lines support at most 24 characters")
+			for character in line:
+				if character.unicode_at(0)<32 or character.unicode_at(0)>126: errors.append(prefix+"text requires printable ASCII")
+	var wares = data.get("wares")
+	if not wares is Array or wares.size()!=3: errors.append(prefix+"needs exactly three ware slots");return
+	var count := 0
+	for i in range(3):
+		var ware = wares[i]
+		if ware == null: continue
+		count+=1
+		if not ware is Dictionary: errors.append(prefix+"ware must be an item/price object or null");continue
+		unknown_fields(ware,["item","price"],prefix+"ware",errors)
+		if ware.get("item") not in ITEMS or not integer(ware.get("price"),0,255): errors.append(prefix+"ware needs a supported item and price 0..255")
+		if data.get("mode") == "gift" and ware.get("price") != 0: errors.append(prefix+"gifts must be free")
+		var tiles = room.get("tiles")
+		if tiles is Array and not (walkable(tiles,[88+i*32,85]) or walkable(tiles,[88+i*32,93])): errors.append(prefix+"ware approach needs walkable floor")
+	if data.get("mode") == "hint" and count!=0: errors.append(prefix+"hints cannot offer wares")
+	if data.get("mode") == "gift" and count!=1: errors.append(prefix+"gifts offer exactly one item")
+	if data.get("mode") == "shop" and count==0: errors.append(prefix+"shops need at least one item")
+	if room.get("enemies") is Array and not room.enemies.is_empty(): errors.append(prefix+"rooms cannot contain enemies in this version")
+	if room.has("secret"): errors.append(prefix+"place block secrets in the entrance room, not the resident interior")
+	if room.get("pickups") is Array:
+		for pickup in room.pickups:
+			if pickup is Dictionary and pickup.get("id") == "taken": errors.append(prefix+"reserves pickup ID taken for resident transactions")

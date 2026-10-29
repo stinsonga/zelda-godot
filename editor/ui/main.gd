@@ -27,6 +27,8 @@ var placement_inspector: VBoxContainer
 var stairs_inspector: VBoxContainer
 const TemplateData = preload("../shared/dungeon_templates.gd")
 const StairInspector = preload("stair_inspector.gd")
+var resident_inspector: VBoxContainer
+const ResidentInspector = preload("resident_inspector.gd")
 var block_inspector: VBoxContainer
 const BlockInspector = preload("block_inspector.gd")
 const PlacementInspector = preload("placement_inspector.gd")
@@ -231,6 +233,7 @@ func build_ui() -> void:
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	room_view.add_child(canvas)
 	canvas.stroke_started.connect(func(): stroke_before = pack.duplicate(true); stroke_appearance_before = appearance.duplicate(true))
+	canvas.resident_chosen.connect(inspect_resident)
 	canvas.stair_chosen.connect(inspect_stair)
 	canvas.secret_chosen.connect(func():
 		select_placement("","")
@@ -301,6 +304,10 @@ func build_ui() -> void:
 	stairs_inspector.applied.connect(apply_stair)
 	stairs_inspector.removed.connect(remove_stair)
 	stairs_inspector.cellar_requested.connect(create_cellar)
+	stairs_inspector.cave_requested.connect(func(value): create_cellar(value,true))
+	resident_inspector = ResidentInspector.new();right.add_child(resident_inspector)
+	resident_inspector.applied.connect(apply_resident)
+	resident_inspector.reset_requested.connect(refresh)
 	section("ROOM",right)
 	title_edit = LineEdit.new()
 	right.add_child(title_edit)
@@ -391,7 +398,7 @@ func refresh() -> void:
 	var target_selection := selected(destination)
 	rooms_list.clear()
 	for r in pack.rooms:
-		rooms_list.add_item(("★ " if r.id == pack.start_room else "") + r.title + (" (cellar)" if r.get("kind") == "cellar" else ""))
+		rooms_list.add_item(("★ " if r.id == pack.start_room else "") + r.title + (" ("+String(r.kind)+")" if r.get("kind") in ["cellar","cave"] else ""))
 		if r.id == current_id: rooms_list.select(rooms_list.item_count-1)
 	goal_pickup.clear()
 	for pickup in room.pickups: goal_pickup.add_item(pickup.id)
@@ -407,6 +414,7 @@ func refresh() -> void:
 	shutter.tooltip_text = "Controlled by the push block" if shutter.disabled else ""
 	block_inspector.refresh(room)
 	stairs_inspector.refresh(room,pack)
+	resident_inspector.refresh(room)
 	start_button.disabled = current_id == pack.start_room
 	enemy_type.clear()
 	for id in pack.enemy_types:
@@ -969,6 +977,7 @@ func same_position(a: Array, b: Array) -> bool:
 	return int(a[0]) == int(b[0]) and int(a[1]) == int(b[1])
 
 func apply_block(secret: Dictionary) -> void:
+	if current().has("resident"): message("Place block secrets in the entrance room, outside the resident interior.");return
 	var room := current().duplicate(true)
 	room.secret = secret.duplicate(true)
 	room.shutter_trigger = 4 if secret.reveal == "shutters" else (1 if room.shutter_trigger == 4 else room.shutter_trigger)
@@ -1020,20 +1029,21 @@ func remove_stair(id: String) -> void:
 	var action := func(): current().stairs = current().stairs.filter(func(stair): return stair.id != id)
 	if stroke_before.is_empty(): edit(action)
 	else: action.call();canvas.queue_redraw()
-func create_cellar(value: Dictionary) -> void:
+func create_cellar(value: Dictionary, cave: bool = false) -> void:
 	if pack.rooms.size() >= 256 or current().get("stairs",[]).size() >= 4: message("Room or stair limit reached.");return
 	var candidate := pack.duplicate(true);Pack.upgrade(candidate)
 	var source: Dictionary
 	for room in candidate.rooms:
 		if room.id == current_id: source = room;break
-	var cellar := Pack.cellar(unique_room_id())
+	var cellar := Pack.room(unique_room_id(),"Cave") if cave else Pack.cellar(unique_room_id())
+	if cave: cellar.kind = "cave";cellar.resident = Pack.resident()
 	cellar.map_position = unused_map_position()
 	var stair := value.duplicate(true)
 	var entries: Array = source.get("stairs",[])
 	stair.id = unique_placement_id(entries,"stairs")
-	stair.target = cellar.id;stair.target_position = [48,61]
+	stair.target = cellar.id;stair.target_position = [120,125] if cave else [48,61]
 	entries.append(stair);source.stairs = entries
-	cellar.stairs = [{"id":"return","cell":[3,3],"target":current_id,"target_position":source.spawn.duplicate()}]
+	cellar.stairs = [{"id":"return","cell":[3,7] if cave else [3,3],"target":current_id,"target_position":source.spawn.duplicate()}]
 	candidate.rooms.append(cellar)
 	var errors := Pack.validate(candidate)
 	if not errors.is_empty(): message("\n".join(errors));return
@@ -1048,3 +1058,20 @@ func inspect_stair(id: String) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	stairs_inspector.get_parent().get_parent().scroll_vertical = int(stairs_inspector.position.y)
+
+func apply_resident(data: Dictionary) -> void:
+	var candidate := pack.duplicate(true)
+	if not data.is_empty(): Pack.upgrade(candidate)
+	for room in candidate.rooms:
+		if room.id != current_id: continue
+		if data.is_empty(): room.erase("resident")
+		else: room.resident = data.duplicate(true)
+	var errors := Pack.validate(candidate)
+	if not errors.is_empty(): message("\n".join(errors));return
+	if TemplateData.canonical(candidate) == TemplateData.canonical(pack): return
+	edit(func(): pack = candidate)
+func inspect_resident() -> void:
+	select_placement("","")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	resident_inspector.get_parent().get_parent().scroll_vertical = int(resident_inspector.position.y)

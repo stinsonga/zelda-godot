@@ -148,9 +148,10 @@ This is the first usable editing loop, not the complete editor. Next:
 - Authored replacement libraries, more sprite layouts and an editable-copy
   workflow for locally imported rooms. The current local Art layer and terrain
   collision layer are separate; only supported ROM sprite sets/atlases resolve.
-- Caves, other secret types, more items and advanced doors. Directional blocks,
+- Additional cave/resident modes, other secret types, more items and advanced doors. Directional blocks,
   secret pickups and block shutters are available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
   Hidden stairs and linked cellars are available; see [STAIRS.md](STAIRS.md).
+  Hint/gift/shop residents and linked caves are available; see [RESIDENTS.md](RESIDENTS.md).
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
 - Broader generation: loops, multiple floors, general room-group templates, advanced dependencies and

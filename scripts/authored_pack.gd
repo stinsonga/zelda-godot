@@ -7,6 +7,8 @@ const World = preload("res://scripts/world_definition.gd")
 const Enemy = preload("res://scripts/enemy_definition.gd")
 const Spawn = preload("res://scripts/enemy_spawn.gd")
 const Door = preload("res://scripts/door_definition.gd")
+const Cave = preload("res://scripts/cave_definition.gd")
+const Ware = preload("res://scripts/cave_ware.gd")
 const Portal = preload("res://scripts/portal_definition.gd")
 const Secret = preload("res://scripts/secret_definition.gd")
 const Pickup = preload("res://scripts/pickup_definition.gd")
@@ -78,6 +80,25 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 			door.kind = link.kind
 			for item in link.get("requires",[]): door.required_items[StringName(Contract.ITEM_SLOTS[item])] = 1
 			room.doors.append(door)
+		if source.has("resident"):
+			var data: Dictionary = source.resident
+			var cave = Cave.new()
+			cave.id = StringName(String(source.id)+"_resident")
+			cave.person_sprite = &"__authored_resident"
+			cave.text = data.text
+			cave.choose = data.mode != "hint"
+			cave.show_items = cave.choose
+			cave.pay = data.mode == "shop"
+			cave.show_prices = cave.pay
+			cave.negative_prices = cave.pay
+			cave.remember = data.mode == "gift"
+			for i in range(3):
+				if data.wares[i] == null: continue
+				var ware = Ware.new()
+				ware.item = load("res://content/items/"+String(data.wares[i].item)+".tres")
+				ware.price = int(data.wares[i].price)
+				cave.wares[i] = ware
+			room.cave = cave
 		for stair in source.get("stairs",[]):
 			var portal = Portal.new()
 			portal.area = Rect2i(Contract.stair_position(stair),Vector2i.ONE)
