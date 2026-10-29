@@ -163,7 +163,7 @@ func run() -> void:
 	var image := Image.create(16,16,false,Image.FORMAT_RGBA8)
 	image.fill(Color.GREEN)
 	image.save_png(fixture.path_join("imported/test.png"))
-	var catalog := {"format_version":1,"source":{"prg_sha1":"a12d74c73a0481599a5d832361d168f4737bbcf6"},"entries":[{"id":"test","name":"Test monster","path":"test.png","category":"sprites"}]}
+	var catalog := {"format_version":1,"source":{"prg_sha1":"a12d74c73a0481599a5d832361d168f4737bbcf6"},"entries":[{"id":"rom/us_prg0/test","name":"Test monster","path":"test.png","category":"sprites","width":16,"height":16}]}
 	Pack.write(fixture.path_join("imported/editor_catalog.json"),catalog)
 	ui.asset_library.load_catalog(fixture)
 	check(ui.asset_library.entries.size() == 1,"Optional image catalog loads without game resource scripts")
@@ -179,7 +179,7 @@ func run() -> void:
 	check(ui.asset_library.entries.is_empty() and ui.asset_library.summary.text.contains("Invalid"),"Catalog path traversal rejected")
 	DirAccess.remove_absolute(fixture.path_join("imported/editor_catalog.json"))
 	ui.asset_library.load_catalog(fixture)
-	check(ui.asset_library.entries.is_empty() and ui.asset_library.summary.text.contains("No editor image catalog"),"Missing import has a usable empty state")
+	check(ui.asset_library.entries.is_empty() and ui.asset_library.summary.text.contains("No graphics libraries"),"Missing import has a usable empty state")
 	DirAccess.remove_absolute(fixture.path_join("imported/test.png"))
 	DirAccess.remove_absolute(fixture.path_join("imported"))
 	DirAccess.remove_absolute(fixture)

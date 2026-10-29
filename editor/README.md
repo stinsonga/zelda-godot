@@ -14,6 +14,14 @@ godot --path editor
 For development, import `editor/project.godot` in Godot. Running the game project's
 `project.godot` still starts the game normally.
 
+## Authored graphics
+
+**Assets → Import authored PNG…** adds distributable tile sheets and animated
+sprites under `content/art/`, without a ROM. Assign them to enemy variants,
+paint room tiles, or skin secrets, stairs and residents. Source cells can be
+16, 32 or 64 pixels while game collision stays unchanged. See
+[AUTHORED_ART.md](AUTHORED_ART.md) for layouts, sharing and limits.
+
 ## Importing local graphics
 
 **Import ROM…** runs the existing decoder in a background Python process, with

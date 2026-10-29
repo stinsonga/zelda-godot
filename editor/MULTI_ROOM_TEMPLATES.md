@@ -97,7 +97,11 @@ world ID prefix; bomb/fire libraries use version 4. See
 primary and total counts. The library fingerprint includes annex geometry, links,
 rewards, weights and order. Fingerprints normalize string-key types and integral
 JSON numbers, so saving/reloading a library preserves the seed result and world
-identity. Source pack IDs and local art overlays do not become generated assets.
+identity. Source pack IDs and local ROM art overlays do not become generated assets. Shared
+authored art references are captured for the primary room and annexes. Each
+occurrence remaps its tile and feature bindings to its new room IDs, and enemy
+skins follow the scoped definitions. Art participates in the fingerprint. The
+matching `content/art/` libraries remain separate files to share alongside recipes.
 
 Limits for this pass: up to three cellar annexes per template, stairs as internal
 connections, and a single automatic reward location per unit. Arbitrary dungeon

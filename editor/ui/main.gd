@@ -5,6 +5,7 @@ const DungeonMap = preload("dungeon_map.gd")
 const AssetLibrary = preload("asset_library.gd")
 const ImportDialog = preload("import_dialog.gd")
 const DungeonTools = preload("dungeon_tools.gd")
+const ArtBindings = preload("../shared/art_bindings.gd")
 const Appearance = preload("../shared/appearance.gd")
 var appearance: Dictionary = Appearance.fresh("lantern_vault")
 var saved_appearance_text := ""
@@ -219,7 +220,7 @@ func build_ui() -> void:
 	var art_tools := HFlowContainer.new()
 	room_view.add_child(art_tools)
 	local_art = CheckBox.new()
-	local_art.text = "Local art"
+	local_art.text = "Local ROM art"
 	local_art.button_pressed = true
 	local_art.toggled.connect(func(_value): refresh(); validate_pack())
 	art_tools.add_child(local_art)
@@ -228,7 +229,11 @@ func build_ui() -> void:
 	collision_view.toggled.connect(func(value): canvas.show_collision = value; canvas.queue_redraw())
 	art_tools.add_child(collision_view)
 	button("Choose art…",art_tools,func(): views.current_tab = 2)
-	button("Clear room art",art_tools,func(): edit(func(): appearance.room_tiles.erase(current_id)))
+	button("Clear room art",art_tools,func(): edit(func():
+		appearance.room_tiles.erase(current_id)
+		if pack.has("appearance"):
+			pack.appearance.room_tiles.erase(current_id)
+			pack.appearance.room_sprites.erase(current_id)))
 	canvas = Canvas.new()
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	room_view.add_child(canvas)
@@ -276,6 +281,10 @@ func build_ui() -> void:
 	views.add_child(asset_library)
 	asset_library.load_catalog(game_root)
 	asset_library.enemy_chosen.connect(apply_enemy_art)
+	asset_library.room_sprite_chosen.connect(apply_room_sprite)
+	asset_library.room_sprite_cleared.connect(func(slot): edit(func():
+		if pack.has("appearance") and pack.appearance.room_sprites.has(current_id): pack.appearance.room_sprites[current_id].erase(slot)))
+	asset_library.library_changed.connect(func(): refresh();validate_pack())
 	asset_library.tile_chosen.connect(choose_tile_brush)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size.x = 275
@@ -332,7 +341,9 @@ func build_ui() -> void:
 	damage = number("Half-heart damage",right,0,16)
 	button("Apply variant settings",right,apply_enemy)
 	button("Duplicate enemy variant",right,duplicate_enemy)
-	button("Clear variant art",right,func(): edit(func(): appearance.enemy_sprites.erase(selected(enemy_type))))
+	button("Clear variant art",right,func(): edit(func():
+		appearance.enemy_sprites.erase(selected(enemy_type))
+		if pack.has("appearance"): pack.appearance.enemy_sprites.erase(selected(enemy_type))))
 	section("PICKUP BRUSH",right)
 	item_type = options(Pack.ITEMS,right)
 	section("CONNECT ROOMS",right)
@@ -394,6 +405,7 @@ func pick(option: OptionButton, text: String) -> void:
 func refresh() -> void:
 	syncing = true
 	var room := current()
+	var visual := effective_art()
 	var enemy_selection := selected(enemy_type)
 	var target_selection := selected(destination)
 	rooms_list.clear()
@@ -418,7 +430,7 @@ func refresh() -> void:
 	start_button.disabled = current_id == pack.start_room
 	enemy_type.clear()
 	for id in pack.enemy_types:
-		var icon: Texture2D = asset_library.library.enemy_texture(appearance.enemy_sprites[id]) if local_art.button_pressed and appearance.enemy_sprites.has(id) else null
+		var icon: Texture2D = asset_library.library.enemy_texture(visual.enemy_sprites[id]) if visual.enemy_sprites.has(id) else null
 		if icon != null: enemy_type.add_icon_item(icon,id)
 		else: enemy_type.add_item(id)
 	pick(enemy_type,enemy_selection)
@@ -435,7 +447,7 @@ func refresh() -> void:
 	canvas.queue_redraw()
 	undo_button.disabled = undo_stack.is_empty()
 	redo_button.disabled = redo_stack.is_empty()
-	heading.text = "%s  /  %s [%s]%s" % [pack.title,room.title,room.id,("  • local ROM art" if local_art.button_pressed and Appearance.has_choices(appearance) else "") + ("  • unsaved" if dirty() else "")]
+	heading.text = "%s  /  %s [%s]%s" % [pack.title,room.title,room.id,("  • authored art" if Appearance.has_choices(pack.get("appearance",{})) else "")+("  • local ROM art" if local_art.button_pressed and Appearance.has_choices(appearance) else "") + ("  • unsaved" if dirty() else "")]
 	get_window().title = "Dungeon Workshop — " + pack.title + (" *" if dirty() else "")
 	refresh_enemy()
 	refresh_connection()
@@ -465,6 +477,7 @@ func commit(before: Dictionary, before_art = null) -> void:
 	if before.is_empty(): return
 	if before_art == null: before_art = appearance.duplicate(true)
 	appearance.pack_id = pack.id
+	ArtBindings.prune(pack)
 	if JSON.stringify(before) == JSON.stringify(pack) and JSON.stringify(before_art) == JSON.stringify(appearance): return
 	undo_stack.append({"pack":before,"appearance":before_art})
 	if undo_stack.size() > 100: undo_stack.pop_front()
@@ -554,6 +567,9 @@ func duplicate_room() -> void:
 		room.connections = {}
 		room.erase("stairs")
 		if appearance.room_tiles.has(current_id): appearance.room_tiles[room.id] = appearance.room_tiles[current_id].duplicate(true)
+		if pack.has("appearance"):
+			for field in ["room_tiles","room_sprites"]:
+				if pack.appearance[field].has(current_id): pack.appearance[field][room.id] = pack.appearance[field][current_id].duplicate(true)
 		pack.rooms.append(room)
 		current_id = room.id)
 func delete_room() -> void:
@@ -583,7 +599,8 @@ func duplicate_enemy() -> void:
 	while pack.enemy_types.has(id): n += 1; id = "variant_" + str(n)
 	edit(func():
 		pack.enemy_types[id] = pack.enemy_types[selected(enemy_type)].duplicate(true)
-		if appearance.enemy_sprites.has(selected(enemy_type)): appearance.enemy_sprites[id] = appearance.enemy_sprites[selected(enemy_type)])
+		if appearance.enemy_sprites.has(selected(enemy_type)): appearance.enemy_sprites[id] = appearance.enemy_sprites[selected(enemy_type)]
+		if pack.has("appearance") and pack.appearance.enemy_sprites.has(selected(enemy_type)): pack.appearance.enemy_sprites[id] = pack.appearance.enemy_sprites[selected(enemy_type)])
 	pick(enemy_type,id)
 	refresh_enemy()
 func find_room(id: String) -> Dictionary:
@@ -616,7 +633,7 @@ func validate_pack() -> void:
 	if errors.is_empty():
 		var warnings := Pack.layout_warnings(pack)
 		warnings.append_array(appearance_load_warnings)
-		if local_art.button_pressed: warnings.append_array(asset_library.library.warnings)
+		warnings.append_array(asset_library.library.warnings)
 		message("Valid pack: %d rooms. Structural check only; use Dungeon > Check progression for inventory and objectives." % pack.rooms.size() + ("\nLayout warnings:\n" + "\n".join(warnings) if not warnings.is_empty() else ""))
 		return
 	message("Valid pack: %d rooms. Progression and key solvability are not checked." % pack.rooms.size() if errors.is_empty() else "Fix before saving or playing:\n" + "\n".join(errors))
@@ -801,23 +818,48 @@ func add_at_selected_cell() -> void:
 		pack.rooms.append(room)
 		current_id = room.id)
 
+func effective_art() -> Dictionary:
+	return Appearance.effective(pack,appearance if local_art.button_pressed else {})
+func public_art() -> Dictionary:
+	Pack.upgrade(pack)
+	if not pack.has("appearance"): pack.appearance = ArtBindings.fresh()
+	return pack.appearance
 func refresh_appearance_canvas() -> void:
 	canvas.visual_texture = null
-	canvas.enemy_textures.clear()
-	if local_art.button_pressed:
-		asset_library.library.warnings.clear()
-		canvas.visual_texture = asset_library.library.room_texture(current(),appearance)
-		for id in appearance.enemy_sprites:
-			var texture: Texture2D = asset_library.library.enemy_texture(appearance.enemy_sprites[id])
-			if texture != null: canvas.enemy_textures[id] = texture
+	canvas.enemy_textures.clear();canvas.enemy_sprite_frames.clear();canvas.enemy_sprite_ticks.clear();canvas.room_sprite_frames.clear();canvas.room_sprite_ticks.clear()
+	asset_library.library.warnings.clear()
+	var visual := effective_art()
+	canvas.visual_texture = asset_library.library.room_texture(current(),visual)
+	for id in visual.enemy_sprites:
+		var texture: Texture2D = asset_library.library.enemy_texture(visual.enemy_sprites[id])
+		if texture != null:
+			canvas.enemy_textures[id] = texture
+			canvas.enemy_sprite_frames[id] = asset_library.library.sprite_frames(visual.enemy_sprites[id])
+			canvas.enemy_sprite_ticks[id] = int(asset_library.library.groups.get(visual.enemy_sprites[id],{}).get("frame_ticks",6))
+	for slot in visual.get("room_sprites",{}).get(current_id,{}):
+		var id: String = visual.room_sprites[current_id][slot]
+		canvas.room_sprite_frames[slot] = asset_library.library.sprite_frames(id)
+		canvas.room_sprite_ticks[slot] = int(asset_library.library.groups.get(id,{}).get("frame_ticks",6))
 	canvas.queue_redraw()
 func apply_enemy_art(group_id: String) -> void:
 	if enemy_type.item_count == 0: message("Create an enemy variant first"); return
-	if not asset_library.library.groups.has(group_id): message("Choose a supported local sprite set"); return
+	if not asset_library.library.groups.has(group_id): message("Choose a supported sprite set"); return
 	var id := selected(enemy_type)
-	edit(func(): appearance.enemy_sprites[id] = group_id)
+	edit(func():
+		if ArtBindings.asset_id(group_id):
+			public_art().enemy_sprites[id] = group_id;appearance.enemy_sprites.erase(id)
+		else: appearance.enemy_sprites[id] = group_id)
 	views.current_tab = 0
-	message("Applied local art to variant " + id + ". All placements share it; behavior and stats are unchanged.")
+	message("Applied art to variant " + id + ". Behavior and stats are unchanged.")
+func apply_room_sprite(slot: String, group_id: String) -> void:
+	if not ArtBindings.asset_id(group_id) or not asset_library.library.groups.has(group_id): message("Choose an authored sprite set for room objects.");return
+	if (slot in ["secret","resident"] and not current().has(slot)) or (slot == "stairs" and current().get("stairs",[]).is_empty()): message("Add the room's "+slot+" before assigning its art.");return
+	edit(func():
+		var visual := public_art()
+		if not visual.room_sprites.has(current_id): visual.room_sprites[current_id] = {}
+		visual.room_sprites[current_id][slot] = group_id)
+	views.current_tab = 0
+
 func choose_tile_brush(atlas_id: String, index: int) -> void:
 	art_brush = {"atlas":atlas_id,"index":index}
 	set_tool("Art")
@@ -825,22 +867,25 @@ func choose_tile_brush(atlas_id: String, index: int) -> void:
 	views.current_tab = 0
 	message("Art brush: tile %d. Paint appearance; terrain collision is unchanged. Right-click erases art." % index)
 func paint_art(cell: Vector2i, erase: bool) -> void:
-	if not local_art.button_pressed: message("Enable Local art before painting it"); return
+	var authored: bool = ArtBindings.asset_id(art_brush.get("atlas",""))
+	if not authored and not local_art.button_pressed: message("Enable Local ROM art before painting ROM assets"); return
+	if not erase and art_brush.is_empty(): message("Choose an atlas tile in Assets first"); return
+	var existing: Dictionary = pack.get("appearance",ArtBindings.fresh()) if authored else appearance
+	if not erase and existing.room_tiles.has(current_id) and existing.room_tiles[current_id].atlas != art_brush.atlas:
+		message("This room uses another atlas. Clear room art first, or choose that atlas.");return
+	var visual: Dictionary = public_art() if authored else appearance
+	if authored: appearance.room_tiles.erase(current_id)
 	if erase:
-		if appearance.room_tiles.has(current_id):
-			var visual: Dictionary = appearance.room_tiles[current_id]
-			visual.indices[cell.y*16+cell.x] = -1
-			if visual.indices.all(func(i): return i == -1): appearance.room_tiles.erase(current_id)
+		if visual.room_tiles.has(current_id):
+			visual.room_tiles[current_id].indices[cell.y*16+cell.x] = -1
+			if visual.room_tiles[current_id].indices.all(func(i): return i == -1): visual.room_tiles.erase(current_id)
 	else:
-		if art_brush.is_empty(): message("Choose an atlas tile in Assets first"); return
-		if appearance.room_tiles.has(current_id) and appearance.room_tiles[current_id].atlas != art_brush.atlas:
+		if visual.room_tiles.has(current_id) and visual.room_tiles[current_id].atlas != art_brush.atlas:
 			message("This room uses another atlas. Clear room art first, or choose that atlas."); return
-		if not appearance.room_tiles.has(current_id):
-			var indices: Array = []
-			indices.resize(176)
-			indices.fill(-1)
-			appearance.room_tiles[current_id] = {"atlas":art_brush.atlas,"indices":indices}
-		appearance.room_tiles[current_id].indices[cell.y*16+cell.x] = art_brush.index
+		if not visual.room_tiles.has(current_id):
+			var indices: Array = [];indices.resize(176);indices.fill(-1)
+			visual.room_tiles[current_id] = {"atlas":art_brush.atlas,"indices":indices}
+		visual.room_tiles[current_id].indices[cell.y*16+cell.x] = art_brush.index
 	refresh_appearance_canvas()
 
 func selected_requirements() -> Array:
@@ -960,6 +1005,7 @@ func apply_placement(properties: Dictionary) -> void:
 					target = variant.left(40)+"_instance_"+str(n)
 					while pack.enemy_types.has(target): n+=1;target = variant.left(40)+"_instance_"+str(n)
 					if appearance.enemy_sprites.has(variant): appearance.enemy_sprites[target] = appearance.enemy_sprites[variant]
+					if pack.has("appearance") and pack.appearance.enemy_sprites.has(variant): pack.appearance.enemy_sprites[target] = pack.appearance.enemy_sprites[variant]
 				pack.enemy_types[target] = properties.settings.duplicate(true)
 			data.type = target
 		else:

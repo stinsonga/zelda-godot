@@ -1,5 +1,6 @@
 extends RefCounted
 const Pack = preload("room_pack.gd")
+const Bindings = preload("art_bindings.gd")
 const ROLES := ["start","key","item","combat","treasure","goal"]
 static func defaults() -> Dictionary:
 	var catalog := {"format_version":1,"id":"native_templates","enemy_types":Pack.fresh().enemy_types,"templates":[]}
@@ -25,9 +26,10 @@ static func validate(data) -> PackedStringArray:
 	if data.templates.is_empty() or data.templates.size()>128: errors.append("Template library needs 1..128 templates");return errors
 	var ids: Dictionary = {}
 	var roles: Dictionary = {}
+	var enemy_art: Dictionary = {}
 	for entry in data.templates:
 		if not entry is Dictionary: errors.append("Template must be an object");continue
-		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward"] if data.format_version == 2 else []),"Template",errors)
+		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version == 2 else []),"Template",errors)
 		if not Pack.identifier(entry.get("id")) or ids.has(entry.get("id")): errors.append("Template IDs must be unique");continue
 		ids[entry.id] = true
 		if entry.get("role") not in ROLES: errors.append(entry.id+": invalid role")
@@ -50,9 +52,14 @@ static func validate(data) -> PackedStringArray:
 			if room.get("connections") != {}: errors.append(entry.id+": template room connections must be empty; use stairs inside a unit")
 			if room != entry.room and room.get("kind") != "cellar": errors.append(entry.id+": annexes must be cellar rooms")
 		var pack := {"schema":2,"id":"template_check","title":"Template","start_room":entry.room.get("id",""),"enemy_types":data.enemy_types,"rooms":rooms,"starting_items":[],"goals":[]}
+		if entry.has("appearance"): pack.appearance = entry.appearance
 		var room_errors := Pack.validate(pack)
 		for error in room_errors: errors.append(entry.id+": "+error)
 		if not room_errors.is_empty(): continue
+		for variant in entry.get("appearance",{}).get("enemy_sprites",{}):
+			var art: String = entry.appearance.enemy_sprites[variant]
+			if enemy_art.has(variant) and enemy_art[variant] != art: errors.append("Conflicting template art for enemy variant "+variant)
+			enemy_art[variant] = art
 		if not Pack.layout_warnings(pack).is_empty(): errors.append(entry.id+": all cellar annexes must be reachable from the primary room through stairs")
 		if entry.has("reward"):
 			var reward = entry.reward
@@ -98,13 +105,16 @@ static func capture(catalog: Dictionary, pack: Dictionary, room_id: String, id: 
 	room.connections = {}
 	room.erase("template_id");room.erase("role")
 	room.map_position = [0,0]
+	var variants: Dictionary = {}
 	for enemy in room.enemies:
 		var original: String = enemy.type
 		var scoped := id.left(20)+"_"+original.left(20)+"_"+(id+"/"+original).sha256_text().left(8)
 		if output.enemy_types.has(scoped) and output.enemy_types[scoped] != pack.enemy_types[original]: return {"errors":PackedStringArray(["Scoped enemy definition collision"])}
 		output.enemy_types[scoped] = pack.enemy_types[original].duplicate(true)
-		enemy.type = scoped
-	output.templates.append({"id":id,"role":role,"weight":1,"ports":ports.duplicate(),"requires":requirements.duplicate(),"room":room})
+		enemy.type = scoped;variants[original] = scoped
+	var entry := {"id":id,"role":role,"weight":1,"ports":ports.duplicate(),"requires":requirements.duplicate(),"room":room}
+	attach_art(output,entry,pack,[room_id],variants)
+	output.templates.append(entry)
 	return {"catalog":output,"errors":validate(output)}
 
 ## Stair closure is explicit: include only cellar destinations, never another
@@ -138,6 +148,7 @@ static func capture_unit(catalog: Dictionary, pack: Dictionary, root: String, id
 	if not include_linked and selected.rooms.size()>1: return {"errors":PackedStringArray(["Enable linked-cellar capture to preserve these stair destinations"])}
 	var output := catalog.duplicate(true);output.format_version = 2
 	var rooms: Array = selected.rooms.duplicate(true)
+	var variants: Dictionary = {}
 	for i in rooms.size():
 		var room: Dictionary = rooms[i]
 		room.connections = {};room.erase("template_id");room.erase("role")
@@ -146,10 +157,11 @@ static func capture_unit(catalog: Dictionary, pack: Dictionary, root: String, id
 			var original: String = enemy.type
 			var scoped := id.left(20)+"_"+original.left(20)+"_"+(id+"/"+original).sha256_text().left(8)
 			if output.enemy_types.has(scoped) and canonical(output.enemy_types[scoped]) != canonical(pack.enemy_types[original]): return {"errors":PackedStringArray(["Scoped enemy definition collision"])}
-			output.enemy_types[scoped] = pack.enemy_types[original].duplicate(true);enemy.type = scoped
+			output.enemy_types[scoped] = pack.enemy_types[original].duplicate(true);enemy.type = scoped;variants[original] = scoped
 	var entry := {"id":id,"role":role,"weight":1,"ports":ports.duplicate(),"requires":requirements.duplicate(),"room":rooms[0]}
 	if rooms.size()>1: entry.annexes = rooms.slice(1)
 	if not reward_room.is_empty(): entry.reward = {"room":reward_room,"position":reward_position.duplicate()}
+	attach_art(output,entry,pack,rooms.map(func(room): return room.id),variants)
 	output.templates.append(entry)
 	return {"catalog":output,"errors":validate(output)}
 ## Pure expansion: map every local destination within this occurrence.
@@ -165,4 +177,26 @@ static func instantiate(entry: Dictionary, primary_id: String) -> Dictionary:
 	var reward_room: Dictionary
 	for room in rooms:
 		if room.id == names[reward.room]: reward_room = room;break
-	return {"primary":rooms[0],"annexes":rooms.slice(1),"reward_room":reward_room,"reward_position":reward.position.duplicate()}
+	var result := {"primary":rooms[0],"annexes":rooms.slice(1),"reward_room":reward_room,"reward_position":reward.position.duplicate()}
+	if entry.has("appearance"):
+		var art: Dictionary = entry.appearance.duplicate(true)
+		for field in ["room_tiles","room_sprites"]:
+			var remapped: Dictionary = {}
+			for id in art[field]: remapped[names[id]] = art[field][id]
+			art[field] = remapped
+		result.appearance = art
+	return result
+
+## Capture only the shared art belonging to this unit. ROM overlays never enter
+## the pack, and scoped enemy IDs keep independently captured skins distinct.
+static func attach_art(catalog: Dictionary, entry: Dictionary, pack: Dictionary, room_ids: Array, variants: Dictionary) -> void:
+	if not pack.has("appearance"): return
+	var art := Bindings.fresh()
+	for field in ["room_tiles","room_sprites"]:
+		for id in room_ids:
+			if pack.appearance[field].has(id): art[field][id] = pack.appearance[field][id].duplicate(true)
+	for id in variants:
+		if pack.appearance.enemy_sprites.has(id): art.enemy_sprites[variants[id]] = pack.appearance.enemy_sprites[id]
+	if art.enemy_sprites.is_empty() and art.room_tiles.is_empty() and art.room_sprites.is_empty(): return
+	catalog.format_version = 2
+	entry.appearance = art

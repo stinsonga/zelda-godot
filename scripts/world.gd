@@ -1408,6 +1408,10 @@ func draw_room_objects() -> void:
 	for portal in room.portals:
 		if not portal.show_stairs or (portal.requires_secret and not secrets.revealed): continue
 		var top := Vector2(portal.area.position)+Vector2(0,HUD_HEIGHT+3)
+		var authored := authored_room_texture(room,"stairs")
+		if authored != null:
+			draw_clipped_texture(authored,Rect2(top,Vector2(16,16)),Rect2(Vector2.ZERO,authored.get_size()))
+			continue
 		draw_rect(Rect2(top,Vector2(16,16)),Color("111b26"))
 		for i in range(4):
 			var inset := float(i*2)
@@ -1472,7 +1476,10 @@ func draw_cave() -> void:
 	var session: RefCounted = cave_session
 	if session.flicker_hidden(simulation_tick): return
 	if session.person_visible():
-		if visual_theme.sprites.has(session.cave.person_sprite):
+		var authored := authored_room_texture(room,"resident")
+		if authored != null:
+			draw_clipped_texture(authored,Rect2(120,64+HUD_HEIGHT,16,16),Rect2(Vector2.ZERO,authored.get_size()))
+		elif visual_theme.sprites.has(session.cave.person_sprite):
 			draw_named_sprite(session.cave.person_sprite, Vector2(120, 64))
 		else:
 			draw_rect(Rect2(122, 64 + HUD_HEIGHT, 12, 16), Color("e0a060"))
@@ -1843,6 +1850,9 @@ func draw_combat() -> void:
 					draw_circle(at + Vector2(8, 8), actor.death_remaining / 2.0, Color("fff4c8"))
 		elif actor.body_visible() and (actor.invulnerability == 0 or simulation_tick % 4 < 2):
 			var sprite: StringName = actor.sprite_name()
+			if actor.definition.authored_frame_count>0:
+				var frame: int = int(simulation_tick/maxi(1,actor.definition.animation_frame_ticks))%actor.definition.authored_frame_count
+				sprite = StringName("%s_%s_%d" % [actor.definition.sprite,direction_name(actor.facing),frame])
 			# Dungeon monsters use their level's pattern blocks and palettes.
 			var leveled := StringName("l%d_%s" % [room.dungeon_level, sprite])
 			if room.dungeon_level > 0 and visual_theme.sprites.has(leveled): sprite = leveled
@@ -1963,7 +1973,10 @@ func draw_closed_doors(definition: Resource, offset: Vector2) -> void:
 ## A replacement square: atlas index, or a placeholder color for unthemed rooms.
 func draw_square(definition: Resource, index: int, at: Vector2, kind: String) -> void:
 	var rect := Rect2(at + Vector2(0, HUD_HEIGHT), Vector2(16, 16))
-	if definition.tile_atlas and index >= 0:
+	var authored := authored_room_texture(definition,"secret") if kind == "object" else null
+	if authored != null:
+		draw_clipped_texture(authored,rect,Rect2(Vector2.ZERO,authored.get_size()))
+	elif definition.tile_atlas and index >= 0:
 		var cell_size: Vector2i = definition.atlas_cell_size
 		var columns: int = definition.tile_atlas.get_width() / cell_size.x
 		draw_clipped_texture(terrain_atlas(definition), rect, Rect2(Vector2((index % columns) * cell_size.x, (index / columns) * cell_size.y), Vector2(cell_size)))
@@ -2247,3 +2260,9 @@ func check_authored_completion() -> void:
 	state.flags["authored/complete"] = true
 	status_message = "DUNGEON COMPLETE"
 	status_ticks = 240
+
+func authored_room_texture(definition: Resource, slot: String) -> Texture2D:
+	var frames: Array = definition.authored_sprites.get(slot,[])
+	if frames.is_empty(): return null
+	var ticks := maxi(1,int(definition.authored_frame_ticks.get(slot,6)))
+	return frames[int(simulation_tick/ticks)%frames.size()]

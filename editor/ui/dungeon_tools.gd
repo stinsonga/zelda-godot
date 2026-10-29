@@ -71,7 +71,7 @@ func _ready() -> void:
 	use_button.disabled = true
 	label("The required item is placed before its gate. Two key locks and optional bomb branches are checked.\nUsing a result replaces the document after any unsaved-change confirmation. No ROM assets are generated.",generate)
 	var capture := VBoxContainer.new();capture.name = "Templates";tabs.add_child(capture)
-	label("Capture a primary room, optionally with linked cellars. External doors and local graphics are omitted; enemy definitions and generated stair destinations are namespaced.",capture)
+	label("Capture a primary room, optionally with linked cellars. Authored graphics are preserved; external doors and private ROM choices are omitted. Enemy definitions and generated stair destinations are namespaced.",capture)
 	var identity := HBoxContainer.new();capture.add_child(identity)
 	template_id = LineEdit.new();template_id.placeholder_text = "unique_template_id";template_id.size_flags_horizontal = Control.SIZE_EXPAND_FILL;identity.add_child(template_id)
 	role = OptionButton.new()

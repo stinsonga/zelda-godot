@@ -19,6 +19,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 	var library = Appearance.new()
 	var art_errors := Appearance.validate(appearance,pack) if not appearance.is_empty() else PackedStringArray()
 	if not art_errors.is_empty(): appearance = {}
+	appearance = Appearance.effective(pack,appearance)
 	if Appearance.has_choices(appearance): library.configure(library_root if not library_root.is_empty() else ProjectSettings.globalize_path("res://"))
 	var world = World.new()
 	world.id = StringName("authored/" + pack.id)
@@ -43,8 +44,12 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 			if library.enemy_texture(group) != null:
 				enemy.sprite = StringName("__editor_" + id)
 				enemy.sprite_style = "directional"
+				var visual: Dictionary = library.groups[group]
+				if visual.get("authored",false):
+					enemy.authored_frame_count = int(visual.frame_count)
+					enemy.animation_frame_ticks = int(visual.frame_ticks)
 				for direction in ["down","up","right","left"]:
-					for pose in range(2): world.visual_theme.sprites[StringName("%s_%s_%d" % [enemy.sprite,direction,pose])] = library.enemy_texture(group,direction,pose)
+					for pose in range(maxi(2,enemy.authored_frame_count)): world.visual_theme.sprites[StringName("%s_%s_%d" % [enemy.sprite,direction,pose])] = library.enemy_texture(group,direction,pose)
 				for pose in range(8): world.visual_theme.sprites[StringName("%s_%d" % [enemy.sprite,pose])] = library.enemy_texture(group,"down",pose)
 		definitions[id] = enemy
 	for source in pack.rooms:
@@ -71,6 +76,14 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 			secret.authored_object = secret.trigger != "block"
 			room.secret = secret
 		room.tile_atlas = library.room_texture(source,appearance)
+		var cell := library.room_cell_size(source,appearance)
+		room.atlas_cell_size = Vector2i(cell,cell)
+		for slot in appearance.get("room_sprites",{}).get(source.id,{}):
+			var id: String = appearance.room_sprites[source.id][slot]
+			var frames := library.sprite_frames(id)
+			if not frames.is_empty():
+				room.authored_sprites[slot] = frames
+				room.authored_frame_ticks[slot] = int(library.groups[id].get("frame_ticks",6))
 		if room.tile_atlas != null:
 			for index in range(176): room.tile_indices.append(index)
 		for edge in source.connections:

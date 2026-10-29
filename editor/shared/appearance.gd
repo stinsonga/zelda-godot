@@ -1,6 +1,8 @@
 extends RefCounted
 ## Optional local appearance, shared by the editor and runtime adapter.
 ## Asset IDs resolve only through the generated catalog; packs never gain paths.
+const Bindings = preload("art_bindings.gd")
+const Authored = preload("authored_library.gd")
 const Contract = preload("room_pack.gd")
 const SHA1 := "a12d74c73a0481599a5d832361d168f4737bbcf6"
 const FLOOR := Color("d6bd85")
@@ -15,7 +17,7 @@ var warnings := PackedStringArray()
 static func fresh(pack_id: String) -> Dictionary:
 	return {"format_version":1,"pack_id":pack_id,"source_sha1":SHA1,"enemy_sprites":{},"room_tiles":{}}
 static func has_choices(overlay: Dictionary) -> bool:
-	return not overlay.get("enemy_sprites",{}).is_empty() or not overlay.get("room_tiles",{}).is_empty()
+	return not overlay.get("enemy_sprites",{}).is_empty() or not overlay.get("room_tiles",{}).is_empty() or not overlay.get("room_sprites",{}).is_empty()
 static func local_path(game_root: String, pack_id: String) -> String:
 	if not Contract.identifier(pack_id): return ""
 	return game_root.path_join("reference-inputs/editor-overrides").path_join(pack_id + ".json")
@@ -57,7 +59,7 @@ static func read_local(game_root: String, pack: Dictionary) -> Dictionary:
 	return {"overlay":data if errors.is_empty() else empty,"warnings":errors}
 func warn(text: String) -> void:
 	if text not in warnings: warnings.append(text)
-func configure(game_root: String) -> void:
+func _configure_rom(game_root: String) -> void:
 	root = game_root
 	entries.clear()
 	groups.clear()
@@ -71,8 +73,9 @@ func configure(game_root: String) -> void:
 	if not catalog is Dictionary or catalog.get("format_version") != 1 or not catalog.get("source") is Dictionary or catalog.source.get("prg_sha1") != SHA1 or not catalog.get("entries") is Array:
 		warn("Invalid local image catalog"); return
 	for entry in catalog.entries:
-		if not entry is Dictionary or not asset_id(entry.get("id")) or not entry.get("path") is String: continue
-		if checked_path(entry.path).is_empty(): continue
+		if not entry is Dictionary or not asset_id(entry.get("id")) or not entry.get("path") is String or not entry.get("name") is String or entry.get("category") not in ["sprites","tiles","interface"] or not Contract.integer(entry.get("width"),1,2048) or not Contract.integer(entry.get("height"),1,2048):
+			warn("Invalid local image entry; reimport to rebuild catalog");continue
+		if checked_path(entry.path).is_empty(): warn("Invalid local image path; reimport to rebuild catalog");continue
 		entries[entry.id] = entry
 	var directional := RegEx.new()
 	directional.compile("^(.*)_(up|down|left|right)_([0-9]+)(_p[0-9]+)?$")
@@ -104,7 +107,8 @@ func texture(id: String) -> Texture2D:
 	if textures.has(id): return textures[id]
 	if not entries.has(id): warn("Missing local asset: " + id); return null
 	var entry: Dictionary = entries[id]
-	var path := checked_path(entry.path)
+	var path := checked_path(entry.path) if not entry.has("authored_path") else String(entry.authored_path)
+	if entry.has("authored_path") and Authored.canonical_path(path) != path: warn("Authored image path is a symlink: "+id);return null
 	if path.is_empty() or not FileAccess.file_exists(path): warn("Missing local image: " + str(entry.path)); return null
 	var image := Image.load_from_file(path)
 	if image == null or image.is_empty(): warn("Unreadable local image: " + str(entry.path)); return null
@@ -114,6 +118,17 @@ func texture(id: String) -> Texture2D:
 	return value
 func enemy_texture(group_id: String, direction: String = "down", pose: int = 0) -> Texture2D:
 	if not groups.has(group_id): warn("Missing local sprite set: " + group_id); return null
+	if groups[group_id].get("authored",false):
+		var group: Dictionary = groups[group_id]
+		var sheet := texture(group_id)
+		if sheet == null: return null
+		var directions: Array = group.directions
+		var row := directions.find(direction)
+		if row<0: row = directions.find("all")
+		if row<0: row = 0
+		var result := AtlasTexture.new();result.atlas = sheet
+		result.region = Rect2(Vector2(posmod(pose,int(group.frame_count))*int(group.frame_size[0]),row*int(group.frame_size[1])),Vector2(group.frame_size[0],group.frame_size[1]))
+		return result
 	var frames: Dictionary = groups[group_id].frames
 	var source: Dictionary = frames.get(direction,frames.get("all",{}))
 	if source.is_empty():
@@ -128,24 +143,67 @@ func room_texture(room: Dictionary, overlay: Dictionary) -> Texture2D:
 	var visual: Dictionary = overlay.room_tiles[room.id]
 	var atlas := texture(visual.atlas)
 	if atlas == null: return null
-	if not entries.has(visual.atlas) or entries[visual.atlas].get("category") != "tiles" or atlas.get_width()%16 != 0 or atlas.get_height()%16 != 0:
-		warn("Selected image is not a 16-pixel tile atlas"); return null
+	var cell := int(entries.get(visual.atlas,{}).get("cell_size",16))
+	if not entries.has(visual.atlas) or entries[visual.atlas].get("category") != "tiles" or atlas.get_width()%cell != 0 or atlas.get_height()%cell != 0:
+		warn("Selected image is not a supported tile atlas"); return null
 	var input := atlas.get_image()
-	var output := Image.create(256,176,false,Image.FORMAT_RGBA8)
-	var columns := atlas.get_width()/16
-	var capacity := columns*(atlas.get_height()/16)
+	var output := Image.create(16*cell,11*cell,false,Image.FORMAT_RGBA8)
+	var columns := atlas.get_width()/cell
+	var capacity := columns*(atlas.get_height()/cell)
 	for i in range(176):
-		var at := Vector2i(i%16*16,i/16*16)
+		var at := Vector2i(i%16*cell,i/16*cell)
 		var kind: String = room.tiles[i/16][i%16]
-		output.fill_rect(Rect2i(at,Vector2i(16,16)),WALL if kind == "#" else WATER if kind == "~" else FLOOR)
+		output.fill_rect(Rect2i(at,Vector2i(cell,cell)),WALL if kind == "#" else WATER if kind == "~" else FLOOR)
 		var index := int(visual.indices[i])
-		if index >= capacity: warn("Tile index outside local atlas in " + String(room.id)); continue
-		if index >= 0: output.blit_rect(input,Rect2i(Vector2i(index%columns,index/columns)*16,Vector2i(16,16)),at)
+		if index >= capacity: warn("Tile index outside selected atlas in " + String(room.id)); continue
+		if index >= 0: output.blit_rect(input,Rect2i(Vector2i(index%columns,index/columns)*cell,Vector2i(cell,cell)),at)
 	# Native door overrides erase these markers when passable. Collision remains
 	# solely the room's terrain and DoorDefinition, never inferred from pixels.
 	for edge in room.connections:
 		var kind: String = room.connections[edge].kind
 		if kind not in ["key","shutter"]: continue
 		var rect := Rect2i(120,0 if edge == "up" else 160,16,16) if edge in ["up","down"] else Rect2i(0 if edge == "left" else 240,80,16,16)
-		output.fill_rect(rect,Color("e5c46a") if kind == "key" else Color("b49bdb"))
+		output.fill_rect(Rect2i(rect.position*cell/16,rect.size*cell/16),Color("e5c46a") if kind == "key" else Color("b49bdb"))
 	return ImageTexture.create_from_image(output)
+
+static func effective(pack: Dictionary, local: Dictionary = {}) -> Dictionary:
+	var result: Dictionary = pack.get("appearance",Bindings.fresh()).duplicate(true)
+	for field in ["enemy_sprites","room_tiles"]:
+		for id in local.get(field,{}): result[field][id] = local[field][id].duplicate(true) if local[field][id] is Dictionary else local[field][id]
+	return result
+func configure(game_root: String) -> void:
+	_configure_rom(game_root)
+	var folder := Authored.canonical_path(game_root).path_join("content/art")
+	if not DirAccess.dir_exists_absolute(folder): return
+	if Authored.canonical_path(folder) != folder: warn("Authored art folder cannot be a symlink");return
+	var names := DirAccess.get_directories_at(folder);names.sort()
+	for name in names:
+		if not Contract.identifier(name): continue
+		var directory := folder.path_join(name)
+		if Authored.canonical_path(directory) != directory: warn("Authored library folder is a symlink: "+name);continue
+		var manifest := directory.path_join("library.json")
+		if not FileAccess.file_exists(manifest): continue
+		if Authored.canonical_path(manifest) != manifest: warn("Authored manifest is a symlink: "+name);continue
+		var loaded := Authored.read(manifest)
+		if not loaded.errors.is_empty():
+			for error in loaded.errors: warn(name+": "+error)
+			continue
+		if loaded.library.id != name: warn("Authored library ID differs from folder: "+name);continue
+		for asset in loaded.library.assets:
+			var id := "art/"+name+"/"+String(asset.id)
+			var entry := {"id":id,"name":loaded.library.title+" / "+String(asset.name),"path":"content/art/"+name+"/"+String(asset.file),"authored_path":directory.path_join(asset.file),"category":"tiles" if asset.kind == "tiles" else "sprites","width":asset.width,"height":asset.height}
+			if asset.kind == "tiles": entry.cell_size = int(asset.cell_size)
+			entries[id] = entry
+			if asset.kind == "sprite":
+				groups[id] = {"id":id,"name":entry.name,"path":entry.path,"category":"sprites","frames":{},"authored":true,"frame_count":int(asset.frames),"frame_ticks":int(asset.frame_ticks),"frame_size":asset.frame_size,"directions":asset.directions}
+func room_cell_size(room: Dictionary, overlay: Dictionary) -> int:
+	var id: String = overlay.get("room_tiles",{}).get(room.id,{}).get("atlas","")
+	return int(entries.get(id,{}).get("cell_size",16))
+func sprite_frames(id: String) -> Array:
+	var result: Array = []
+	var count := int(groups.get(id,{}).get("frame_count",1))
+	for i in count:
+		var value := enemy_texture(id,"down",i)
+		if value == null: return []
+		result.append(value)
+	return result

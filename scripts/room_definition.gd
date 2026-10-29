@@ -1,5 +1,8 @@
 class_name RoomDefinition
 extends Resource
+## Optional authored room graphics; no collision or trigger behavior.
+@export var authored_sprites: Dictionary = {}
+@export var authored_frame_ticks: Dictionary = {}
 ## A room is 16 x 11 logical tiles. IDs are independent of NES addresses.
 ## Native unique encounters default to permanent; imported overworld uses counts.
 @export_enum("permanent", "overworld", "reset") var enemy_persistence: String = "permanent"

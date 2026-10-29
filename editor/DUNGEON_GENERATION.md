@@ -55,14 +55,21 @@ Existing template IDs cannot be silently overwritten.
 Capture copies authored terrain, spawn, placements and settings. It removes
 connections and generation tags, normalizes map position, and namespaces enemy
 variants so changing one template cannot alter older definitions. Local ROM
-appearance overlays are omitted. The library is ordinary editable JSON under
+appearance overlays are omitted. Shared authored tile, enemy and room-feature
+art is retained, including linked-cellar bindings. Enemy skins follow scoped
+variant IDs; room bindings follow generated room IDs. PNGs stay in `content/art/`
+and must accompany the template library when shared. The library is ordinary editable JSON under
 `content/templates/`; no ROM or imported geometry is needed.
 
 Each library has `format_version: 1` or `2`, an ID, an enemy-definition dictionary and
 up to 128 weighted templates. All six roles must be represented. Each template
 has an ID, role, positive weight, nonempty `ports`, permanent-item `requires`,
 and a primary room document with no connections. Format 2 optionally includes
-up to three stair-linked cellar annexes and a generated reward room/position. See
+up to three stair-linked cellar annexes, a generated reward room/position and
+per-template `appearance` data using the shared pack art format. Appearance
+room IDs are local to that template unit; enemy IDs refer to the catalog’s scoped
+definitions. Conflicting skins for one global variant are rejected. Art references
+participate in the library fingerprint; recipes without art remain unchanged. See
 [MULTI_ROOM_TEMPLATES.md](MULTI_ROOM_TEMPLATES.md). The generator selects templates whose
 ports fit their assigned neighbours. Start templates may require only the starting
 sword; other unmet dependencies cause candidate rejection. Arbitrary dependency

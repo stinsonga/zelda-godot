@@ -83,6 +83,10 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 		var template: Dictionary = chosen[i]
 		var unit := Templates.instantiate(template,"room_"+str(i))
 		units.append(unit)
+		if unit.has("appearance"):
+			if not pack.has("appearance"): pack.appearance = Templates.Bindings.fresh()
+			for field in ["enemy_sprites","room_tiles","room_sprites"]:
+				pack.appearance[field].merge(unit.appearance[field],true)
 		var room: Dictionary = unit.primary
 		room.title = String(template.room.title)+" "+str(i+1)
 		room.connections = {}

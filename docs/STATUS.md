@@ -138,10 +138,17 @@ Version-4 generation keeps their new identities separate. Try
 `content/templates/destructible_templates.json`; see
 [DESTRUCTIBLE_SECRETS.md](../editor/DESTRUCTIBLE_SECRETS.md).
 
+Authored graphics libraries now import distributable PNG sheets under `content/art/`,
+with 16/32/64-pixel source cells, directional animation, tile painting and
+secret/stair/resident bindings. Shared appearance survives save/undo/copy and
+uses the same resolver in editor and game. Template capture and seeded generation
+preserve shared art for primary rooms, linked cellars and scoped enemy variants.
+ROM overlays remain private. See
+[AUTHORED_ART.md](../editor/AUTHORED_ART.md).
+
 Missing:
 
-- authored replacement libraries, richer sprite
-  layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
+- richer sprite layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
 - additional resident modes, cave entrance/original cellar transitions, recorder/Armos and other secret types, plus broader
   generation layouts, general room-group templates and solver support for water, advanced dependencies and

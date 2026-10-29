@@ -31,6 +31,8 @@ extends Resource
 ## (DrawGhiniAndCheckCollisions).
 @export_enum("directional", "frames", "front_back", "ghini") var sprite_style: String = "directional"
 @export var animation_frame_ticks: int = 6
+## Render-only authored sheet cycle; zero keeps native behavior-specific poses.
+@export var authored_frame_count: int = 0
 @export var tint: Color = Color.WHITE
 @export var fallback_color: Color = Color("d94b3d")
 @export_range(0, 255) var turn_chance: int = 112

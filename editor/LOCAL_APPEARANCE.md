@@ -22,7 +22,8 @@ from artwork.
 Use **Clear variant art** to restore its placeholder. Appearance assignments
 share the same undo/redo history as room edits. A sprite choice does not turn a
 walker into the original monster whose picture you selected. Complex boss sheets,
-large images and authored replacement libraries are not skin presets yet.
+large ROM images are not skin presets yet. Authored replacement libraries are
+available separately; see [AUTHORED_ART.md](AUTHORED_ART.md).
 
 ## Painting room art
 
@@ -42,8 +43,8 @@ opens/closes doors; closed key/shutter markers are generated rather than copied
 from the original's door artwork. The editor shows their design state, while a
 running game updates door state normally. This is not a full imported-room painter.
 
-The **Local art** checkbox controls display and playtests, without deleting saved
-choices. Disable it to inspect the ROM-free placeholder version. **Play room**
+The **Local ROM art** checkbox controls display and playtests, without deleting saved
+choices. Disable it to inspect the shared authored-art/placeholder version. **Play room**
 and **Play dungeon** receive snapshots of both unsaved gameplay data and local
 appearance. Missing catalogs/images or incompatible metadata produce warnings
 and retain playable placeholder content.
@@ -53,8 +54,8 @@ and retain playable placeholder content.
 There are two separate documents:
 
 - The shared pack JSON contains authored rooms, collision, placements, items,
-  connections and enemy settings. Its schema is unchanged; it contains no ROM
-  art IDs, indices or image data.
+  connections and enemy settings. Version 2 may also contain symbolic authored-art bindings; it contains no ROM
+  art IDs or image data.
 - `reference-inputs/editor-overrides/<pack-id>.json` stores the optional local
   sprite-set IDs, room atlas IDs and painted indices, with source fingerprint.
   This entire directory is ignored and excluded from source-only packaging.
@@ -70,7 +71,8 @@ The overlay is deliberately outside `imported/`: replacing a generated ROM
 library must not erase your appearance choices. Import does not copy images into
 packs. All pixels continue to resolve through ignored `imported/editor_catalog.json`
 and its PNGs. Copying an authored JSON pack to a source-only project gives its
-placeholder version; its private skin does not accompany it.
+shared-art version (when its authored library is also copied); its private
+skin does not accompany it.
 
 The preview command loads that pack's saved local appearance automatically:
 
@@ -79,7 +81,7 @@ The preview command loads that pack's saved local appearance automatically:
 ```
 
 `--appearance /path/to/overlay.json` overrides the local metadata, and
-`--no-local-art` forces placeholders. The overlay still resolves images only
+`--no-local-art` disables the private layer while retaining authored art. The overlay still resolves images only
 through this game's local library; it cannot specify arbitrary resource scripts.
 
 ## Implementation and checks

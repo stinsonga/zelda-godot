@@ -19,6 +19,22 @@ signal stroke_finished
 var room: Dictionary = {}
 var visual_texture: Texture2D
 var enemy_textures: Dictionary = {}
+var enemy_sprite_frames: Dictionary = {}
+var enemy_sprite_ticks: Dictionary = {}
+var room_sprite_frames: Dictionary = {}
+var room_sprite_ticks: Dictionary = {}
+var art_clock := 0.0
+func _process(delta: float) -> void:
+	art_clock+=delta
+	if not room_sprite_frames.is_empty() or not enemy_sprite_frames.is_empty(): queue_redraw()
+func artwork(slot: String) -> Texture2D:
+	var frames: Array = room_sprite_frames.get(slot,[])
+	if frames.is_empty(): return null
+	return frames[int(art_clock*60/maxi(1,int(room_sprite_ticks.get(slot,6))))%frames.size()]
+func enemy_art(id: String) -> Texture2D:
+	var frames: Array = enemy_sprite_frames.get(id,[])
+	if frames.is_empty(): return enemy_textures.get(id)
+	return frames[int(art_clock*60/maxi(1,int(enemy_sprite_ticks.get(id,6))))%frames.size()]
 var show_collision := false
 var painting := false
 var last_cell := Vector2i(-1,-1)
@@ -101,7 +117,7 @@ func _draw() -> void:
 		var at := rect.position + (Vector2(enemy.position[0],enemy.position[1]+3)+Vector2(8,8))/16.0*step
 		if enemy_textures.has(enemy.type):
 			var top := rect.position + Vector2(enemy.position[0],enemy.position[1])/16.0*step
-			draw_texture_rect(enemy_textures[enemy.type],Rect2(top,step),false)
+			draw_texture_rect(enemy_art(enemy.type),Rect2(top,step),false)
 		else:
 			draw_circle(at,minf(step.x,step.y)*0.32,Color("ec7967"))
 			label_at("E",at+Vector2(-5,5),Color("1d2128"))
@@ -114,7 +130,8 @@ func _draw() -> void:
 	label_at("S",spawn+Vector2(-5,5),Color("86d1ad"))
 	if room.has("resident"):
 		var top := rect.position+Vector2(120,64)/16.0*step
-		draw_rect(Rect2(top,step),Color("e0a060"));label_at("N",top+step*0.5+Vector2(-5,5),Color("18232e"))
+		if artwork("resident") != null: draw_texture_rect(artwork("resident"),Rect2(top,step),false)
+		else: draw_rect(Rect2(top,step),Color("e0a060"));label_at("N",top+step*0.5+Vector2(-5,5),Color("18232e"))
 		for i in range(3):
 			if room.resident.wares[i] == null: continue
 			var ware_top := rect.position+Vector2(88+i*32,88)/16.0*step
@@ -123,6 +140,7 @@ func _draw() -> void:
 	for stair in room.get("stairs",[]):
 		var top := rect.position+Vector2(stair.cell[0],stair.cell[1])*step
 		var color := Color("7ecad5") if not stair.get("requires_secret",false) else Color("c2a5ee")
+		if artwork("stairs") != null: draw_texture_rect(artwork("stairs"),Rect2(top,step),false);continue
 		draw_rect(Rect2(top,step),Color("111b26"));draw_rect(Rect2(top,step),color,false,2)
 		for i in range(4): draw_line(top+Vector2(i*0.12,0.18+i*0.2)*step,top+Vector2(0.9,0.18+i*0.2)*step,color,2)
 	if room.has("secret"):
@@ -131,8 +149,10 @@ func _draw() -> void:
 		var block := Rect2(rect.position+cell*step,step)
 		var kind := Pack.secret_trigger(room.secret)
 		var color := Color("a78bd4") if kind == "block" else Color("969faa") if kind == "bomb" else Color("e99052")
-		draw_rect(block,color);draw_rect(block,Color("e4d7fa"),false,2)
-		label_at("B" if kind == "block" else "X" if kind == "bomb" else "F",block.get_center()+Vector2(-5,5),Color("18232e"))
+		if artwork("secret") != null: draw_texture_rect(artwork("secret"),block,false)
+		else: draw_rect(block,color)
+		draw_rect(block,Color("e4d7fa"),false,2)
+		if artwork("secret") == null: label_at("B" if kind == "block" else "X" if kind == "bomb" else "F",block.get_center()+Vector2(-5,5),Color("18232e"))
 		var target := block.get_center()+direction*step if kind == "block" else rect.position+(Vector2(Pack.secret_approach(room.secret))+Vector2(8,11))/16.0*step
 		draw_rect(Rect2(target-step*0.5,step),Color("c2a5ee"),false,2)
 		draw_line(block.get_center(),target,Color("e4d7fa"),2)

@@ -1,4 +1,5 @@
 extends RefCounted
+const ArtBindings = preload("art_bindings.gd")
 ## The single, engine-independent pack contract, loaded by both Godot projects.
 ## JSON is data only: no script, resource or external asset paths are accepted.
 const VERSION := 1 # Fresh/v1 documents remain backwards compatible.
@@ -71,7 +72,7 @@ static func validate(pack) -> PackedStringArray:
 	if not pack is Dictionary: return PackedStringArray(["Pack must be a JSON object"])
 	var version = pack.get("schema")
 	var fields := ["schema","id","title","start_room","rooms","enemy_types"]
-	if version == 2: fields.append_array(["starting_items","goals","generation"])
+	if version == 2: fields.append_array(["starting_items","goals","generation","appearance"])
 	unknown_fields(pack,fields,"Pack",errors)
 	if version != 1 and version != 2: errors.append("Unsupported pack schema; expected 1 or 2")
 	if not identifier(pack.get("id")): errors.append("Pack ID needs lowercase letters, digits, underscores or hyphens")
@@ -175,6 +176,7 @@ static func validate(pack) -> PackedStringArray:
 			if not reverse is Dictionary or reverse.get("target") != id or reverse.get("kind") != link.get("kind") or requirements(reverse) != requirements(link):
 				errors.append(id + ": connection " + edge + " needs a reciprocal door of the same kind")
 	if version == 2:
+		if pack.has("appearance"): errors.append_array(ArtBindings.validate(pack.appearance,pack))
 		validate_stairs(ids,errors)
 		validate_progression(pack,ids,errors)
 	return errors

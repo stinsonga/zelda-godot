@@ -15,7 +15,8 @@ class EditorPackagingTests(unittest.TestCase):
         for name in packaging.DIRECTORIES:(source/name).mkdir()
         for name in ['editor/project.godot','editor/shared/room_pack.gd','content/pack.json',
                      'editor/.godot/imported/cache.bin','editor/__pycache__/code.pyc',
-                     'editor/local.nes']:
+                     'editor/local.nes','content/art/custom/library.json',
+                     'content/art/custom/tiles.png']:
             path=source/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('test')
         return source
     def test_editor_is_included_but_nested_cache_and_rom_are_not(self):
@@ -24,6 +25,8 @@ class EditorPackagingTests(unittest.TestCase):
             with patch.object(packaging,'ROOT',source):packaging.prepare(output)
             self.assertTrue((output/'editor/project.godot').exists())
             self.assertTrue((output/'editor/shared/room_pack.gd').exists())
+            self.assertTrue((output/'content/art/custom/library.json').exists())
+            self.assertTrue((output/'content/art/custom/tiles.png').exists())
             self.assertFalse((output/'editor/.godot').exists())
             self.assertFalse((output/'editor/__pycache__').exists())
             self.assertFalse((output/'editor/local.nes').exists())

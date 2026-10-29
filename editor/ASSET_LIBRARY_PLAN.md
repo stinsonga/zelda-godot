@@ -51,7 +51,7 @@ catalog. It should reuse the importer output rather than import the ROM again.
    the game; art selection does not change those rules. Missing optional art
    must fall back to authored placeholders and retain a visible unresolved-art
    diagnostic.
-5. **User-owned replacement libraries.** Apply the same catalog interface to
+5. **User-owned replacement libraries — implemented.** Apply the same catalog interface to
    authored art under `content/`. Higher-resolution images should draw into the
    existing logical rectangles, preserving collision and movement. A later
    graphics upgrade then changes an asset library rather than every room.
@@ -70,10 +70,9 @@ ignored local pack and carries source provenance. If an editable-copy workflow
 is added, it needs an explicit local/private destination and a source record;
 it must never silently save those copies under `content/`.
 
-A distributable authored asset library can later be referenced directly by a
-versioned pack schema. Version 1 currently rejects asset paths and unknown fields;
-add validated appearance fields through an intentional schema change or migration,
-rather than weakening that contract. Room/enemy appearance and behavior remain
+Distributable libraries now use symbolic `art/library/asset` bindings in optional
+version-2 appearance data, with strict validation. Version 1 continues to reject
+asset paths and unknown fields. See [AUTHORED_ART.md](AUTHORED_ART.md). Room/enemy appearance and behavior remain
 separate throughout.
 
 ## Acceptance checks for that milestone
@@ -87,5 +86,7 @@ separate throughout.
   remain identical.
 
 The import/catalog/browser, grouped sprite assignment, separate visual tile
-layer and matching runtime overlays are implemented and verified. Next: authored
-replacement libraries, richer sprite layouts and imported-room editable copies.
+layer and matching runtime overlays are implemented and verified. Authored replacement libraries now support 16/32/64-pixel tiles and directional
+animated sprites, plus secret/stair/resident slots. Next: richer sprite layouts,
+imported-room editable copies. Template capture and seeded generation now retain
+shared art, including linked cellars and scoped enemy skins.
