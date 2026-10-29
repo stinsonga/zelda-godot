@@ -1,0 +1,144 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "goals": [
+    {
+      "pickup": "reward",
+      "room": "entry"
+    }
+  ],
+  "id": "fire_route",
+  "rooms": [
+    {
+      "connections": {},
+      "enemies": [],
+      "id": "entry",
+      "map_position": [
+        0,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "reward",
+          "item": "heart",
+          "position": [
+            96,
+            77
+          ],
+          "requires_secret": true
+        }
+      ],
+      "secret": {
+        "cell": [
+          6,
+          5
+        ],
+        "direction": "right",
+        "reveal": "item",
+        "trigger": "fire"
+      },
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            4,
+            3
+          ],
+          "id": "gift",
+          "target": "gift",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Entrance"
+    },
+    {
+      "connections": {},
+      "enemies": [],
+      "id": "gift",
+      "kind": "cave",
+      "map_position": [
+        1,
+        0
+      ],
+      "pickups": [],
+      "resident": {
+        "mode": "gift",
+        "text": "WELCOME, TRAVELER.",
+        "wares": [
+          null,
+          {
+            "item": "blue_candle",
+            "price": 0
+          },
+          null
+        ]
+      },
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            3,
+            7
+          ],
+          "id": "return",
+          "target": "entry",
+          "target_position": [
+            120,
+            125
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Candle gift"
+    }
+  ],
+  "schema": 2,
+  "start_room": "entry",
+  "starting_items": [
+    "wooden_sword"
+  ],
+  "title": "Fire route"
+}

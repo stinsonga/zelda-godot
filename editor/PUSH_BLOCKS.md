@@ -13,14 +13,14 @@ complete the dungeon. **Dungeon → Check progression** reports a witness route.
 
 ## Author a puzzle
 
-1. Choose a direction and reveal mode under **PUSH BLOCK / SECRET**.
-2. Choose **Block** and click a room cell, or enter cell X/Y and press
-   **Apply block secret**. B marks the starting square; its line and outlined
+1. Choose a direction and reveal mode under **ROOM SECRET** with trigger **block**.
+2. Choose **Secret** and click a room cell, or enter cell X/Y and press
+   **Apply room secret**. B marks the starting square; its line and outlined
    square show the push direction and landing square. Base terrain stays floor.
 3. For **shutters**, connect rooms with shutter doors. The room switches to
    trigger 4: defeating enemies alone cannot open its shutters. **item** leaves
    the ordinary room shutter setting available.
-4. Select a pickup and enable **Appears after block push**, then Apply. Both
+4. Select a pickup and enable **Appears after room secret**, then Apply. Both
    reveal modes can expose pickups. A secret-gated pickup can sit under the
    starting block, or elsewhere in the room. Objective membership is independent.
 5. Check progression, save, and playtest. Reachability of the push approach is a
@@ -28,8 +28,8 @@ complete the dungeon. **Dungeon → Check progression** reports a witness route.
 
 Select-click B to focus its inspector. Alt-click allows selecting a pickup under
 it through the placement list/hit cycling. The block has dedicated cell controls;
-it is not part of the individual entity drag tool. Right-click with Block removes
-the room's block. **Remove block secret** also removes pickup secret requirements
+it is not part of the individual entity drag tool. Right-click with Secret removes
+the room's block. **Remove room secret** also removes pickup secret requirements
 and resets block-controlled shutters to the clear-enemies setting. Undo restores
 all of these changes together. One brush stroke is one undo step.
 
@@ -93,3 +93,6 @@ approaches, combat prerequisites, collision, templates/generation, undo, and
 removal dependencies. The native suite replays solver routes using actual player
 movement, pushes, pickups, key locks and transitions, including a generated puzzle
 template. It also checks wrong-side pushing and reset on re-entry.
+
+Bomb/fire triggers are now available in the same inspector, with persistent
+reveals instead of block resets. See [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md).

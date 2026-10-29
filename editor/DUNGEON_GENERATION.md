@@ -33,7 +33,7 @@ not yet a general procedural puzzle designer with loops or multiple floors.
 
 The generated pack contains a recipe: `authored_tree`, algorithm version 1 for
 format-1 libraries or version 2 for format-2 libraries; resident-bearing libraries
-use version 3 with a separate world ID prefix,
+use version 3 and bomb/fire libraries version 4, each with a separate world ID prefix,
 seed, requested size/item, selected template IDs and the library's canonical
 SHA256. Its PRNG is an explicit 32-bit LCG, independent of Godot's random-number
 implementation. The same algorithm, library contents and recipe reproduce the
@@ -113,7 +113,8 @@ is insufficient: isolated keys, walled-off exits and blocked arrivals are detect
 Shutters with trigger 1 can open after a reachable sword-vulnerable encounter;
 trigger 0 stays closed. Trigger 4 requires the room's authored block push.
 Clear-room rewards likewise require a clearable room, and trigger-4 rooms must
-also have their block pushed. See [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
+also have their room secret revealed. See [PUSH_BLOCKS.md](PUSH_BLOCKS.md) and
+[DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md).
 **Combat is an explicit assumption:** reachable vulnerable enemies can be beaten
 with a sword, without spending progression supplies. Health, reflexes, precise
 combat timing and survival difficulty are not proved. Earlier automatic collection
@@ -132,8 +133,9 @@ Current conservative limits:
   native barriers under conservative offer routing. Repeatable money offers and
   mixed shop/finite bomb supplies remain unsupported. See
   [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
-- No water/ladder deployment, raft routes, other secret types,
-  money rules, boss vulnerabilities or enemy-drop dependencies.
+- Bomb/fire secrets track persistent collision and bomb/candle requirements through
+  configured use positions. Other secret types, water/ladder deployment, raft routes,
+  advanced money rules, boss vulnerabilities and enemy-drop dependencies remain unsupported.
 - Without a bomb shop: at most eight total finite bombs, including gifts and
   starting bundles. Bomb shops are supported only without other finite bomb sources. Larger supplies
   need capacity/timing-aware pickup routing and are explicitly unsupported, rather

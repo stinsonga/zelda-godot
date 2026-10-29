@@ -150,6 +150,7 @@ This is the first usable editing loop, not the complete editor. Next:
   collision layer are separate; only supported ROM sprite sets/atlases resolve.
 - Additional cave/resident modes, other secret types, more items and advanced doors. Directional blocks,
   secret pickups and block shutters are available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
+  Bomb/fire room secrets are available; see [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md).
   Hidden stairs and linked cellars are available; see [STAIRS.md](STAIRS.md).
   Hint/gift/shop residents and linked caves are available; see [RESIDENTS.md](RESIDENTS.md).
   Their bounded progression model covers gifts, coins and purchases; see

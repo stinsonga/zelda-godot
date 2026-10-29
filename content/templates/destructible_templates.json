@@ -1,0 +1,508 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "format_version": 1,
+  "id": "destructible_templates",
+  "templates": [
+    {
+      "id": "start_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "start",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "start",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Start chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "key_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "key",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "key",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [
+          {
+            "id": "supply",
+            "item": "bombs",
+            "position": [
+              176,
+              125
+            ]
+          }
+        ],
+        "secret": {
+          "cell": [
+            4,
+            4
+          ],
+          "direction": "right",
+          "reveal": "item",
+          "trigger": "bomb"
+        },
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Key chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "item_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "item",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "item",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Item chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "combat_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "combat",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [
+          {
+            "id": "guard",
+            "position": [
+              80,
+              61
+            ],
+            "type": "crawler"
+          }
+        ],
+        "id": "combat",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Combat chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "treasure_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "treasure",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "treasure",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Treasure chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "goal_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "goal",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [
+          {
+            "id": "guard",
+            "position": [
+              80,
+              61
+            ],
+            "type": "crawler"
+          }
+        ],
+        "id": "goal",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Goal chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "key_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "key",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [
+          {
+            "id": "supply",
+            "item": "bombs",
+            "position": [
+              176,
+              125
+            ]
+          }
+        ],
+        "secret": {
+          "cell": [
+            4,
+            4
+          ],
+          "direction": "right",
+          "reveal": "item",
+          "trigger": "bomb"
+        },
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "id": "item_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "item",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "id": "treasure_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "treasure",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "id": "combat_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "combat",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [
+          {
+            "id": "guard",
+            "position": [
+              80,
+              77
+            ],
+            "type": "crawler"
+          }
+        ],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    }
+  ]
+}

@@ -1,0 +1,252 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "goals": [
+    {
+      "pickup": "reward",
+      "room": "passage_1"
+    }
+  ],
+  "id": "bomb_route",
+  "rooms": [
+    {
+      "connections": {
+        "right": {
+          "kind": "bombable",
+          "requires": [
+            "bow"
+          ],
+          "target": "vault"
+        },
+        "up": {
+          "kind": "shutter",
+          "target": "hall"
+        }
+      },
+      "enemies": [],
+      "id": "entry",
+      "map_position": [
+        0,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "hidden_key",
+          "item": "key",
+          "position": [
+            96,
+            77
+          ],
+          "requires_secret": true
+        }
+      ],
+      "secret": {
+        "cell": [
+          6,
+          5
+        ],
+        "direction": "right",
+        "reveal": "shutters",
+        "trigger": "bomb"
+      },
+      "shutter_trigger": 4,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "The hidden key"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "shutter",
+          "target": "entry"
+        }
+      },
+      "enemies": [],
+      "id": "hall",
+      "map_position": [
+        0,
+        -1
+      ],
+      "pickups": [
+        {
+          "id": "tool",
+          "item": "bow",
+          "position": [
+            120,
+            77
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Locked passage"
+    },
+    {
+      "connections": {
+        "left": {
+          "kind": "bombable",
+          "requires": [
+            "bow"
+          ],
+          "target": "entry"
+        },
+        "right": {
+          "kind": "bombable",
+          "target": "passage_0"
+        }
+      },
+      "enemies": [],
+      "id": "vault",
+      "map_position": [
+        1,
+        0
+      ],
+      "pickups": [],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "The block reward"
+    },
+    {
+      "connections": {
+        "left": {
+          "kind": "bombable",
+          "target": "vault"
+        },
+        "right": {
+          "kind": "bombable",
+          "target": "passage_1"
+        }
+      },
+      "enemies": [],
+      "id": "passage_0",
+      "map_position": [
+        2,
+        0
+      ],
+      "pickups": [],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "New room"
+    },
+    {
+      "connections": {
+        "left": {
+          "kind": "bombable",
+          "target": "passage_0"
+        }
+      },
+      "enemies": [],
+      "id": "passage_1",
+      "map_position": [
+        3,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "reward",
+          "item": "heart",
+          "position": [
+            120,
+            77
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "New room"
+    }
+  ],
+  "schema": 2,
+  "start_room": "entry",
+  "starting_items": [
+    "wooden_sword",
+    "bombs"
+  ],
+  "title": "Bomb route"
+}

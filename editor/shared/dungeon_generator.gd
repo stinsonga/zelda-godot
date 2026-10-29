@@ -68,10 +68,11 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	# Resident solvability changes candidate acceptance. Give those libraries
 	# a new recipe and world identity, preserving existing v1/v2 seed results.
 	var resident_library: bool = catalog.templates.any(func(t): return t.room.has("resident") or t.get("annexes",[]).any(func(room): return room.has("resident")))
-	var algorithm_version := 3 if resident_library else int(catalog.format_version)
+	var persistent_library: bool = catalog.templates.any(func(t): return ([t.room]+t.get("annexes",[])).any(func(room): return room.has("secret") and Pack.secret_trigger(room.secret) != "block"))
+	var algorithm_version := 4 if persistent_library else 3 if resident_library else int(catalog.format_version)
 	var pack := Pack.fresh()
 	Pack.upgrade(pack)
-	pack.id = ("generated_v3_%d_%d_%s_%s" if resident_library else "generated_%d_%d_%s_%s") % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
+	pack.id = ("generated_v"+str(algorithm_version)+"_" if algorithm_version>=3 else "generated_")+"%d_%d_%s_%s" % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
 	pack.title = "Seed %d dungeon" % seed_value
 	pack.start_room = "room_0"
 	pack.enemy_types = catalog.enemy_types.duplicate(true)

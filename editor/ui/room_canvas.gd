@@ -129,10 +129,12 @@ func _draw() -> void:
 		var cell := Vector2(room.secret.cell[0],room.secret.cell[1])
 		var direction: Vector2 = {"up":Vector2.UP,"right":Vector2.RIGHT,"down":Vector2.DOWN,"left":Vector2.LEFT}[room.secret.direction]
 		var block := Rect2(rect.position+cell*step,step)
-		draw_rect(block,Color("a78bd4"));draw_rect(block,Color("e4d7fa"),false,2)
-		label_at("B",block.get_center()+Vector2(-5,5),Color("18232e"))
-		var target := block.get_center()+direction*step
-		draw_rect(Rect2(block.position+direction*step,step),Color("c2a5ee"),false,2)
+		var kind := Pack.secret_trigger(room.secret)
+		var color := Color("a78bd4") if kind == "block" else Color("969faa") if kind == "bomb" else Color("e99052")
+		draw_rect(block,color);draw_rect(block,Color("e4d7fa"),false,2)
+		label_at("B" if kind == "block" else "X" if kind == "bomb" else "F",block.get_center()+Vector2(-5,5),Color("18232e"))
+		var target := block.get_center()+direction*step if kind == "block" else rect.position+(Vector2(Pack.secret_approach(room.secret))+Vector2(8,11))/16.0*step
+		draw_rect(Rect2(target-step*0.5,step),Color("c2a5ee"),false,2)
 		draw_line(block.get_center(),target,Color("e4d7fa"),2)
 		draw_circle(target,3,Color("e4d7fa"))
 	draw_selection()

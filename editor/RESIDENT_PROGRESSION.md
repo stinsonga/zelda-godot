@@ -84,7 +84,8 @@ they never count as a successful proof.
 Template libraries containing residents use `authored_tree` recipe **version 3**
 and a `generated_v3_...` world ID. This separates the newly accepted resident
 candidates from worlds an older generator could publish with the same library.
-Resident-free format-1/format-2 libraries retain recipe versions 1/2 and their
+Libraries with bomb/fire secrets use version 4 instead. Other resident-free
+format-1/format-2 libraries retain recipe versions 1/2 and their
 existing seed identities. The legacy seed-42 checksum remains covered by tests.
 No library format or pack schema upgrade is required to check resident routes.
 Cave-network template capture is still outside the cellar-only multi-room format.

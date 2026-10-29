@@ -25,6 +25,8 @@ extends Resource
 @export var object_collision: PackedByteArray = PackedByteArray([1, 1, 1, 1])
 ## Bomb walls and trees set this flag. Rock shortcuts remember their stairs too.
 @export var persistent: bool = true
+## Authored bomb/fire objects overlay floor until revealed; imports use their tile art.
+@export var authored_object: bool = false
 
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()

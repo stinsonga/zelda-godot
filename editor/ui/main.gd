@@ -211,7 +211,7 @@ func build_ui() -> void:
 	room_view.add_child(tools)
 	var group := ButtonGroup.new()
 	for name in ["Select","Block","Stairs","Floor","Wall","Water","Spawn","Enemy","Pickup","Erase","Art"]:
-		var tool := button(name,tools,func(): set_tool(name))
+		var tool := button("Secret" if name == "Block" else name,tools,func(): set_tool(name))
 		tool_buttons[name] = tool
 		tool.toggle_mode = true
 		tool.button_group = group
@@ -411,7 +411,7 @@ func refresh() -> void:
 	map_y.value = room.map_position[1]
 	shutter.button_pressed = room.shutter_trigger == 1
 	shutter.disabled = room.shutter_trigger == 4
-	shutter.tooltip_text = "Controlled by the push block" if shutter.disabled else ""
+	shutter.tooltip_text = "Controlled by the room secret" if shutter.disabled else ""
 	block_inspector.refresh(room)
 	stairs_inspector.refresh(room,pack)
 	resident_inspector.refresh(room)
@@ -932,7 +932,7 @@ func apply_placement(properties: Dictionary) -> void:
 	var data := selected_placement()
 	if data.is_empty(): return
 	if not valid_placement(properties.position,placement_key.kind == "pickups" and properties.get("requires_secret",false)): message("Choose walkable ground outside the block, or mark this pickup to appear after the push.");return
-	if properties.get("requires_secret",false) and not current().has("secret"): message("Add a block secret to this room first.");return
+	if properties.get("requires_secret",false) and not current().has("secret"): message("Add a room secret first.");return
 	var variant := String(properties.get("type",""))
 	var changed := false
 	var uses := 0
@@ -977,9 +977,12 @@ func same_position(a: Array, b: Array) -> bool:
 	return int(a[0]) == int(b[0]) and int(a[1]) == int(b[1])
 
 func apply_block(secret: Dictionary) -> void:
-	if current().has("resident"): message("Place block secrets in the entrance room, outside the resident interior.");return
+	if current().has("resident"): message("Place secrets in the entrance room, outside the resident interior.");return
 	var room := current().duplicate(true)
 	room.secret = secret.duplicate(true)
+	if Pack.secret_trigger(secret) in ["bomb","fire"] and Pack.point(secret.get("cell"),2,13,2,8):
+		var x := int(secret.cell[0]);var y := int(secret.cell[1]);var row: String = room.tiles[y]
+		if row[x] == "#": room.tiles[y] = row.left(x)+"."+row.substr(x+1)
 	room.shutter_trigger = 4 if secret.reveal == "shutters" else (1 if room.shutter_trigger == 4 else room.shutter_trigger)
 	var errors := PackedStringArray()
 	Pack.validate_block(room,true,errors)
@@ -987,10 +990,11 @@ func apply_block(secret: Dictionary) -> void:
 	for entry in pack.rooms: lookup[entry.id] = room if entry.id == current_id else entry
 	Pack.validate_stairs(lookup,errors)
 	if not errors.is_empty(): message("\n".join(errors));return
-	if current().has("secret") and same_position(current().secret.cell,secret.cell) and current().secret.direction == secret.direction and current().secret.reveal == secret.reveal and current().shutter_trigger == room.shutter_trigger: return
+	if current().has("secret") and same_position(current().secret.cell,secret.cell) and current().secret.direction == secret.direction and current().secret.reveal == secret.reveal and Pack.secret_trigger(current().secret) == Pack.secret_trigger(secret) and current().shutter_trigger == room.shutter_trigger and current().tiles == room.tiles: return
 	var action := func():
 		Pack.upgrade(pack)
 		current().secret = secret.duplicate(true)
+		current().tiles = room.tiles
 		current().shutter_trigger = room.shutter_trigger
 	if stroke_before.is_empty(): edit(action)
 	else: action.call();canvas.queue_redraw()

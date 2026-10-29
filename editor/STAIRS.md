@@ -9,7 +9,7 @@ and use the bow-gated north exit to reach the objective.
 ## Create a cellar
 
 1. Under **STAIRS / CELLAR LINKS**, choose the source cell. Optionally enable
-   **Hidden until block push** after adding a room block.
+   **Hidden until room secret** after adding a room secret.
 2. Click **Create linked cellar**. This creates an editable cellar room, a source
    stair and a return stair together as one undo step. A free map position is
    assigned; select the cellar in the room list to paint terrain or place items.
@@ -58,8 +58,9 @@ a stair can bypass it if geometry permits.
 
 Arrival must be walkable, inside the room, on the eight-pixel dungeon grid, and
 outside the destination's reset block. The room's initial spawn cannot be a stair.
-Hidden stairs require a block secret and may occupy the block's starting square;
-no stair may occupy its landing square. Other floor cells can also hide stairs.
+Hidden stairs require a room secret and may occupy its initial square;
+no stair may occupy a pushed block's landing square. Bomb/fire reveals persist;
+see [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md). Other floor cells can also hide stairs.
 Stairs may be one-way, but cannot target their own room in this first format.
 
 Arrival on a destination stair suppresses portals until Link moves away, avoiding

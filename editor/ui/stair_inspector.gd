@@ -29,7 +29,7 @@ func _ready() -> void:
 	list.item_selected.connect(func(i): choose(list.get_item_metadata(i)))
 	identity = LineEdit.new();identity.editable = false;add_child(identity)
 	cell_x = number("Cell X",3,12,6);cell_y = number("Cell Y",3,7,5)
-	secret_gate = CheckBox.new();secret_gate.text = "Hidden until block push";add_child(secret_gate)
+	secret_gate = CheckBox.new();secret_gate.text = "Hidden until room secret";add_child(secret_gate)
 	caption("Destination room")
 	target = OptionButton.new();target.clip_text = true;add_child(target)
 	target.item_selected.connect(func(_i):

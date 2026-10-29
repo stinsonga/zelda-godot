@@ -266,7 +266,7 @@ static func validate_progression(pack: Dictionary, rooms: Dictionary, errors: Pa
 		var g = pack.generation
 		if not g is Dictionary: errors.append("Generation provenance must be an object"); return
 		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"],"Generation",errors)
-		if g.get("algorithm") != "authored_tree" or not integer(g.get("version"),1,3) or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
+		if g.get("algorithm") != "authored_tree" or not integer(g.get("version"),1,4) or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
 		var hash = g.get("template_sha256")
 		if not hash is String or hash.length() != 64 or not hash.is_valid_hex_number(): errors.append("Invalid template fingerprint")
 		if g.get("required_item") not in REQUIRED_ITEMS or not g.get("templates") is Dictionary: errors.append("Invalid generator template metadata")
@@ -280,17 +280,18 @@ static func validate_block(room: Dictionary, good_tiles: bool, errors: PackedStr
 	var prefix := String(room.id) + ": "
 	var secret = room.secret
 	if not secret is Dictionary: errors.append(prefix+"secret must be a block object");return
-	unknown_fields(secret,["cell","direction","reveal"],prefix+"secret",errors)
-	if not point(secret.get("cell"),2,13,2,8) or secret.get("direction") not in EDGES or secret.get("reveal") not in ["shutters","item"]:
-		errors.append(prefix+"block needs an interior cell, cardinal direction and shutters/item reveal");return
+	unknown_fields(secret,["cell","direction","reveal","trigger"],prefix+"secret",errors)
+	if secret_trigger(secret) not in ["block","bomb","fire"] or not point(secret.get("cell"),2,13,2,8) or secret.get("direction") not in EDGES or secret.get("reveal") not in ["shutters","item"]:
+		errors.append(prefix+"secret needs a block/bomb/fire trigger, interior cell, cardinal direction and shutters/item reveal");return
 	if secret.reveal == "shutters" and room.get("shutter_trigger") != 4: errors.append(prefix+"block-controlled shutters need shutter trigger 4")
 	if secret.reveal == "item" and room.get("shutter_trigger") == 4: errors.append(prefix+"use a shutters reveal for shutter trigger 4")
 	var cell := Vector2i(int(secret.cell[0]),int(secret.cell[1]))
 	var direction: Vector2i = {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[secret.direction]
-	for square in [cell,cell+direction,cell-direction]:
+	var squares: Array = [cell,cell+direction,cell-direction] if secret_trigger(secret) == "block" else [cell,cell-direction*(2 if secret_trigger(secret) == "fire" else 1)]
+	for square in squares:
 		if square.x<2 or square.x>13 or square.y<2 or square.y>8:
-			errors.append(prefix+"block, landing and push approach must lie inside the wall frame")
-		elif good_tiles and room.tiles[square.y][square.x] != ".": errors.append(prefix+"block, landing and push approach need floor tiles")
+			errors.append(prefix+"secret object and its interaction approach must lie inside the wall frame")
+		elif good_tiles and room.tiles[square.y][square.x] != ".": errors.append(prefix+"secret object and its interaction approach need floor tiles")
 	if good_tiles and point(room.get("spawn"),0,240,0,157) and block_overlaps(secret,room.spawn,false): errors.append(prefix+"player spawn overlaps the block")
 	for kind in ["enemies","pickups"]:
 		var entries = room.get(kind,[])
@@ -300,6 +301,7 @@ static func validate_block(room: Dictionary, good_tiles: bool, errors: PackedStr
 			if block_overlaps(secret,entry.position,false) and not (kind == "pickups" and entry.get("requires_secret") == true): errors.append(prefix+"placement overlaps the initial block")
 static func block_overlaps(secret: Dictionary, at: Array, pushed: bool) -> bool:
 	var cell := Vector2i(int(secret.cell[0]),int(secret.cell[1]))
+	if pushed and secret_trigger(secret) != "block": return false
 	if pushed: cell += {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[secret.direction]
 	for offset in [0,8]:
 		if Vector2i((int(at[0])+offset)/16,(int(at[1])+11)/16) == cell: return true
@@ -390,3 +392,11 @@ static func validate_resident(room: Dictionary, errors: PackedStringArray) -> vo
 	if room.get("pickups") is Array:
 		for pickup in room.pickups:
 			if pickup is Dictionary and pickup.get("id") == "taken": errors.append(prefix+"reserves pickup ID taken for resident transactions")
+
+static func secret_trigger(secret: Dictionary) -> String:
+	var value = secret.get("trigger","block")
+	return value if value is String else ""
+static func secret_approach(secret: Dictionary) -> Vector2i:
+	var direction: Vector2i = {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[secret.direction]
+	var distance := 2 if secret_trigger(secret) == "fire" else 1
+	return (Vector2i(int(secret.cell[0]),int(secret.cell[1]))-direction*distance)*16+Vector2i(0,-3)

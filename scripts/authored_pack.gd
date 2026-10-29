@@ -62,12 +62,13 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 		room.music = &""
 		if source.has("secret"):
 			var secret = Secret.new()
-			secret.trigger = "block"
+			secret.trigger = Contract.secret_trigger(source.secret)
 			secret.cell = Vector2i(int(source.secret.cell[0]),int(source.secret.cell[1]))
 			secret.reveal_cell = secret.cell
-			secret.block_direction = DIRECTIONS[source.secret.direction]
+			secret.block_direction = DIRECTIONS[source.secret.direction] if secret.trigger == "block" else Vector2i.ZERO
 			secret.reveal_kind = source.secret.reveal
-			secret.persistent = false
+			secret.persistent = secret.trigger != "block"
+			secret.authored_object = secret.trigger != "block"
 			room.secret = secret
 		room.tile_atlas = library.room_texture(source,appearance)
 		if room.tile_atlas != null:

@@ -67,7 +67,7 @@ func _ready() -> void:
 	pickup_fields = VBoxContainer.new();form.add_child(pickup_fields)
 	item = options(Pack.ITEMS,pickup_fields)
 	clear_reward = CheckBox.new();clear_reward.text = "Appears after room clear";pickup_fields.add_child(clear_reward)
-	secret_reward = CheckBox.new();secret_reward.text = "Appears after block push";pickup_fields.add_child(secret_reward)
+	secret_reward = CheckBox.new();secret_reward.text = "Appears after room secret";pickup_fields.add_child(secret_reward)
 	objective = CheckBox.new();objective.text = "Required objective";pickup_fields.add_child(objective)
 	button("Apply selected changes",form,apply)
 	button("Reset fields",form,func(): reset_requested.emit())

@@ -131,12 +131,19 @@ resident-free recipes retain their identities. See
 `content/packs/shop_route.json`. Try
 `content/packs/resident_village.json`; see [RESIDENTS.md](../editor/RESIDENTS.md).
 
+Bombable/burnable room secrets now use native bomb/candle actions, persistent
+reveals, hidden stairs/rewards, editor undo and solver/native witness checks.
+Version-4 generation keeps their new identities separate. Try
+`content/packs/bomb_route.json`, `content/packs/fire_route.json` and
+`content/templates/destructible_templates.json`; see
+[DESTRUCTIBLE_SECRETS.md](../editor/DESTRUCTIBLE_SECRETS.md).
+
 Missing:
 
 - authored replacement libraries, richer sprite
   layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
-- additional resident modes, cave entrance/original cellar transitions, other secret types, plus broader
+- additional resident modes, cave entrance/original cellar transitions, recorder/Armos and other secret types, plus broader
   generation layouts, general room-group templates and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
 - automatic ID remapping when content is renamed, so older saves keep loading

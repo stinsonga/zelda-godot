@@ -111,6 +111,8 @@ func replay(pack: Dictionary, proof: Dictionary) -> void:
 			if String(world.room.id) == event.room: tick()
 			check(String(world.room.id) == event.target,"Stair transitions to its authored destination")
 			prepare_room()
+		elif event.type == "reveal":
+			replay_reveal_event(event)
 		elif event.type == "push":
 			var approach := Vector2i(int(event.at[0]),int(event.at[1]))
 			check(walk_to(func(p): return p == approach),"Native geometry reaches the block's push approach")
@@ -195,3 +197,19 @@ func resident_offer_slot(at: Vector2i) -> int:
 	for i in range(3):
 		if session.ware_visible(i) and at.x == session.WARE_X[i] and absi(at.y-session.WARE_Y)<6: return i
 	return -1
+
+func replay_reveal_event(event: Dictionary) -> void:
+	var approach := Vector2i(int(event.at[0]),int(event.at[1]))
+	check(walk_to(func(p): return p == approach),"Native movement reaches secret interaction stance")
+	var before: int = world.state.item_value(&"bombs")
+	world.player.facing = DIRS[event.direction]
+	world.state.selected_item = &"bombs" if event.trigger == "bomb" else &"candle"
+	world.combat.player_invulnerability = 100000
+	world.simulate_tick(Vector2i.ZERO,false,true)
+	for i in range(160): tick()
+	check(world.secrets.revealed,"Native bomb/fire reveals the secret")
+	check(world.state.flags.get("secret/"+event.room,false),"Reveal writes its persistent room flag")
+	var cell: Vector2i = world.room.secret.cell*16+Vector2i(8,8)
+	check(not world.is_blocked(cell),"Destroyed object becomes walkable")
+	if event.trigger == "bomb": check(world.state.item_value(&"bombs") == before-1,"Secret spends exactly one real bomb")
+	else: check(world.candle_used,"Secret uses the native blue candle action")

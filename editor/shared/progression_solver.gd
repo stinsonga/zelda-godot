@@ -16,9 +16,10 @@ var goal_mask := 0
 var started := 0
 var has_stairs := false
 var has_residents := false
+var secret_ids: Dictionary = {}
 var resident_ids: Dictionary = {}
 var key_capacity := 255
-const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, water/ladder deployment, other secret types or enemy-drop farming. Directional blocks reset on room entry and require the room to be cleared. Active stairs force transitions; arriving on a stair suppresses it until Link moves away."
+const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, water/ladder deployment, other secret types or enemy-drop farming. Directional blocks reset on room entry and require the room to be cleared. Bomb/fire reveals persist and consume one bomb or one blue-candle use. Active stairs force transitions; arriving on a stair suppresses it until Link moves away."
 func item_bit(item: String) -> int: return 1 << Pack.REQUIRED_ITEMS.find(item)
 func owns(state: Dictionary, item: String) -> bool: return (state.items & item_bit(item)) != 0
 func requires_met(state: Dictionary, link: Dictionary) -> bool:
@@ -30,7 +31,7 @@ func reason(text: String) -> void:
 func report(status: String, message: String, states: int = 0, steps: Array = [], events: Array = []) -> Dictionary:
 	return {"status":status,"message":message,"states":states,"steps":steps,"events":events,"reached_rooms":reached.keys(),"blockers":reasons.keys(),"assumptions":ASSUMPTIONS+(" Resident routes settle dialogue, lifts and rupees between actions, avoid unchosen offer squares even when unaffordable, and batch reachable ordinary-room coins. Repeatable money offers and mixed shop/finite bomb supplies are outside this model." if has_residents else "")}
 func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000) -> Dictionary:
-	rooms.clear();pickups.clear();door_ids.clear();cache.clear();reasons.clear();reached.clear();goal_mask = 0;has_stairs = false;has_residents = false;resident_ids.clear();key_capacity = 255
+	rooms.clear();pickups.clear();door_ids.clear();cache.clear();reasons.clear();reached.clear();goal_mask = 0;has_stairs = false;has_residents = false;resident_ids.clear();secret_ids.clear();key_capacity = 255
 	started = Time.get_ticks_msec()
 	var errors := Pack.validate(pack)
 	if not errors.is_empty(): return report("invalid","\n".join(errors))
@@ -40,6 +41,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 		if room.has("resident"):
 			has_residents = true;resident_ids[room.id] = resident_ids.size()
 		rooms[room.id] = room
+		if room.has("secret") and Pack.secret_trigger(room.secret) != "block": secret_ids[room.id] = secret_ids.size()
 		if not room.get("stairs",[]).is_empty(): has_stairs = true
 		if int(room.spawn[0])%8 != 0 or posmod(int(room.spawn[1])-5,8) != 0: return report("unsupported",room.id + ": solver requires the dungeon's eight-pixel spawn grid.")
 		for y in range(11):
@@ -82,7 +84,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 	if shop_bombs and bomb_supply>0: return report("unsupported","Mixed shop and finite bomb supplies require automatic-pickup capacity/timing search.")
 	if bomb_supply>8: return report("unsupported","More than eight supplied bombs needs pickup-capacity/timing search; no solvability claim.")
 	var first: Dictionary = rooms[pack.start_room]
-	var initial := {"room":pack.start_room,"at":Vector2i(int(first.spawn[0]),int(first.spawn[1])),"keys":0,"bombs":0,"rupees":0,"gifts":0,"served":false,"items":0,"collected":0,"opened":0,"pushed":false,"portal_armed":true,"parent":-1,"action":"Start in " + String(pack.start_room),"event":{"type":"start","room":pack.start_room}}
+	var initial := {"room":pack.start_room,"at":Vector2i(int(first.spawn[0]),int(first.spawn[1])),"keys":0,"bombs":0,"rupees":0,"gifts":0,"secrets":0,"served":false,"items":0,"collected":0,"opened":0,"pushed":false,"portal_armed":true,"parent":-1,"action":"Start in " + String(pack.start_room),"event":{"type":"start","room":pack.start_room}}
 	for item in pack.starting_items: take(initial,item)
 	var states: Array = [initial]
 	var pending: Array[int] = [0]
@@ -138,28 +140,31 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 			next.event = {"type":"stairs","room":state.room,"stairs":stair.id,"target":stair.target,"at":[Pack.stair_position(stair).x,Pack.stair_position(stair).y]}
 			next.room = stair.target
 			next.at = Vector2i(int(stair.target_position[0]),int(stair.target_position[1]))
-			next.pushed = false;next.served = false
+			next.pushed = remembered_secret(next.room,next);next.served = false
 			next.portal_armed = not on_any_stair(rooms[next.room],next.at)
 			next.action = "Take stairs %s/%s -> %s" % [state.room,stair.id,stair.target]
 			actions.append(next)
 		if room.has("secret") and not state.pushed:
 			var secret: Dictionary = room.secret
-			var cell := Vector2i(int(secret.cell[0]),int(secret.cell[1]))
-			var direction: Vector2i = DIRS[secret.direction]
-			var approach := (cell-direction)*16+Vector2i(0,-3)
-			if view.monsters_clear and cells.has(approach):
+			var trigger := Pack.secret_trigger(secret)
+			var approach := Pack.secret_approach(secret)
+			var ready: bool = view.monsters_clear if trigger == "block" else state.bombs>0 if trigger == "bomb" else owns(state,"blue_candle")
+			if ready and cells.has(approach):
 				var next: Dictionary = state.duplicate()
 				next.pushed = true;next.at = approach
 				next.portal_armed = state.portal_armed or approach != state.at
-				next.event = {"type":"push","room":state.room,"direction":secret.direction,"at":[approach.x,approach.y]}
-				next.action = "Push block %s %s" % [state.room,secret.direction]
+				if trigger != "block": next.secrets |= 1<<int(secret_ids[state.room])
+				if trigger == "bomb": next.bombs-=1
+				next.event = {"type":"push" if trigger == "block" else "reveal","room":state.room,"direction":secret.direction,"at":[approach.x,approach.y]}
+				if trigger != "block": next.event.trigger = trigger
+				next.action = ("Push block " if trigger == "block" else "Reveal "+trigger+" secret ")+String(state.room)+" "+String(secret.direction)
 				actions.append(next)
-			else: reason(state.room+": block requires a cleared room and reachable push approach")
+			else: reason(state.room+": secret needs a reachable approach and "+("room clear" if trigger == "block" else "one bomb" if trigger == "bomb" else "blue candle"))
 		for i in range(pickups.size()):
 			if pickups[i].room != state.room or (state.collected & (1<<i)) != 0: continue
 			var pickup: Dictionary = pickups[i].pickup
 			if has_residents and not room.has("resident") and pickup.item == "rupee": continue
-			if pickup.get("requires_secret",false) and not state.pushed: reason(state.room+"/"+pickup.id+": requires pushing the block");continue
+			if pickup.get("requires_secret",false) and not state.pushed: reason(state.room+"/"+pickup.id+": requires revealing the room secret");continue
 			if pickup.get("requires_clear",false) and not view.clear: reason(state.room+"/"+pickup.id+": requires clearing the room with a sword");continue
 			if not near(cells,pickup.position): reason(state.room+"/"+pickup.id+": pickup lies outside the entry's walkable region");continue
 			var next: Dictionary = state.duplicate()
@@ -201,13 +206,13 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 			var next: Dictionary = state.duplicate()
 			next.event = {"type":"travel","room":state.room,"edge":edge,"target":target.id}
 			next.room = target.id
-			next.pushed = false;next.served = false
+			next.pushed = remembered_secret(next.room,next);next.served = false
 			next.portal_armed = true
 			next.at = arrival
 			var transit_mask := door_mask(next,false) | (1 << Pack.EDGES.find(reverse))
 			var safe := true
 			for step in range(distance+1):
-				if not standing(target,EDGE[reverse]+DIRS[edge]*step,transit_mask): safe = false;break
+				if not standing(target,EDGE[reverse]+DIRS[edge]*step,transit_mask,next.pushed): safe = false;break
 			if not safe: reason(target.id+": forced doorway walk is blocked");continue
 			next.action = "Travel %s %s -> %s" % [state.room,edge,target.id]
 			actions.append(next)
@@ -223,7 +228,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 			pending.append(states.size()-1)
 	return report("blocked","No route collects every objective under the stated model.",states.size())
 func signature(state: Dictionary) -> String:
-	return "%s/%d/%d/%d/%d/%d/%d/%d/%s/%s/%d/%d/%s" % [state.room,state.at.x,state.at.y,state.keys,state.bombs,state.items,state.collected,state.opened,state.pushed,state.portal_armed,state.rupees,state.gifts,state.served]
+	return "%s/%d/%d/%d/%d/%d/%d/%d/%s/%s/%d/%d/%s/%d" % [state.room,state.at.x,state.at.y,state.keys,state.bombs,state.items,state.collected,state.opened,state.pushed,state.portal_armed,state.rupees,state.gifts,state.served,state.secrets]
 func take(state: Dictionary, item: String) -> void:
 	match item:
 		"key": state.keys = mini(key_capacity,state.keys+1)
@@ -262,7 +267,7 @@ func near(cells: Dictionary, at: Array) -> bool:
 	return false
 func blocked(room: Dictionary, pixel: Vector2i, mask: int, pushed: bool = false) -> bool:
 	if pixel.x<0 or pixel.x>=256 or pixel.y<0 or pixel.y>=176: return true
-	if room.has("secret"):
+	if room.has("secret") and (not pushed or Pack.secret_trigger(room.secret) == "block"):
 		var block := Vector2i(int(room.secret.cell[0]),int(room.secret.cell[1]))
 		if pushed: block += DIRS[room.secret.direction]
 		if Vector2i(pixel.x/16,pixel.y/16) == block: return true
@@ -373,3 +378,6 @@ func coin_action(state: Dictionary, view: Dictionary) -> Dictionary:
 	next.event = {"type":"coins","room":state.room,"pickups":ids,"positions":positions,"rupees":next.rupees}
 	next.action = "Collect %d coins in %s; rupees=%d" % [ids.size(),state.room,next.rupees]
 	return next
+
+func remembered_secret(room_id: String, state: Dictionary) -> bool:
+	return secret_ids.has(room_id) and (state.secrets & (1<<int(secret_ids[room_id]))) != 0

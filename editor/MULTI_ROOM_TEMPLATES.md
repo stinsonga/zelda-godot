@@ -91,7 +91,9 @@ A format-2 library may mix ordinary templates and multi-room units.
 
 Without residents, format-1 libraries retain generation algorithm version 1 and format-2 libraries use
 version 2. Libraries containing residents use recipe version 3 and a separate
-world ID prefix; see [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md). Provenance `room_count` records primary rooms; the result report shows
+world ID prefix; bomb/fire libraries use version 4. See
+[RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md) and
+[DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md). Provenance `room_count` records primary rooms; the result report shows
 primary and total counts. The library fingerprint includes annex geometry, links,
 rewards, weights and order. Fingerprints normalize string-key types and integral
 JSON numbers, so saving/reloading a library preserves the seed result and world
