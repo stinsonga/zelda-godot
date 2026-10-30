@@ -61,7 +61,9 @@ emulator case per room or family.
   image instead of menu palette 7; a drained pond keeps its water colour.
 - **Sprites.** The magical shield appears on Link's walking and attack frames,
   but not on the lifting pose. The status-bar map tiles are tinted one blue
-  rather than drawn in the level's status-bar palette.
+  rather than drawn in the level's status-bar palette. The rupee, key and bomb
+  icons keep overworld colours in dungeons and sit two pixels left of the
+  original column, for a gap before the counts.
 - **Timings.** Item-use pose length, push speed, some message timing, and the
   end-level exit are untraced.
 - **Lag.** The original drops frames when a room is busy. Godot has no CPU

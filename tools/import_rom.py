@@ -723,6 +723,12 @@ def import_rom(prg, output, progress=None):
     for frame, tile in enumerate((0xF2, 0x65, 0x66)):
         blit_tile(hearts, 24, frame * 8, 0, patterns[0x1000:], tile, palettes[1], transparent=True)
     png(output / 'hud_hearts.png', 24, 8, hearts)
+    # Z_06 StatusBarStaticsTransferBuf: the rupee, key and bomb icons in
+    # column 11, with palettes from its attribute bytes.
+    for name, tile, palette in (('hud_rupee', 0xF7, 1), ('hud_key', 0xF9, 1), ('hud_bomb', 0x61, 0)):
+        icon = bytearray(8 * 8 * 4)
+        blit_tile(icon, 8, 0, 0, patterns[0x1000:], tile, palettes[palette], transparent=True)
+        png(output / f'{name}.png', 8, 8, icon)
     cave_layouts = export_cave(prg, patterns, palettes, output)
     combat_names = export_combat_sprites(prg, patterns, palettes, output)
     people, person_tiles = export_people(prg, patterns, palettes, output, png, blit_tile)
@@ -936,6 +942,7 @@ def import_rom(prg, output, progress=None):
         (output / 'rooms' / 'sword_cave.tres').unlink()
     names = ['fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
     names += [f'{prefix}_{d}' for prefix in ('white_sword', 'magical_sword') for d in ('up', 'down', 'right', 'left')] + ['magic_shield_player'] + [f'attack_{d}_magic_shield' for d in ('up', 'down', 'right', 'left')]
+    names += ['hud_rupee', 'hud_key', 'hud_bomb']
     names += [f'clock_player_{i}' for i in range(1,4)] + [f'attack_{direction}_clock_{i}' for direction in ('up','down','left','right') for i in range(1,4)]
     theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={5 + len(names)} format=3]',
              '[ext_resource type="Script" path="res://scripts/visual_theme.gd" id="1"]',

@@ -1736,6 +1736,10 @@ func draw_original_hud(sprites: bool = true, backdrop: Color = Color.BLACK) -> v
 		if sprites:
 			if visual_theme.sprites.has(&"submenu_marker"): draw_texture(visual_theme.sprites[&"submenu_marker"], marker)
 			else: draw_rect(Rect2(marker, Vector2(3, 3)), Color("80d010"))
+	# Z_06 StatusBarStaticsTransferBuf: the icons beside the counts, two
+	# pixels left of column 11 for a gap before the "X".
+	for icon in [[&"hud_rupee", 16], [&"hud_key", 32], [&"hud_bomb", 40]]:
+		if visual_theme.sprites.has(icon[0]): draw_texture(visual_theme.sprites[icon[0]], Vector2(86, icon[1]))
 	draw_hud_text("X%d" % state.rupees, Vector2(96, 16))
 	# Z_01: with the magical key the count shows "XA".
 	draw_hud_text(key_count_text(), Vector2(96, 32))
