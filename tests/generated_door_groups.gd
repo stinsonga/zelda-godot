@@ -1,0 +1,20 @@
+extends "res://tests/generated_dungeons.gd"
+const Fixture = preload("res://editor/tests/door_group_fixture.gd")
+func run() -> void:
+	var loaded := Templates.read("res://content/templates/door_templates.json")
+	check(loaded.errors.is_empty(),"Shipped door-group library loads")
+	if not loaded.errors.is_empty(): quit(1);return
+	var catalog: Dictionary = loaded.catalog
+	check(not catalog.has("errors"),"Door-group library captures")
+	if catalog.has("errors"): quit(1);return
+	for recipe in [[42,6,{}],[42,8,{"branch_rooms":2,"loop_count":1}]]:
+		var generated := Generator.new().generate(catalog,recipe[0],recipe[1],"blue_candle",6000,recipe[2])
+		check(generated.errors.is_empty(),"Door-group recipe verifies")
+		if generated.has("pack"):
+			check(generated.pack.goals.any(func(goal): return goal.room.contains("_part_")),"Goal requires internal door traversal")
+			replay(generated.pack,generated.proof)
+	var mixed := Generator.new().generate(Fixture.mixed_catalog(),42,6)
+	check(mixed.errors.is_empty(),"Mixed internal doors and cellar stairs verify")
+	if mixed.has("pack"): replay(mixed.pack,mixed.proof)
+	print("Generated door-group native checks: ","PASS" if failures==0 else "FAIL")
+	quit(1 if failures else 0)

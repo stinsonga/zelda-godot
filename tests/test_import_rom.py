@@ -40,6 +40,15 @@ class ImportValidation(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         rom_import.read_rom(path)
 
+    def test_status_map_buffer_decodes_runs_repeats_and_columns(self):
+        decode = rom_import.import_submenu.status_map_cells
+        info = bytearray(256)
+        info[0x4F:0x4F + 13] = bytes([0x20, 0x84, 0x02, 0x67, 0xFB,   # two tiles from row 4, column 4
+                                      0x20, 0xA2, 0x43, 0xF5,         # $F5 three times from row 5, column 2
+                                      0x20, 0xC0, 0x81, 0x24])        # one tile downward from row 6, column 0
+        info[0x4F + 13] = 0xFF
+        self.assertEqual(decode(info), [(4, 4, 0x67), (5, 4, 0xFB), (2, 5, 0xF5), (3, 5, 0xF5), (4, 5, 0xF5), (0, 6, 0x24)])
+
     def test_vertical_pairs_keep_the_higher_tile(self):
         # Room $64's corner: solid $DD beside walkable $DF reads as $DF, so it is open.
         codes = [0x26] * 704

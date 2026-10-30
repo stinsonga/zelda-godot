@@ -1297,7 +1297,10 @@ func _draw() -> void:
 			draw_named_sprite(item_sprite(TRIFORCE), Vector2(player.pixel_position()) - Vector2(4, 16))
 		elif (sword.active() or rod.active() or item_use_remaining > 0) and visual_theme.sprites.has(StringName("attack_" + direction_name(player.facing))):
 			var facing: Vector2i = sword.direction if sword.active() else player.facing
-			draw_named_sprite(clock_sprite(StringName("attack_" + direction_name(facing))), Vector2(player.pixel_position()) + Vector2(0, 2))
+			var pose := StringName("attack_" + direction_name(facing))
+			var shielded := StringName(String(pose) + "_magic_shield")
+			if not state.clock_active and state.item_value(&"magic_shield") > 0 and visual_theme.sprites.has(shielded): pose = shielded
+			draw_named_sprite(clock_sprite(pose), Vector2(player.pixel_position()) + Vector2(0, 2))
 		elif visual_theme.player_sheet:
 			var direction := 0
 			if player.facing == Vector2i.LEFT: direction = 1
@@ -1467,17 +1470,33 @@ func draw_level_map(markers: bool = true) -> void:
 		left = mini(left, definition.map_room_id % 16)
 		for pickup in definition.pickups:
 			if "slot" in pickup.item and pickup.item.slot == &"triforce": triforce_room = definition.map_room_id
+	var original: bool = submenu_layout != null and not submenu_layout.status_map_tiles.is_empty() and visual_theme.hud_tiles != null
 	var origin := Vector2(16, 16)
 	if state.has_level_item(&"map", level):
-		for id in cells:
-			draw_rect(Rect2(origin + Vector2((id % 16 - left) * 8, (id / 16) * 4), Vector2(7, 3)), Color("2038ec"))
+		if original:
+			# The map item transfers LevelInfo_StatusBarMapTransferBuf to the status bar.
+			var tiles: PackedInt32Array = submenu_layout.status_map_tiles
+			for i in range(0, tiles.size(), 4):
+				if tiles[i] != level: continue
+				var tile: int = tiles[i + 3]
+				draw_texture_rect_region(visual_theme.hud_tiles, Rect2(Vector2(tiles[i + 1], tiles[i + 2]) * 8, Vector2(8, 8)), Rect2(tile % 16 * 8, tile / 16 * 8, 8, 8), Color("2038ec"))
+		else:
+			for id in cells:
+				draw_rect(Rect2(origin + Vector2((id % 16 - left) * 8, (id / 16) * 4), Vector2(7, 3)), Color("2038ec"))
 	if not markers: return
+	# Z_01 UpdatePositionMarker: in a level, X $12 + column * 8 plus the level's
+	# StatusBarMapXOffset, and Y $17 + row * 4 (sprites show a line lower).
+	var offset: int = submenu_layout.status_map_offsets[level - 1] if original and level <= submenu_layout.status_map_offsets.size() else 0
+	var marker_at := func(id: int) -> Vector2:
+		if original: return Vector2(0x12 + (id & 0x0F) * 8 + offset, 0x18 + ((id & 0x70) >> 4) * 4)
+		return origin + Vector2((id % 16 - left) * 8 + 2, (id / 16) * 4)
 	if triforce_room >= 0 and state.has_level_item(&"compass", level) and not state.has_level_item(&"triforce", level) and simulation_tick % 32 < 16:
-		draw_rect(Rect2(origin + Vector2((triforce_room % 16 - left) * 8 + 2, (triforce_room / 16) * 4), Vector2(3, 3)), Color("d82800"))
+		draw_rect(Rect2(marker_at.call(triforce_room), Vector2(3, 3)), Color("d82800"))
 	var here: int = room.map_room_id
 	if here < 0 and rooms.has(room.history_id): here = rooms[room.history_id].map_room_id
 	if here >= 0:
-		draw_rect(Rect2(origin + Vector2((here % 16 - left) * 8 + 2, (here / 16) * 4), Vector2(3, 3)), Color("80d010"))
+		if original and visual_theme.sprites.has(&"submenu_marker"): draw_texture(visual_theme.sprites[&"submenu_marker"], marker_at.call(here))
+		else: draw_rect(Rect2(marker_at.call(here), Vector2(3, 3)), Color("80d010"))
 
 func draw_cave() -> void:
 	var session: RefCounted = cave_session

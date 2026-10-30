@@ -59,9 +59,9 @@ emulator case per room or family.
   ([FRONT_END.md](FRONT_END.md)); the ending keeps in-game palettes for Link,
   Zelda, and the Triforces; the second-quest menu marker uses the white sword
   image instead of menu palette 7; a drained pond keeps its water colour.
-- **Sprites.** The magical shield appears on Link's walking frames, but not yet
-  on his attack and item-use poses. The dungeon status-bar map is drawn with
-  plain rectangles rather than the level's tiles.
+- **Sprites.** The magical shield appears on Link's walking and attack frames,
+  but not on the lifting pose. The status-bar map tiles are tinted one blue
+  rather than drawn in the level's status-bar palette.
 - **Timings.** Item-use pose length, push speed, some message timing, and the
   end-level exit are untraced.
 - **Lag.** The original drops frames when a room is busy. Godot has no CPU

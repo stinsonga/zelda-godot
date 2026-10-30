@@ -199,6 +199,28 @@ def export_cave(prg, patterns, palettes, output):
                     canvas[dst:dst + 4] = block[src:src + 4]
         png(output / (name + '.png'), 16, 16, canvas)
 
+    def shield_frame(name, tile, flip, facing_right):
+        """Link's 16x16 frame with the magical shield's head tile (LinkHeadMagicShieldTiles):
+        the head-side 8x16 half, right when facing right, else left; the downward
+        shield tile is never mirrored."""
+        head = dict(zip((0x02, 0x06, 0x08, 0x0A), (0x80, 0x54, 0x60, 0x60)))
+        canvas = bytearray(16 * 16 * 4)
+        for screen in range(2):
+            base = tile + 2 * (1 - screen if flip else screen)
+            mirrored = flip
+            if screen == (1 if facing_right else 0) and base in head:
+                mirrored = flip and base != 0x0A
+                base = head[base]
+            for half in range(2):
+                block = bytearray(8 * 8 * 4)
+                blit_tile(block, 8, 0, 0, patterns, base + half, palettes[4], transparent=True)
+                for y in range(8):
+                    for x in range(8):
+                        src = (y * 8 + (7 - x if mirrored else x)) * 4
+                        dst = ((half * 8 + y) * 16 + screen * 8 + x) * 4
+                        canvas[dst:dst + 4] = block[src:src + 4]
+        png(output / (name + '.png'), 16, 16, canvas)
+
     animations = prg[0x6E04:0x6E83]
     old_man = prg[0x6E83 + animations[0x6B]]
     fire = prg[0x6E83 + animations[0x41]]
@@ -221,6 +243,8 @@ def export_cave(prg, patterns, palettes, output):
         sprite(name, prg[0x6E83 + frame], 4, flip_x=flip)
         for palette in range(1, 4):
             sprite(f'{name}_clock_{palette}', prg[0x6E83 + frame], 4 + palette, flip_x=flip)
+        # The magical shield swaps the head-side half on these frames too (Z_07).
+        shield_frame(name + '_magic_shield', prg[0x6E83 + frame], flip, name == 'attack_right')
     # Item slot $21: lifting pose, with the narrow-item one-arm substitution.
     lift_tile = prg[0x714C + prg[0x7127 + 0x21]]
     sprite('lift', lift_tile, 4, mirrored=True, right_override=0x08)
@@ -911,7 +935,7 @@ def import_rom(prg, output, progress=None):
     if (output / 'rooms' / 'sword_cave.tres').exists():
         (output / 'rooms' / 'sword_cave.tres').unlink()
     names = ['fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
-    names += [f'{prefix}_{d}' for prefix in ('white_sword', 'magical_sword') for d in ('up', 'down', 'right', 'left')] + ['magic_shield_player']
+    names += [f'{prefix}_{d}' for prefix in ('white_sword', 'magical_sword') for d in ('up', 'down', 'right', 'left')] + ['magic_shield_player'] + [f'attack_{d}_magic_shield' for d in ('up', 'down', 'right', 'left')]
     names += [f'clock_player_{i}' for i in range(1,4)] + [f'attack_{direction}_clock_{i}' for direction in ('up','down','left','right') for i in range(1,4)]
     theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={5 + len(names)} format=3]',
              '[ext_resource type="Script" path="res://scripts/visual_theme.gd" id="1"]',

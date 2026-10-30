@@ -10,3 +10,8 @@ extends Resource
 ## Levels 1-9 in order; masks hold 16 bytes per level.
 @export var map_rotations: PackedByteArray = PackedByteArray()
 @export var map_masks: PackedByteArray = PackedByteArray()
+## The status bar's level map (LevelInfo_StatusBarMapTransferBuf), as
+## [level, column, row, tile] entries in eight-pixel HUD cells, and each level's
+## LevelInfo_StatusBarMapXOffset for the position markers.
+@export var status_map_tiles: PackedInt32Array = PackedInt32Array()
+@export var status_map_offsets: PackedByteArray = PackedByteArray()

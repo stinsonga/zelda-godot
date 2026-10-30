@@ -14,6 +14,22 @@ TRIFORCE_TEMPLATES = 0x19D2F       # Z_06 TriforceRow0-3TransferBuf, then Trifor
 TRIFORCE_TABLES = 0x14152          # Z_05 TriforceTransferBufOffsets, Replacements, Tiles: 24 bytes each.
 LEVEL_INFO_ROTATION = 0x2D         # LevelInfo_SubmenuMapRotation, relative to the level info block.
 LEVEL_INFO_MASK = 0x3F             # LevelInfo_SubmenuMapMask, 16 bytes.
+LEVEL_INFO_STATUS_OFFSET = 0x2E    # LevelInfo_StatusBarMapXOffset.
+LEVEL_INFO_STATUS_MAP = 0x4F       # LevelInfo_StatusBarMapTransferBuf.
+
+
+def status_map_cells(info):
+    """Decodes a PPU transfer buffer (address, count with $80 vertical and $40
+    repeat, then tiles) into (column, row, tile) cells of nametable $2000."""
+    cells, i = [], LEVEL_INFO_STATUS_MAP
+    while info[i] != 0xFF:
+        address, flags = (info[i] << 8 | info[i + 1]) - 0x2000, info[i + 2]
+        count, vertical, repeat = flags & 0x3F, flags & 0x80, flags & 0x40
+        tiles = [info[i + 3]] * count if repeat else list(info[i + 3:i + 3 + count])
+        for k, tile in enumerate(tiles):
+            cells.append((address % 32 + (0 if vertical else k), address // 32 + (k if vertical else 0), tile))
+        i += 3 + (1 if repeat else count)
+    return cells
 STATIC_OW = (0x48, 0x4A, 0x4C, 0x30, 0x32, 0x34, 0x38, 0x3A, 0x3C, 0x50, 0x5A)
 STATIC_UW = (0x48, 0x4A, 0x4C, 0x30, 0x32, 0x34, 0x38, 0x3A, 0x3C, 0x40, 0x42)
 FIRST_ROW = 8                      # NT2 row at the top of the open menu.
@@ -158,5 +174,7 @@ def write_layout(prg, path, level_infos):
              'triforce_empty = PackedByteArray(' + ', '.join(str(e) for _, _, e, _ in slots) + ')',
              'triforce_full = PackedByteArray(' + ', '.join(str(f) for _, _, _, f in slots) + ')',
              'map_rotations = PackedByteArray(' + ', '.join(str(r) for r in rotations) + ')',
-             'map_masks = PackedByteArray(' + ', '.join(str(b) for mask in masks for b in mask) + ')']
+             'map_masks = PackedByteArray(' + ', '.join(str(b) for mask in masks for b in mask) + ')',
+             'status_map_tiles = PackedInt32Array(' + ', '.join(str(v) for level in range(1, 10) for cell in status_map_cells(level_infos[level]) for v in (level, *cell)) + ')',
+             'status_map_offsets = PackedByteArray(' + ', '.join(str(level_infos[level][LEVEL_INFO_STATUS_OFFSET]) for level in range(1, 10)) + ')']
     path.write_text('\n'.join(lines) + '\n')
