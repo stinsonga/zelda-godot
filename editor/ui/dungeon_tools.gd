@@ -29,11 +29,15 @@ var template_id: LineEdit
 var role: OptionButton
 var port_checks: Array[CheckBox] = []
 var requirement_checks: Array[CheckBox] = []
+var companion_rooms: ItemList
 var include_linked: CheckBox
 var custom_reward: CheckBox
 var reward_room: OptionButton
 var reward_x: SpinBox
 var reward_y: SpinBox
+var capture_preview: Control
+var capture_rooms: Array = []
+var capture_problem := ""
 var capture_info: Label
 var random_seed_button: Button
 var browse_button: Button
@@ -81,8 +85,9 @@ func _ready() -> void:
 	use_button = button("Use generated dungeon",actions,use_candidate)
 	use_button.disabled = true
 	label("The required item is placed before its gate. Two key locks and optional bomb branches are checked.\nCustom layouts keep at least six main-path rooms and require the exact loop count. Loops preserve crossed gates.\nUsing a result replaces the document after any unsaved-change confirmation. No ROM assets are generated.",generate)
-	var capture := VBoxContainer.new();capture.name = "Templates";tabs.add_child(capture)
-	label("Capture a primary room, optionally with linked cellars. Authored graphics are preserved; external doors and private ROM choices are omitted. Enemy definitions and generated stair destinations are namespaced.",capture)
+	var capture_scroll := ScrollContainer.new();capture_scroll.name = "Templates";capture_scroll.custom_minimum_size.y = 300;tabs.add_child(capture_scroll)
+	var capture := VBoxContainer.new();capture.size_flags_horizontal = Control.SIZE_EXPAND_FILL;capture_scroll.add_child(capture)
+	label("Capture a primary room and up to three companions. Select door-connected rooms below; internal links and shared graphics are preserved. External doors and private ROM choices are omitted.",capture)
 	var identity := HBoxContainer.new();capture.add_child(identity)
 	template_id = LineEdit.new();template_id.placeholder_text = "unique_template_id";template_id.size_flags_horizontal = Control.SIZE_EXPAND_FILL;identity.add_child(template_id)
 	role = OptionButton.new()
@@ -91,9 +96,13 @@ func _ready() -> void:
 	var ports := HBoxContainer.new();capture.add_child(ports);label("Available door ports",ports)
 	for edge in Pack.EDGES:
 		var check := CheckBox.new();check.text = edge;check.button_pressed = true;ports.add_child(check);port_checks.append(check)
+		check.toggled.connect(func(_value): refresh_capture_preview())
 	var requirements := HFlowContainer.new();capture.add_child(requirements);label("Incoming item requirements",requirements)
 	for item in Pack.REQUIRED_ITEMS:
 		var check := CheckBox.new();check.text = item;requirements.add_child(check);requirement_checks.append(check)
+	label("Door companions (Ctrl/Cmd-click to select multiple; primary is always included)",capture)
+	companion_rooms = ItemList.new();companion_rooms.select_mode = ItemList.SELECT_MULTI;companion_rooms.custom_minimum_size.y = 76;capture.add_child(companion_rooms)
+	companion_rooms.multi_selected.connect(func(_index,_selected): refresh_capture_rooms())
 	include_linked = CheckBox.new();include_linked.text = "Include linked cellar rooms (up to three)";capture.add_child(include_linked)
 	include_linked.toggled.connect(func(_value): refresh_capture_rooms())
 	custom_reward = CheckBox.new();custom_reward.text = "Choose generated reward location";capture.add_child(custom_reward)
@@ -102,10 +111,12 @@ func _ready() -> void:
 	label("Reward room",reward_row);reward_room = OptionButton.new();reward_room.clip_text = true;reward_room.custom_minimum_size.x = 180;reward_row.add_child(reward_room)
 	reward_room.item_selected.connect(func(_i):
 		for room in source_pack.rooms:
-			if room.id == reward_room.get_item_text(reward_room.selected): reward_x.value = room.spawn[0];reward_y.value = room.spawn[1])
+			if room.id == reward_room.get_item_text(reward_room.selected): reward_x.value = room.spawn[0];reward_y.value = room.spawn[1]
+		refresh_capture_preview())
 	label("X",reward_row);reward_x = SpinBox.new();reward_x.min_value = 0;reward_x.max_value = 240;reward_x.value = 120;reward_row.add_child(reward_x)
 	label("Y",reward_row);reward_y = SpinBox.new();reward_y.min_value = 0;reward_y.max_value = 157;reward_y.value = 77;reward_row.add_child(reward_y)
 	capture_info = Label.new();capture_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART;capture.add_child(capture_info)
+	capture_preview = preload("template_footprint.gd").new();capture.add_child(capture_preview)
 	save_button = button("Save selection as new template…",capture,func(): picker.file_mode = FileDialog.FILE_MODE_SAVE_FILE;picker.current_file = "custom_templates.json";picker.popup_centered_ratio(0.7))
 	var solve := VBoxContainer.new();solve.name = "Progression";tabs.add_child(solve)
 	label("Checks a snapshot of the current pack, starting equipment and objective pickups. Keys, bombs and rupees are finite; gifts persist and shops reset per visit. Opened doors remain open. The report states movement and transaction limits.",solve)
@@ -119,6 +130,9 @@ func open_for(pack: Dictionary, selected_room: String, tab: int = 0) -> void:
 	if not busy:
 		source_pack = pack.duplicate(true);room_id = selected_room
 		template_id.text = selected_room.left(40)+"_template"
+		companion_rooms.clear()
+		for room in source_pack.rooms:
+			if room.id != room_id and room.get("kind","dungeon")=="dungeon": companion_rooms.add_item(room.id)
 		include_linked.button_pressed = source_pack.rooms.any(func(room): return room.id == room_id and not room.get("stairs",[]).is_empty())
 		custom_reward.button_pressed = false
 		reward_x.value = 120;reward_y.value = 77
@@ -141,6 +155,7 @@ func set_busy(value: bool) -> void:
 	required_item.disabled = value
 	browse_button.disabled = value
 	random_seed_button.disabled = value
+	companion_rooms.mouse_filter = Control.MOUSE_FILTER_IGNORE if value else Control.MOUSE_FILTER_STOP
 	include_linked.disabled = value;custom_reward.disabled = value
 	refresh_reward_controls()
 	use_button.disabled = value or candidate.is_empty()
@@ -191,7 +206,7 @@ func file_selected(path: String) -> void:
 		if check.button_pressed: ports.append(check.text)
 	for check in requirement_checks:
 		if check.button_pressed: requirements.append(check.text)
-	var result := Templates.capture(loaded.catalog,source_pack,room_id,template_id.text,role.get_item_text(role.selected),ports,requirements,include_linked.button_pressed,reward_room.get_item_text(reward_room.selected) if custom_reward.button_pressed and reward_room.selected>=0 else "",[int(reward_x.value),int(reward_y.value)])
+	var result := Templates.capture(loaded.catalog,source_pack,room_id,template_id.text,role.get_item_text(role.selected),ports,requirements,include_linked.button_pressed,reward_room.get_item_text(reward_room.selected) if custom_reward.button_pressed and reward_room.selected>=0 else "",[int(reward_x.value),int(reward_y.value)],selected_companions())
 	if not result.errors.is_empty(): report.text = "Cannot save template:\n"+"\n".join(result.errors);return
 	var error := Pack.write(path,result.catalog)
 	if error != OK: report.text = "Template save failed: "+error_string(error);return
@@ -212,20 +227,38 @@ func refresh_capture_rooms() -> void:
 	var old := reward_room.get_item_text(reward_room.selected) if reward_room.selected>=0 else ""
 	reward_room.clear()
 	var rooms: Array = source_pack.rooms.filter(func(room): return room.id == room_id)
-	if include_linked.button_pressed:
-		var group := Templates.linked_rooms(source_pack,room_id)
+	var selected := selected_companions()
+	capture_problem = ""
+	if include_linked.button_pressed or not selected.is_empty():
+		var group := Templates.linked_rooms(source_pack,room_id) if selected.is_empty() else Templates.door_group_rooms(source_pack,room_id,selected,include_linked.button_pressed)
 		if group.errors.is_empty(): rooms = group.rooms;capture_info.text = "Capturing %d rooms. Generated rewards use the selected location, or the primary room's default (120,77)." % rooms.size()
-		else: capture_info.text = "\n".join(group.errors)
+		else: capture_info.text = "\n".join(group.errors);capture_problem = capture_info.text
 	else: capture_info.text = "Single-room capture. Enable linked cellars to preserve stair destinations."
+	for check in port_checks:
+		check.disabled = false
+		if not selected.is_empty() and not rooms.is_empty():
+			var members: Array = rooms.map(func(room): return room.id)
+			if rooms[0].connections.has(check.text) and rooms[0].connections[check.text].target in members: check.button_pressed = false;check.disabled = true
 	for room in rooms: reward_room.add_item(room.id)
 	for i in reward_room.item_count:
 		if reward_room.get_item_text(i) == old: reward_room.select(i)
+	capture_rooms = rooms.duplicate(true)
+	# Cellar-only capture normalizes its display cells to a row. Door groups
+	# preserve their actual relative footprint. Omit all outside door links.
+	var members: Array = capture_rooms.map(func(room): return room.id)
+	for i in capture_rooms.size():
+		var room: Dictionary = capture_rooms[i]
+		if selected.is_empty(): room.map_position = [i,0];room.connections = {}
+		else:
+			for edge in room.connections.keys():
+				if room.connections[edge].target not in members: room.connections.erase(edge)
 	refresh_reward_controls()
 func refresh_reward_controls() -> void:
 	if reward_room == null: return
 	var enabled := not busy and custom_reward.button_pressed
 	reward_room.disabled = not enabled
 	reward_x.editable = enabled;reward_y.editable = enabled
+	refresh_capture_preview()
 
 func update_layout_controls() -> void:
 	if branch_rooms==null: return
@@ -233,3 +266,16 @@ func update_layout_controls() -> void:
 	if not custom_layout.button_pressed: branch_rooms.value = int(count.value)/4 if count.value>=8 else 0
 	branch_rooms.editable = not busy and custom_layout.button_pressed
 	loop_count.editable = not busy and custom_layout.button_pressed
+
+func selected_companions() -> Array:
+	var ids: Array = []
+	for index in companion_rooms.get_selected_items(): ids.append(companion_rooms.get_item_text(index))
+	return ids
+
+func refresh_capture_preview() -> void:
+	if capture_preview==null: return
+	var ports: Array = []
+	for check in port_checks:
+		if check.button_pressed and not check.disabled: ports.append(check.text)
+	var reward_id := reward_room.get_item_text(reward_room.selected) if custom_reward.button_pressed and reward_room.selected>=0 else room_id
+	capture_preview.set_unit(capture_rooms if capture_problem.is_empty() else [],ports,reward_id,capture_problem)

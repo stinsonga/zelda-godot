@@ -21,7 +21,7 @@ static func validate(data) -> PackedStringArray:
 	var errors := PackedStringArray()
 	if not data is Dictionary: return PackedStringArray(["Template library must be an object"])
 	Pack.unknown_fields(data,["format_version","id","enemy_types","templates"],"Templates",errors)
-	if not Pack.integer(data.get("format_version"),1,2) or not Pack.identifier(data.get("id")): errors.append("Invalid template library version or ID")
+	if not Pack.integer(data.get("format_version"),1,3) or not Pack.identifier(data.get("id")): errors.append("Invalid template library version or ID");return errors
 	if not data.get("enemy_types") is Dictionary or not data.get("templates") is Array: errors.append("Template library needs enemy_types and templates");return errors
 	if data.templates.is_empty() or data.templates.size()>128: errors.append("Template library needs 1..128 templates");return errors
 	var ids: Dictionary = {}
@@ -29,7 +29,7 @@ static func validate(data) -> PackedStringArray:
 	var enemy_art: Dictionary = {}
 	for entry in data.templates:
 		if not entry is Dictionary: errors.append("Template must be an object");continue
-		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version == 2 else []),"Template",errors)
+		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version >= 2 else []),"Template",errors)
 		if not Pack.identifier(entry.get("id")) or ids.has(entry.get("id")): errors.append("Template IDs must be unique");continue
 		ids[entry.id] = true
 		if entry.get("role") not in ROLES: errors.append(entry.id+": invalid role")
@@ -45,12 +45,12 @@ static func validate(data) -> PackedStringArray:
 				seen.append(value)
 		if not entry.get("room") is Dictionary: errors.append(entry.id+": missing room");continue
 		var annexes = entry.get("annexes",[])
-		if not annexes is Array or annexes.size()>3: errors.append(entry.id+": use at most three cellar annexes");continue
+		if not annexes is Array or annexes.size()>3: errors.append(entry.id+": use at most three companion rooms");continue
 		var rooms: Array = [entry.room]+annexes
 		for room in rooms:
 			if not room is Dictionary: errors.append(entry.id+": annex must be a room");continue
-			if room.get("connections") != {}: errors.append(entry.id+": template room connections must be empty; use stairs inside a unit")
-			if room != entry.room and room.get("kind") != "cellar": errors.append(entry.id+": annexes must be cellar rooms")
+			if data.format_version < 3 and room.get("connections") != {}: errors.append(entry.id+": template room connections must be empty; use format 3 for internal doors")
+			if data.format_version < 3 and room != entry.room and room.get("kind") != "cellar": errors.append(entry.id+": annexes must be cellar rooms")
 		var pack := {"schema":2,"id":"template_check","title":"Template","start_room":entry.room.get("id",""),"enemy_types":data.enemy_types,"rooms":rooms,"starting_items":[],"goals":[]}
 		if entry.has("appearance"): pack.appearance = entry.appearance
 		var room_errors := Pack.validate(pack)
@@ -60,7 +60,10 @@ static func validate(data) -> PackedStringArray:
 			var art: String = entry.appearance.enemy_sprites[variant]
 			if enemy_art.has(variant) and enemy_art[variant] != art: errors.append("Conflicting template art for enemy variant "+variant)
 			enemy_art[variant] = art
-		if not Pack.layout_warnings(pack).is_empty(): errors.append(entry.id+": all cellar annexes must be reachable from the primary room through stairs")
+		if not Pack.layout_warnings(pack).is_empty(): errors.append(entry.id+": all rooms must be reachable and internal doors must join adjacent map cells")
+		if data.format_version >= 3 and entry.get("ports") is Array:
+			for edge in entry.ports:
+				if entry.room.connections.has(edge): errors.append(entry.id+": external port overlaps an internal door: "+str(edge))
 		if entry.has("reward"):
 			var reward = entry.reward
 			if not reward is Dictionary: errors.append(entry.id+": reward must name a room and position");continue
@@ -92,7 +95,8 @@ static func canonical(value) -> String:
 	if value is float and value == floor(value): return JSON.stringify(int(value))
 	return JSON.stringify(value)
 static func fingerprint(data: Dictionary) -> String: return canonical(data).sha256_text()
-static func capture(catalog: Dictionary, pack: Dictionary, room_id: String, id: String, role: String, ports: Array, requirements: Array, include_linked: bool = false, reward_room: String = "", reward_position: Array = [120,77]) -> Dictionary:
+static func capture(catalog: Dictionary, pack: Dictionary, room_id: String, id: String, role: String, ports: Array, requirements: Array, include_linked: bool = false, reward_room: String = "", reward_position: Array = [120,77], door_rooms: Array = []) -> Dictionary:
+	if not door_rooms.is_empty(): return capture_unit(catalog,pack,room_id,id,role,ports,requirements,include_linked,reward_room,reward_position,door_rooms)
 	if include_linked or not reward_room.is_empty(): return capture_unit(catalog,pack,room_id,id,role,ports,requirements,include_linked,reward_room,reward_position)
 	var source_errors := Pack.validate(pack)
 	if not source_errors.is_empty(): return {"errors":source_errors}
@@ -138,21 +142,28 @@ static func linked_rooms(pack: Dictionary, root: String) -> Dictionary:
 	var rooms: Array = [lookup[root]]
 	for id in annex_ids: rooms.append(lookup[id])
 	return {"errors":PackedStringArray(),"rooms":rooms}
-static func capture_unit(catalog: Dictionary, pack: Dictionary, root: String, id: String, role: String, ports: Array, requirements: Array, include_linked: bool, reward_room: String, reward_position: Array) -> Dictionary:
+static func capture_unit(catalog: Dictionary, pack: Dictionary, root: String, id: String, role: String, ports: Array, requirements: Array, include_linked: bool, reward_room: String, reward_position: Array, door_rooms: Array = []) -> Dictionary:
 	var errors := Pack.validate(pack)
 	if not errors.is_empty(): return {"errors":errors}
 	if not validate(catalog).is_empty(): return {"errors":validate(catalog)}
 	if catalog.templates.any(func(t): return t.id == id): return {"errors":PackedStringArray(["Template ID already exists; choose a new ID"])}
-	var selected := linked_rooms(pack,root)
+	var selected := door_group_rooms(pack,root,door_rooms,include_linked) if not door_rooms.is_empty() else linked_rooms(pack,root)
 	if not selected.errors.is_empty(): return selected
-	if not include_linked and selected.rooms.size()>1: return {"errors":PackedStringArray(["Enable linked-cellar capture to preserve these stair destinations"])}
-	var output := catalog.duplicate(true);output.format_version = 2
+	if door_rooms.is_empty() and not include_linked and selected.rooms.size()>1: return {"errors":PackedStringArray(["Enable linked-cellar capture to preserve these stair destinations"])}
+	var output := catalog.duplicate(true);output.format_version = maxi(int(output.format_version),3 if not door_rooms.is_empty() else 2)
 	var rooms: Array = selected.rooms.duplicate(true)
 	var variants: Dictionary = {}
+	var members: Array = rooms.map(func(room): return room.id)
+	var min_x := 15;var max_y := -15
+	for room in rooms: min_x = mini(min_x,int(room.map_position[0]));max_y = maxi(max_y,int(room.map_position[1]))
 	for i in rooms.size():
 		var room: Dictionary = rooms[i]
-		room.connections = {};room.erase("template_id");room.erase("role")
-		room.map_position = [i,0]
+		if door_rooms.is_empty(): room.connections = {}
+		else:
+			for edge in room.connections.keys():
+				if room.connections[edge].target not in members: room.connections.erase(edge)
+		room.erase("template_id");room.erase("role")
+		room.map_position = [i,0] if door_rooms.is_empty() else [int(room.map_position[0])-min_x,int(room.map_position[1])-max_y]
 		for enemy in room.enemies:
 			var original: String = enemy.type
 			var scoped := id.left(20)+"_"+original.left(20)+"_"+(id+"/"+original).sha256_text().left(8)
@@ -169,10 +180,11 @@ static func instantiate(entry: Dictionary, primary_id: String) -> Dictionary:
 	var rooms: Array = [entry.room.duplicate(true)]
 	for annex in entry.get("annexes",[]): rooms.append(annex.duplicate(true))
 	var names: Dictionary = {entry.room.id:primary_id}
-	for i in range(1,rooms.size()): names[rooms[i].id] = primary_id+"_cellar_"+str(i)
+	for i in range(1,rooms.size()): names[rooms[i].id] = primary_id+("_cellar_" if rooms[i].get("kind")=="cellar" else "_part_")+str(i)
 	for room in rooms:
 		room.id = names[room.id]
 		for stair in room.get("stairs",[]): stair.target = names[stair.target]
+		for link in room.connections.values(): link.target = names[link.target]
 	var reward: Dictionary = entry.get("reward",{"room":entry.room.id,"position":[120,77]})
 	var reward_room: Dictionary
 	for room in rooms:
@@ -198,5 +210,28 @@ static func attach_art(catalog: Dictionary, entry: Dictionary, pack: Dictionary,
 	for id in variants:
 		if pack.appearance.enemy_sprites.has(id): art.enemy_sprites[variants[id]] = pack.appearance.enemy_sprites[id]
 	if art.enemy_sprites.is_empty() and art.room_tiles.is_empty() and art.room_sprites.is_empty(): return
-	catalog.format_version = 2
+	catalog.format_version = maxi(int(catalog.format_version),2)
 	entry.appearance = art
+
+## Explicit membership avoids accidentally capturing the entire connected dungeon.
+## Outgoing stairs may add cellar closure; door membership is always deliberate.
+static func door_group_rooms(pack: Dictionary, root: String, chosen: Array, include_cellars: bool) -> Dictionary:
+	var lookup: Dictionary = {}
+	for room in pack.rooms: lookup[room.id] = room
+	var ids: Array = [root]
+	for id in chosen:
+		if id == root or id in ids: return {"errors":PackedStringArray(["Choose each companion room once, excluding the primary"])}
+		ids.append(id)
+	var cursor := 0
+	while cursor < ids.size():
+		var id = ids[cursor];cursor += 1
+		if not lookup.has(id): return {"errors":PackedStringArray(["Selected room is missing: "+str(id)])}
+		if ids.size()>4: return {"errors":PackedStringArray(["Capture supports one primary and at most three companion rooms"])}
+		for stair in lookup[id].get("stairs",[]):
+			if stair.target in ids: continue
+			if not include_cellars or not lookup.has(stair.target) or lookup[stair.target].get("kind") != "cellar": return {"errors":PackedStringArray(["Stair destinations must be selected, or included through linked-cellar capture"])}
+			ids.append(stair.target)
+	var companions := ids.slice(1);companions.sort()
+	var rooms: Array = [lookup[root]]
+	for id in companions: rooms.append(lookup[id])
+	return {"errors":PackedStringArray(),"rooms":rooms}

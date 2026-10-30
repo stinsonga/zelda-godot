@@ -1,5 +1,9 @@
 # Room-and-cellar templates
 
+For groups joined by internal doors, see
+[DOOR_GROUP_TEMPLATES.md](DOOR_GROUP_TEMPLATES.md). This guide describes the
+compatible format-2 cellar workflow.
+
 A reusable template can now contain a primary dungeon room and up to three cellar
 annexes connected by stairs. Generation gives every occurrence its own room IDs,
 rewrites all internal stair destinations, and can place its progression reward in
@@ -104,9 +108,9 @@ skins follow the scoped definitions. Art participates in the fingerprint. The
 matching `content/art/` libraries remain separate files to share alongside recipes.
 
 Limits for this pass: up to three cellar annexes per template, stairs as internal
-connections, and a single automatic reward location per unit. Arbitrary dungeon
-room groups, internal door networks, multiple floors, rotated templates and
-dependency planning remain future work. Version-5 custom layouts can add loops
+connections, and a single automatic reward location per unit. Format-3 libraries now add bounded dungeon room groups and internal door
+networks; see [DOOR_GROUP_TEMPLATES.md](DOOR_GROUP_TEMPLATES.md). Multiple floors,
+rotated templates and broader dependency planning remain future work. Version-5 custom layouts can add loops
 between adjacent primary rooms while preserving their crossed gates, without
 changing internal cellar stairs. See [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md).
 

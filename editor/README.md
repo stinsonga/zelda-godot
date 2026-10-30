@@ -188,14 +188,17 @@ The editor now supports an end-to-end MVP authoring loop. Remaining work:
   [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
-- Broader generation: multiple floors, general room-group templates, advanced dependencies and
+- Broader generation: multiple floors, external ports on companion rooms, advanced dependencies and
   more solver mechanics. The first seeded generator/progression search is now
   available; ordinary structural validation alone is still not a proof.
 
 Primary rooms with up to three stair-linked cellar annexes can now be captured
 and reused during generation, including configurable reward positions. See
 [MULTI_ROOM_TEMPLATES.md](MULTI_ROOM_TEMPLATES.md) and the ROM-free
-`content/templates/cellar_templates.json` library.
+`content/templates/cellar_templates.json` library. Door-connected groups of up to
+four rooms are also available through explicit companion selection; see
+[DOOR_GROUP_TEMPLATES.md](DOOR_GROUP_TEMPLATES.md) and
+`content/templates/door_templates.json`.
 
 Generated dungeons use the same concrete content model and remain editable.
 Their recipes record seed, algorithm and template fingerprint. Only the explicit

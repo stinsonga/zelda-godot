@@ -1,0 +1,1202 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "goal_suite_down_crawler_f8dd456a": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "goal_suite_left_crawler_1a614162": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "goal_suite_right_crawler_8a34d18f": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "goal_suite_up_crawler_e4768855": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "key_suite_down_crawler_54e9e797": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "key_suite_left_crawler_2e456bed": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "key_suite_right_crawler_ab4922a1": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    },
+    "key_suite_up_crawler_8d3615b2": {
+      "behavior": "walker",
+      "contact_damage": 1,
+      "health": 2,
+      "speed_subpixels": 128,
+      "title": "Crawler"
+    }
+  },
+  "format_version": 3,
+  "id": "door_templates",
+  "templates": [
+    {
+      "id": "start_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "start",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "start",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Start chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "item_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "item",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "item",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Item chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "combat_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "combat",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [
+          {
+            "id": "guard",
+            "position": [
+              80,
+              61
+            ],
+            "type": "crawler"
+          }
+        ],
+        "id": "combat",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Combat chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "treasure_plain",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "treasure",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "treasure",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Treasure chamber"
+      },
+      "weight": 2
+    },
+    {
+      "id": "item_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "item",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "id": "treasure_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "treasure",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "id": "combat_pillars",
+      "ports": [
+        "up",
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "role": "combat",
+      "room": {
+        "connections": {
+
+        },
+        "enemies": [
+          {
+            "id": "guard",
+            "position": [
+              80,
+              77
+            ],
+            "type": "crawler"
+          }
+        ],
+        "id": "pillars",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##..#......#..##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Pillar gallery"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "down": {
+              "kind": "open",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "key_suite_up_crawler_8d3615b2"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            0,
+            -1
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "key_suite_up",
+      "ports": [
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "key",
+      "room": {
+        "connections": {
+          "up": {
+            "kind": "open",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "left": {
+              "kind": "open",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "key_suite_right_crawler_ab4922a1"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            1,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "key_suite_right",
+      "ports": [
+        "up",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "key",
+      "room": {
+        "connections": {
+          "right": {
+            "kind": "open",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "up": {
+              "kind": "open",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "key_suite_down_crawler_54e9e797"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            0,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "key_suite_down",
+      "ports": [
+        "up",
+        "right",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "key",
+      "room": {
+        "connections": {
+          "down": {
+            "kind": "open",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          -1
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "right": {
+              "kind": "open",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "key_suite_left_crawler_2e456bed"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            0,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "key_suite_left",
+      "ports": [
+        "up",
+        "right",
+        "down"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "key",
+      "room": {
+        "connections": {
+          "left": {
+            "kind": "open",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          1,
+          0
+        ],
+        "pickups": [],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "down": {
+              "kind": "key",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "goal_suite_up_crawler_e4768855"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            0,
+            -1
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "goal_suite_up",
+      "ports": [
+        "right",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "goal",
+      "room": {
+        "connections": {
+          "up": {
+            "kind": "key",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [
+          {
+            "id": "internal_key",
+            "item": "key",
+            "position": [
+              80,
+              125
+            ]
+          }
+        ],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "left": {
+              "kind": "key",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "goal_suite_right_crawler_8a34d18f"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            1,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "goal_suite_right",
+      "ports": [
+        "up",
+        "down",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "goal",
+      "room": {
+        "connections": {
+          "right": {
+            "kind": "key",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          0
+        ],
+        "pickups": [
+          {
+            "id": "internal_key",
+            "item": "key",
+            "position": [
+              80,
+              125
+            ]
+          }
+        ],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "up": {
+              "kind": "key",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "goal_suite_down_crawler_f8dd456a"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            0,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "goal_suite_down",
+      "ports": [
+        "up",
+        "right",
+        "left"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "goal",
+      "room": {
+        "connections": {
+          "down": {
+            "kind": "key",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          0,
+          -1
+        ],
+        "pickups": [
+          {
+            "id": "internal_key",
+            "item": "key",
+            "position": [
+              80,
+              125
+            ]
+          }
+        ],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    },
+    {
+      "annexes": [
+        {
+          "connections": {
+            "right": {
+              "kind": "key",
+              "target": "entry"
+            }
+          },
+          "enemies": [
+            {
+              "id": "guard",
+              "position": [
+                176,
+                77
+              ],
+              "type": "goal_suite_left_crawler_1a614162"
+            }
+          ],
+          "id": "side",
+          "map_position": [
+            0,
+            0
+          ],
+          "pickups": [],
+          "shutter_trigger": 1,
+          "spawn": [
+            120,
+            125
+          ],
+          "tiles": [
+            "################",
+            "################",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "##............##",
+            "################",
+            "################"
+          ],
+          "title": "Side chamber"
+        }
+      ],
+      "id": "goal_suite_left",
+      "ports": [
+        "up",
+        "right",
+        "down"
+      ],
+      "requires": [],
+      "reward": {
+        "position": [
+          120,
+          77
+        ],
+        "room": "side"
+      },
+      "role": "goal",
+      "room": {
+        "connections": {
+          "left": {
+            "kind": "key",
+            "target": "side"
+          }
+        },
+        "enemies": [],
+        "id": "entry",
+        "map_position": [
+          1,
+          0
+        ],
+        "pickups": [
+          {
+            "id": "internal_key",
+            "item": "key",
+            "position": [
+              80,
+              125
+            ]
+          }
+        ],
+        "shutter_trigger": 1,
+        "spawn": [
+          120,
+          125
+        ],
+        "tiles": [
+          "################",
+          "################",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "##............##",
+          "################",
+          "################"
+        ],
+        "title": "Entrance"
+      },
+      "weight": 1
+    }
+  ]
+}

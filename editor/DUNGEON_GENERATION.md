@@ -49,7 +49,8 @@ saved pack; rerunning the recipe recreates its base, not those later edits.
 
 ## Custom branches and loops
 
-Enable **Custom layout** to use graph generation version 5 (`authored_graph`).
+Enable **Custom layout** to use graph generation (`authored_graph`): version 5
+for format-1/2 libraries, or version 6 for format-3 door-group libraries.
 Choose **Branch rooms** from zero to `primary rooms - 6`. This counts rooms off
 the main route, not the number of separate branches; several may form one branch.
 At least six rooms remain on the main route for the existing progression recipe.
@@ -203,8 +204,8 @@ Current conservative limits:
   and off-grid spawns are reported unsupported.
 - Authored stair links and cellar rooms are modeled as forced portal transitions
   with arrival suppression. See [STAIRS.md](STAIRS.md). Enable linked-cellar
-  capture for bounded room/cellar units; general room groups and internal door
-  networks remain outside template support.
+  capture for bounded room/cellar units. Format-3 libraries also support bounded
+  door-connected units; see [DOOR_GROUP_TEMPLATES.md](DOOR_GROUP_TEMPLATES.md).
 - Residents support gifts, finite coin budgets, shop choices/return visits and
   native barriers under conservative offer routing. Repeatable money offers and
   mixed shop/finite bomb supplies remain unsupported. See
@@ -263,3 +264,8 @@ player movement, pickups, key locks, B-button bomb use and room changes. It veri
 all objectives and the completion flag. It also checks that an item gate blocks an
 edge transition and that an empty version-2 loadout stays unarmed. Combat is won
 using the engine's hit handling, matching the solver's stated combat abstraction.
+
+Format-3 template libraries use recipe version 6 for fixed room-group footprints
+and internal doors. Previous library formats keep their existing seeded results.
+See [DOOR_GROUP_TEMPLATES.md](DOOR_GROUP_TEMPLATES.md) for capture, placement and
+the ROM-free demonstration library.

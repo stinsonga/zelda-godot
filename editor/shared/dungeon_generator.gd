@@ -59,35 +59,41 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	for i in range(count):
 		roles.append("start" if i == 0 else "key" if i == 1 else "combat" if i == 2 else "item" if i == 3 else "goal" if i == main_count-1 else "treasure")
 	var chosen: Array = []
+	var occupied: Array = positions.duplicate()
 	for i in range(count):
 		var ports: Array = []
 		if i>0: ports.append(Pack.OPPOSITE[edges[i]])
 		for j in range(i+1,count):
 			if parents[j] == i: ports.append(edges[j])
 		var eligible: Array = catalog.templates.filter(func(t): return t.role == roles[i] and ports.all(func(port): return port in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")))
-		if eligible.is_empty(): return {}
+		if catalog.format_version>=3: eligible = eligible.filter(func(t): return footprint_fits(t,positions[i],occupied))
+		if eligible.is_empty(): return {"errors":PackedStringArray(["No template fits the required ports and room-group footprint"])}
 		var total := 0
 		for t in eligible: total += int(t.weight)
 		var roll := random_int(total)
 		for t in eligible:
 			roll -= int(t.weight)
-			if roll<0: chosen.append(t);break
+			if roll<0:
+				chosen.append(t)
+				if catalog.format_version>=3: occupied.append_array(footprint(t,positions[i]))
+				break
 	# Resident solvability changes candidate acceptance. Give those libraries
 	# a new recipe and world identity, preserving existing v1/v2 seed results.
 	var resident_library: bool = catalog.templates.any(func(t): return t.room.has("resident") or t.get("annexes",[]).any(func(room): return room.has("resident")))
 	var persistent_library: bool = catalog.templates.any(func(t): return ([t.room]+t.get("annexes",[])).any(func(room): return room.has("secret") and Pack.secret_trigger(room.secret) != "block"))
 	var algorithm_version := 4 if persistent_library else 3 if resident_library else int(catalog.format_version)
 	if not layout.is_empty(): algorithm_version = 5
+	if catalog.format_version>=3: algorithm_version = 6
 	var pack := Pack.fresh()
 	Pack.upgrade(pack)
 	pack.id = ("generated_v"+str(algorithm_version)+"_" if algorithm_version>=3 else "generated_")+"%d_%d_%s_%s" % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
-	if algorithm_version==5: pack.id = "generated_v5_%d_%d_%s_b%d_l%d_%s" % [seed_value,count,required_item,branch_count,loop_count,Templates.fingerprint(catalog).left(8)]
+	if not layout.is_empty(): pack.id = "generated_v%d_%d_%d_%s_b%d_l%d_%s" % [algorithm_version,seed_value,count,required_item,branch_count,loop_count,Templates.fingerprint(catalog).left(8)]
 	pack.title = "Seed %d dungeon" % seed_value
 	pack.start_room = "room_0"
 	pack.enemy_types = catalog.enemy_types.duplicate(true)
 	pack.rooms = []
 	pack.generation = {"algorithm":"authored_tree","version":algorithm_version,"seed":seed_value,"template_sha256":Templates.fingerprint(catalog),"room_count":count,"required_item":required_item,"templates":{}}
-	if algorithm_version==5:
+	if not layout.is_empty():
 		pack.generation.algorithm = "authored_graph"
 		pack.generation.branch_rooms = branch_count;pack.generation.loop_count = loop_count;pack.generation.loop_edges = []
 	var units: Array = []
@@ -101,7 +107,6 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 				pack.appearance[field].merge(unit.appearance[field],true)
 		var room: Dictionary = unit.primary
 		room.title = String(template.room.title)+" "+str(i+1)
-		room.connections = {}
 		room.map_position = [positions[i].x,positions[i].y]
 		room.role = roles[i];room.template_id = template.id
 		pack.generation.templates[room.id] = template.id
@@ -110,8 +115,11 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	# are placed afterward, without consuming PRNG values or colliding on the map.
 	for i in range(count):
 		for annex in units[i].annexes:
-			if pack.rooms.size()>=32: return {"errors":PackedStringArray(["Template expansion exceeds the 32-room progression limit; reduce primary rooms or cellar annexes"])}
-			annex.map_position = annex_position(pack.rooms,positions[i])
+			if pack.rooms.size()>=32: return {"errors":PackedStringArray(["Template expansion exceeds the 32-room progression limit; reduce primary rooms or companion rooms"])}
+			if catalog.format_version>=3:
+				var at: Vector2i = positions[i]+Vector2i(int(annex.map_position[0])-int(chosen[i].room.map_position[0]),int(annex.map_position[1])-int(chosen[i].room.map_position[1]))
+				annex.map_position = [at.x,at.y]
+			else: annex.map_position = annex_position(pack.rooms,positions[i])
 			annex.title = String(annex.title)+" "+str(i+1)
 			annex.template_id = chosen[i].id
 			pack.rooms.append(annex)
@@ -133,7 +141,7 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	for i in range(main_count,count):
 		var pickup := add_pickup(units[i].reward_room,"rupee","branch_reward",false,units[i].reward_position)
 		pack.goals.append({"room":units[i].reward_room.id,"pickup":pickup})
-	if algorithm_version==5:
+	if not layout.is_empty():
 		var errors := add_loops(pack,chosen,count,loop_count)
 		if not errors.is_empty(): return {"errors":errors}
 	return {"pack":pack}
@@ -186,7 +194,13 @@ func loop_gate(tree: Dictionary, source: String, target: String) -> Dictionary:
 func add_loops(pack: Dictionary, chosen: Array, count: int, requested: int) -> PackedStringArray:
 	if requested==0: return PackedStringArray()
 	var tree: Dictionary = {}
-	for i in count: tree[pack.rooms[i].id] = pack.rooms[i].connections.duplicate(true)
+	var primary_ids: Array = []
+	for i in count: primary_ids.append(pack.rooms[i].id)
+	for i in count:
+		var links: Dictionary = {}
+		for edge in pack.rooms[i].connections:
+			if pack.rooms[i].connections[edge].target in primary_ids: links[edge] = pack.rooms[i].connections[edge].duplicate(true)
+		tree[pack.rooms[i].id] = links
 	var options: Array = []
 	for i in count:
 		for j in range(i+1,count):
@@ -205,3 +219,15 @@ func add_loops(pack: Dictionary, chosen: Array, count: int, requested: int) -> P
 		b.connections[Pack.OPPOSITE[option.edge]] = {"target":a.id,"kind":option.gate.kind,"requires":option.gate.requires.duplicate()}
 		pack.generation.loop_edges.append({"room":a.id,"edge":option.edge,"target":b.id})
 	return PackedStringArray()
+
+## Format-3 units retain their local map shape. Reserve all primary cells before
+## selecting templates, so internal rooms cannot collide with later path rooms.
+func footprint(entry: Dictionary, origin: Vector2i) -> Array:
+	var cells: Array = []
+	var root := Vector2i(int(entry.room.map_position[0]),int(entry.room.map_position[1]))
+	for room in entry.get("annexes",[]): cells.append(origin+Vector2i(int(room.map_position[0]),int(room.map_position[1]))-root)
+	return cells
+func footprint_fits(entry: Dictionary, origin: Vector2i, occupied: Array) -> bool:
+	for at in footprint(entry,origin):
+		if at.x<0 or at.x>15 or at.y < -15 or at.y>0 or at in occupied: return false
+	return true
