@@ -1,6 +1,7 @@
 extends SceneTree
 const Fixture = preload("res://editor/tests/authored_art_fixture.gd")
 const Templates = preload("res://editor/shared/dungeon_templates.gd")
+const Library = preload("res://editor/shared/authored_library.gd")
 const Adapter = preload("res://scripts/authored_pack.gd")
 const Actor = preload("res://scripts/enemy_actor.gd")
 const Spawn = preload("res://scripts/enemy_spawn.gd")
@@ -56,6 +57,14 @@ func run() -> void:
 	check(instant.authored_state=="idle","One-shot visual completes without extending gameplay attack")
 	instant.windup = 1;instant.tick(Vector2i(160,77),func(_at): return false)
 	check(instant.authored_frame()==3,"Next attack restarts clip")
+	var settings := Library.asset_record(folder,"art/test_art/clips")
+	var revised: Dictionary = settings.asset.clips.duplicate(true);revised.walk.frame_ticks = 12
+	var saved := Library.update_asset(folder,"art/test_art/clips",{"clips":revised,"draw_offset":[-2,-10]},settings.asset)
+	check(saved.errors.is_empty(),"Existing library settings can be revised without rebinding pack")
+	var reopened := Adapter.compile(pack,{},folder)
+	var revised_enemy: Resource = reopened.world.rooms[1].enemies[0].enemy
+	check(int(revised_enemy.authored_clips.walk.frame_ticks)==12 and revised_enemy.authored_draw_offset==Vector2(-2,-10),"Restarted preview picks up edited timing and offset under same ID")
+	check(int(enemy.authored_clips.walk.frame_ticks)==4,"Previously compiled resources retain their own snapshot")
 	Fixture.remove(folder)
 	print("Authored animation runtime checks: ","PASS" if failures==0 else "FAIL");call_deferred("finish")
 func finish() -> void: quit(0 if failures==0 else 1)

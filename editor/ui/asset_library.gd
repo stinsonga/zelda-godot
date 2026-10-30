@@ -8,6 +8,7 @@ signal preview_clip_chosen(clip: String)
 signal library_changed
 signal room_sprite_chosen(slot: String, id: String)
 signal room_sprite_cleared(slot: String)
+var edit_settings: Button
 var importer: AcceptDialog
 var room_apply: Button
 var room_slot: OptionButton
@@ -45,8 +46,8 @@ func _ready() -> void:
 	category.item_selected.connect(func(_index): populate())
 	var import_button := Button.new();import_button.text = "Import authored PNG…";tools.add_child(import_button)
 	importer = ImportDialog.new();add_child(importer)
-	import_button.pressed.connect(func(): importer.game_root = game_root;importer.popup_centered())
-	importer.imported.connect(func(_id): load_catalog(game_root);library_changed.emit())
+	import_button.pressed.connect(func(): importer.open_import(game_root))
+	importer.imported.connect(func(id): reload_selected(id);library_changed.emit())
 	refresh_button = Button.new()
 	refresh_button.text = "Refresh library"
 	tools.add_child(refresh_button)
@@ -85,6 +86,8 @@ func _ready() -> void:
 	details = Label.new()
 	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(details)
+	edit_settings = Button.new();edit_settings.text = "Edit authored asset settings…";edit_settings.disabled = true;right.add_child(edit_settings)
+	edit_settings.pressed.connect(func(): importer.open_asset(game_root,selected_entry.id))
 	enemy_apply = Button.new()
 	enemy_apply.text = "Use sprite set for selected enemy variant"
 	enemy_apply.disabled = true
@@ -133,6 +136,7 @@ func populate() -> void:
 	list.clear()
 	shown.clear()
 	selected_entry = {}
+	edit_settings.disabled = true
 	enemy_apply.disabled = true
 	room_apply.disabled = true
 	tile_apply.disabled = true
@@ -159,6 +163,7 @@ func populate() -> void:
 func select_image(index: int) -> void:
 	if index < 0 or index >= shown.size(): return
 	selected_entry = shown[index]
+	edit_settings.disabled = not Bindings.asset_id(selected_entry.id)
 	preview.selected_tile = 0
 	preview.tile_mode = selected_entry.category == "tiles"
 	preview.cell_size = int(selected_entry.get("cell_size",16))
@@ -186,3 +191,14 @@ func update_frame() -> void:
 		var layout := library.sprite_layout(selected_entry.id)
 		details.text += "\nDraw %s; offset %s logical pixels" % [layout.size,layout.position]
 		if not selected_entry.get("clips",{}).is_empty(): details.text += "\nClip: "+preview_clip.get_item_text(preview_clip.selected)+" (attack holds its final frame)"
+
+func reload_selected(id: String) -> void:
+	load_catalog(game_root)
+	var index := -1
+	for i in shown.size():
+		if shown[i].id==id: index = i;break
+	if index<0:
+		search.text = "";populate()
+		for i in shown.size():
+			if shown[i].id==id: index = i;break
+	if index>=0: list.select(index);select_image(index)

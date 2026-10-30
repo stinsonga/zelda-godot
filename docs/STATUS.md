@@ -146,7 +146,9 @@ uses the same resolver in editor and game. Template capture and seeded generatio
 preserve shared art for primary rooms, linked cellars and scoped enemy variants.
 Idle/walk/attack clips now have independent frame sequences and timing, with
 behavior-driven playback, named previews, and existing walker shooting exposed
-as an optional variant setting. ROM overlays remain private. See
+as an optional variant setting. The asset settings form edits existing libraries
+without rebinding packs or replacing PNGs, refreshes previews and rejects stale
+forms. Library edits are separate from pack undo. ROM overlays remain private. See
 [AUTHORED_ART.md](../editor/AUTHORED_ART.md).
 
 Missing:

@@ -21,7 +21,8 @@ sprites under `content/art/`, without a ROM. Assign them to enemy variants,
 paint room tiles, or skin secrets, stairs and residents. Source cells can be
 16, 32 or 64 pixels; sprite frames can be rectangular with independent logical
 draw sizes and offsets. Optional idle/walk/attack clips have separate timings,
-with named previews and behavior-driven playback. Game collision stays unchanged. See
+with named previews and behavior-driven playback. **Edit authored asset settings…**
+updates existing layouts, clips and timing without editing JSON. Game collision stays unchanged. See
 [AUTHORED_ART.md](AUTHORED_ART.md) for layouts, sharing and limits.
 
 ## Importing local graphics

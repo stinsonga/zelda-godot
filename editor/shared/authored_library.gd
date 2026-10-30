@@ -121,3 +121,46 @@ static func validate_clips(clips, count: int, errors: PackedStringArray) -> void
 		if not frames is Array or frames.is_empty() or frames.size()>64: errors.append("Clip needs 1..64 frame indices");continue
 		for index in frames:
 			if not Pack.integer(index,0,count-1): errors.append("Clip frame index outside sprite sheet");break
+
+## Metadata edits preserve the PNG and symbolic ID. Read the latest library so
+## unrelated asset edits survive; compare the selected record to detect stale forms.
+static func asset_record(root: String, id: String) -> Dictionary:
+	var parts := id.split("/")
+	if parts.size()!=3 or parts[0]!="art" or not Pack.identifier(parts[1]) or not Pack.identifier(parts[2]): return {"errors":PackedStringArray(["Choose an authored art/library/asset ID"])}
+	var folder := canonical_path(root).path_join("content/art").path_join(parts[1])
+	if canonical_path(folder)!=folder: return {"errors":PackedStringArray(["Authored library folders cannot be symlinks"])}
+	var manifest := folder.path_join("library.json")
+	var directory := DirAccess.open(folder)
+	if directory==null: return {"errors":PackedStringArray(["Authored library folder is missing"])}
+	for name in ["library.json","library.json.tmp",parts[2]+".png"]:
+		if directory.is_link(name): return {"errors":PackedStringArray(["Authored library files cannot be symlinks"])}
+	var loaded := read(manifest)
+	if not loaded.errors.is_empty(): return loaded
+	if loaded.library.id!=parts[1]: return {"errors":PackedStringArray(["Library ID differs from folder"])}
+	for index in loaded.library.assets.size():
+		if loaded.library.assets[index].id==parts[2]: return {"errors":PackedStringArray(),"library":loaded.library,"asset":loaded.library.assets[index].duplicate(true),"index":index,"manifest":manifest,"image":folder.path_join(parts[2]+".png")}
+	return {"errors":PackedStringArray(["Asset is missing from library"])}
+static func update_asset(root: String, id: String, settings: Dictionary, expected: Dictionary) -> Dictionary:
+	var loaded := asset_record(root,id)
+	if not loaded.errors.is_empty(): return loaded
+	if loaded.asset!=expected: return {"errors":PackedStringArray(["Asset changed since opening. Reopen its settings before saving."])}
+	var allowed := ["name","cell_size"] if loaded.asset.kind=="tiles" else ["name","frame_size","draw_size","draw_offset","directions","frames","frame_ticks","clips"]
+	var errors := PackedStringArray()
+	Pack.unknown_fields(settings,allowed,"Asset settings",errors)
+	if not errors.is_empty(): return {"errors":errors}
+	var asset: Dictionary = loaded.asset.duplicate(true)
+	asset.merge(settings,true)
+	loaded.library.assets[loaded.index] = asset
+	errors = validate(loaded.library)
+	if not errors.is_empty(): return {"errors":errors}
+	var file := FileAccess.open(loaded.image,FileAccess.READ)
+	if file==null or file.get_length()<24 or file.get_length()>16000000: return {"errors":PackedStringArray(["Cannot read asset PNG (maximum 16 MB)"])}
+	if file.get_buffer(8)!=PackedByteArray([137,80,78,71,13,10,26,10]): return {"errors":PackedStringArray(["Invalid asset PNG"])}
+	file.big_endian = true;file.seek(16)
+	var width := file.get_32();var height := file.get_32();file.close()
+	if width!=int(asset.width) or height!=int(asset.height): return {"errors":PackedStringArray(["PNG dimensions changed. Restore the image or import it under a new ID."])}
+	var image := Image.load_from_file(loaded.image)
+	if image==null or image.is_empty(): return {"errors":PackedStringArray(["Cannot decode asset PNG"])}
+	var error := Pack.write(loaded.manifest,loaded.library)
+	if error!=OK: return {"errors":PackedStringArray(["Cannot save asset settings: "+error_string(error)])}
+	return {"errors":PackedStringArray(),"id":id,"manifest":loaded.manifest}

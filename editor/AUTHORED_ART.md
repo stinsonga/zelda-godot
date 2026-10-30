@@ -40,10 +40,33 @@ pack. Import copies/re-encodes the selected PNG; it does not move the source.
    All stairs in that room share its choice. **Clear selected room feature art**
    resets that slot. **Clear room art** clears tiles and feature art together.
 
+## Editing existing assets
+
+Select an authored tile sheet or sprite in **Assets**, then click
+**Edit authored asset settings…**. The form restores its current display name,
+tile grid or sprite layout, drawing size/offset, direction rows and clips. Edit
+those values and click **Save asset settings**. No JSON editing is needed.
+
+The asset ID, kind, PNG filename and image dimensions stay fixed; the PNG bytes
+are never rewritten. Frame columns and direction rows must still fit the image
+exactly. To use a differently sized PNG, import a new asset ID. Changing a tile
+grid reinterprets existing painted indices, so inspect rooms that use it afterward.
+
+A successful save refreshes thumbnails, selection, and room previews. The name
+filter is cleared if the renamed asset no longer matches it. Restart an open game
+preview to load revised settings; running previews retain their compiled snapshot.
+
+Library edits affect every pack using that ID and save immediately to its
+`library.json`. They are separate from pack Save and undo/redo. Invalid settings
+leave the library unchanged. If another edit changed the selected asset since
+the form opened, saving is rejected; reopen the settings to load the latest data.
+Changes to other assets in that library are retained. The settings button is
+unavailable for private ROM assets.
+
 Assignments, clearing, copying rooms/variants, and deleting features support
 undo/redo. Save writes portable bindings in the version-2 pack. A version-1 pack
-upgrades when shared art is assigned. Library import itself creates reusable files
-and is separate from document undo. Unsaved Play snapshots include the bindings.
+upgrades when shared art is assigned. Library import creates reusable files, and asset-settings edits update them;
+both are separate from document undo. Unsaved Play snapshots include the bindings.
 
 Source image detail is retained. Tile cells draw into logical 16-pixel squares;
 sprite frames draw at their configured logical size and offset. Missing sprite
@@ -164,6 +187,7 @@ godot --headless --path editor --script res://tests/rectangular_art.gd
 godot --headless --path . --script res://tests/rectangular_graphics.gd
 godot --headless --path editor --script res://tests/animation_clips.gd
 godot --headless --path . --script res://tests/authored_animation.gd
+godot --headless --path editor --script res://tests/asset_settings.gd
 ```
 
 They verify importing/validation, directional crops, source resolution, scaled
