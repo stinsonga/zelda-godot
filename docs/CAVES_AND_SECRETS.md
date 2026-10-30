@@ -137,7 +137,7 @@ named `sword_cave` load through `WorldDefinition.legacy_ids`.
 - Item-use pose is 16 ticks and push speed is half a pixel per tick; neither has
   been traced. The pond keeps its water color when drained, and the whirlwind's
   flight is not animated: Link is set down at the destination after the tune.
-- Held white and magical swords use grade palettes on the wooden sword's tiles.
+- Held white and magical swords use the wooden sword's tiles in sprite palettes 1 and 2, as the original does (UpdateSwordOrRod).
   Link's sprite does not change with the magical shield.
 - Shortcut-room rocks follow the ROM's shortcut positions. Rooms $1D and $49 point
   at index 0, which has not been checked against an emulator.

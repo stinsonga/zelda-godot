@@ -210,6 +210,12 @@ def export_cave(prg, patterns, palettes, output):
     sprite('sword_down', 0x20, 4, narrow=True, flip_y=True)
     sprite('sword_right', 0x82, 4)
     sprite('sword_left', 0x82, 4, flip_x=True)
+    # Z_07 UpdateSwordOrRod: the same tiles, in sprite palette (sword level - 1).
+    for prefix, palette in (('white_sword', 5), ('magical_sword', 6)):
+        sprite(prefix + '_up', 0x20, palette, narrow=True)
+        sprite(prefix + '_down', 0x20, palette, narrow=True, flip_y=True)
+        sprite(prefix + '_right', 0x82, palette)
+        sprite(prefix + '_left', 0x82, palette, flip_x=True)
     for name, frame, flip in [('attack_right', 4, False), ('attack_left', 4, True),
                                ('attack_down', 6, False), ('attack_up', 7, False)]:
         sprite(name, prg[0x6E83 + frame], 4, flip_x=flip)
@@ -658,6 +664,30 @@ def import_rom(prg, output, progress=None):
                         dst = (y * 128 + (direction * 2 + pose) * 16 + x) * 4
                         player[dst:dst + 4] = sprite[src:src + 4]
         png(output / ('player.png' if player_palette == 0 else f'clock_player_{player_palette}.png'), 128, 16, player)
+    # Z_07 Link_Draw with the magical shield: the head-side 8x16 half (the right
+    # one when facing right, else the left) swaps LinkHeadTiles for
+    # LinkHeadMagicShieldTiles, and the downward shield tile is never mirrored.
+    head = dict(zip((0x02, 0x06, 0x08, 0x0A), (0x80, 0x54, 0x60, 0x60)))
+    shielded = bytearray(128 * 16 * 4)
+    for direction in range(4):
+        for pose in range(2):
+            tile = prg[0x6E83 + (pose if direction < 2 else direction)]
+            flip = direction == 1 or (direction >= 2 and pose == 1)
+            for screen in range(2):
+                base = tile + 2 * (1 - screen if flip else screen)
+                mirrored = flip
+                if screen == (1 if direction == 0 else 0) and base in head:
+                    mirrored = flip and base != 0x0A
+                    base = head[base]
+                for half in range(2):
+                    block = bytearray(8 * 8 * 4)
+                    blit_tile(block, 8, 0, 0, patterns, base + half, palettes[4], transparent=True)
+                    for y in range(8):
+                        for x in range(8):
+                            src = (y * 8 + (7 - x if mirrored else x)) * 4
+                            dst = ((half * 8 + y) * 128 + (direction * 2 + pose) * 16 + screen * 8 + x) * 4
+                            shielded[dst:dst + 4] = block[src:src + 4]
+    png(output / 'magic_shield_player.png', 128, 16, shielded)
     glyphs = bytearray(128 * 128 * 4)
     for tile in range(256):
         blit_tile(glyphs, 128, tile % 16 * 8, tile // 16 * 8,
@@ -881,6 +911,7 @@ def import_rom(prg, output, progress=None):
     if (output / 'rooms' / 'sword_cave.tres').exists():
         (output / 'rooms' / 'sword_cave.tres').unlink()
     names = ['fire_0', 'fire_1', 'wooden_sword', 'sword_up', 'sword_down', 'sword_right', 'sword_left', 'attack_right', 'attack_left', 'attack_down', 'attack_up', 'lift'] + combat_names
+    names += [f'{prefix}_{d}' for prefix in ('white_sword', 'magical_sword') for d in ('up', 'down', 'right', 'left')] + ['magic_shield_player']
     names += [f'clock_player_{i}' for i in range(1,4)] + [f'attack_{direction}_clock_{i}' for direction in ('up','down','left','right') for i in range(1,4)]
     theme = [f'[gd_resource type="Resource" script_class="VisualTheme" load_steps={5 + len(names)} format=3]',
              '[ext_resource type="Script" path="res://scripts/visual_theme.gd" id="1"]',

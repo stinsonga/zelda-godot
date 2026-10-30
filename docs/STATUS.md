@@ -55,13 +55,13 @@ emulator case per room or family.
 - **Pols Voice.** Its eight-way jump table is not translated (`overworld_enemy.gd`).
 - **Whirlwind.** Its flight is not animated; Link is set down after the tune
   ([CAVES_AND_SECRETS.md](CAVES_AND_SECRETS.md)).
-- **Status-bar map.** The overworld map is a placeholder rectangle.
 - **Palettes.** The death sequence uses overlays instead of palette swaps
   ([FRONT_END.md](FRONT_END.md)); the ending keeps in-game palettes for Link,
   Zelda, and the Triforces; the second-quest menu marker uses the white sword
   image instead of menu palette 7; a drained pond keeps its water colour.
-- **Sprites.** Held white and magical swords reuse the wooden sword's tiles, and
-  Link's sprite ignores the magical shield.
+- **Sprites.** The magical shield appears on Link's walking frames, but not yet
+  on his attack and item-use poses. The dungeon status-bar map is drawn with
+  plain rectangles rather than the level's tiles.
 - **Timings.** Item-use pose length, push speed, some message timing, and the
   end-level exit are untraced.
 - **Lag.** The original drops frames when a room is busy. Godot has no CPU
@@ -157,6 +157,14 @@ one loop. Native graph replays reach completion and exercise an actual guarded
 shortcut. Using generated work now marks it unsaved until saved. See
 [DUNGEON_GENERATION.md](../editor/DUNGEON_GENERATION.md).
 
+Door-connected templates now capture explicit groups of up to four rooms,
+including internal locks and optional linked cellars. Format-3 libraries use
+version-6 recipes with fixed, collision-checked footprints. Native replays cover
+internal key doors, mixed stairs and extra generated loops. The capture dialog
+now previews unit footprints, internal links, external ports and reward rooms,
+with full room/link details on hover. See
+[DOOR_GROUP_TEMPLATES.md](../editor/DOOR_GROUP_TEMPLATES.md).
+
 Room IDs can now be renamed in the GUI with reference updates, undo/redo and
 checkpoint migration. Old and deleted names stay reserved. Shared artwork and
 private ROM appearance follow room renames without crossing the asset boundary.
@@ -167,7 +175,7 @@ Missing:
 - richer sprite layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
 - additional resident modes, cave entrance/original cellar transitions, recorder/Armos and other secret types, plus broader
-  layout controls, general room-group templates and solver support for water, advanced dependencies and
+  layout controls, external ports on companion rooms and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
 - migration for other content IDs (pack identity, placements and enemy variants);
   authored room-ID renaming is implemented ([SAVING.md](SAVING.md)).

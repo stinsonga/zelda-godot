@@ -1306,6 +1306,8 @@ func _draw() -> void:
 			var frame := direction * 2 + walk_pose
 			# Z_07 applies a two-pixel overworld drawing offset, independent of collision.
 			var sheet: Texture2D = visual_theme.sprites.get(StringName("clock_player_" + str(clock_palette())), visual_theme.player_sheet) if state.clock_active else visual_theme.player_sheet
+			# With the magical shield, Link's walking frames carry the larger shield.
+			if not state.clock_active and state.item_value(&"magic_shield") > 0: sheet = visual_theme.sprites.get(&"magic_shield_player", sheet)
 			draw_texture_rect_region(sheet, Rect2(at + Vector2(0, 2), Vector2(16, 16)), Rect2(frame * sheet.get_width() / 8.0, 0, sheet.get_width() / 8.0, sheet.get_height()))
 		elif visual_theme.player_texture:
 			draw_texture_rect(visual_theme.player_texture, Rect2(at, Vector2(16, 16)), false)
@@ -1696,14 +1698,25 @@ func draw_hud_text(text: String, at: Vector2, color: Color = Color.WHITE) -> voi
 			draw_texture_rect_region(visual_theme.hud_tiles, Rect2(at + Vector2(i * 8, 0), Vector2(8, 8)), Rect2((tile % 16) * 8, (tile / 16) * 8, 8, 8), color)
 
 func draw_original_hud(sprites: bool = true, backdrop: Color = Color.BLACK) -> void:
-	# Sword ownership, health, and currency are live; the map is a scaffold.
 	draw_rect(Rect2(0, 0, 256, 64), backdrop)
 	if room.dungeon_level > 0:
 		draw_level_map(sprites)
 	else:
-		draw_rect(Rect2(16, 16, 64, 32), Color("666666"))
+		# The overworld's LevelInfo status-bar map fills nametable $2062 with four
+		# rows of eight grey $F5 tiles (NES colour $00).
+		var grey := Color("7c7c7c")
+		for row in range(4):
+			for column in range(8):
+				var cell := Vector2(16 + column * 8, 24 + row * 8)
+				if visual_theme.hud_tiles: draw_texture_rect_region(visual_theme.hud_tiles, Rect2(cell, Vector2(8, 8)), Rect2(0xF5 % 16 * 8, 0xF5 / 16 * 8, 8, 8), grey)
+				else: draw_rect(Rect2(cell, Vector2(8, 8)), grey)
+		# Z_01 UpdatePositionMarker: sprite $3E at X $11 + column * 4 and
+		# Y $17 + row * 4 (sprites show a line lower).
 		var room_number: int = room.map_room_id if room.map_room_id >= 0 else 0
-		if sprites: draw_rect(Rect2(16 + room_number % 16 * 4, 16 + (room_number / 16) * 4, 4, 4), Color("80d010"))
+		var marker := Vector2(0x11 + (room_number & 0x0F) * 4, 0x18 + ((room_number & 0x70) >> 4) * 4)
+		if sprites:
+			if visual_theme.sprites.has(&"submenu_marker"): draw_texture(visual_theme.sprites[&"submenu_marker"], marker)
+			else: draw_rect(Rect2(marker, Vector2(3, 3)), Color("80d010"))
 	draw_hud_text("X%d" % state.rupees, Vector2(96, 16))
 	# Z_01: with the magical key the count shows "XA".
 	draw_hud_text(key_count_text(), Vector2(96, 32))
