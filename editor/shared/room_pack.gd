@@ -1,4 +1,5 @@
 extends RefCounted
+const RoomIds = preload("room_ids.gd")
 const ArtBindings = preload("art_bindings.gd")
 ## The single, engine-independent pack contract, loaded by both Godot projects.
 ## JSON is data only: no script, resource or external asset paths are accepted.
@@ -72,7 +73,7 @@ static func validate(pack) -> PackedStringArray:
 	if not pack is Dictionary: return PackedStringArray(["Pack must be a JSON object"])
 	var version = pack.get("schema")
 	var fields := ["schema","id","title","start_room","rooms","enemy_types"]
-	if version == 2: fields.append_array(["starting_items","goals","generation","appearance"])
+	if version == 2: fields.append_array(["starting_items","goals","generation","appearance","room_aliases"])
 	unknown_fields(pack,fields,"Pack",errors)
 	if version != 1 and version != 2: errors.append("Unsupported pack schema; expected 1 or 2")
 	if not identifier(pack.get("id")): errors.append("Pack ID needs lowercase letters, digits, underscores or hyphens")
@@ -177,6 +178,7 @@ static func validate(pack) -> PackedStringArray:
 			if not reverse is Dictionary or reverse.get("target") != id or reverse.get("kind") != link.get("kind") or requirements(reverse) != requirements(link):
 				errors.append(id + ": connection " + edge + " needs a reciprocal door of the same kind")
 	if version == 2:
+		if pack.has("room_aliases"): errors.append_array(RoomIds.validate(pack.room_aliases,ids))
 		if pack.has("appearance"): errors.append_array(ArtBindings.validate(pack.appearance,pack))
 		validate_stairs(ids,errors)
 		validate_progression(pack,ids,errors)
@@ -422,3 +424,10 @@ static func validate_graph_recipe(g: Dictionary, errors: PackedStringArray) -> v
 		var pair: Array = [edge.room,edge.target];pair.sort()
 		if pair in seen: errors.append("Duplicate loop record")
 		seen.append(pair)
+
+static func rename_room(pack: Dictionary, old: String, id: String, overlay: Dictionary = {}) -> Dictionary:
+	var errors := validate(pack)
+	if not errors.is_empty(): return {"errors":errors}
+	var result := RoomIds.rename(pack,old,id,overlay)
+	if result.errors.is_empty(): result.errors = validate(result.pack)
+	return result

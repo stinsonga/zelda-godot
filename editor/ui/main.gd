@@ -54,6 +54,7 @@ var adjacent_kind: OptionButton
 var adjacent_edge: OptionButton
 var selected_map_cell := Vector2i(-1,1)
 var status: RichTextLabel
+var room_id_edit: LineEdit
 var title_edit: LineEdit
 var pack_id: LineEdit
 var pack_title: LineEdit
@@ -335,6 +336,11 @@ func build_ui() -> void:
 	title_edit.focus_exited.connect(func():
 		if not syncing and title_edit.text != current().title: edit(func(): current().title = title_edit.text))
 	title_edit.tooltip_text = "Press Enter to apply the room title"
+	var identity := HBoxContainer.new();right.add_child(identity);label("Room ID",identity)
+	room_id_edit = LineEdit.new();room_id_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL;identity.add_child(room_id_edit)
+	room_id_edit.tooltip_text = "Renaming updates references and reserves the old ID for save migration. Pack identity stays the same."
+	room_id_edit.text_submitted.connect(func(text): rename_current_room(text.strip_edges()))
+	button("Rename room ID",right,func(): rename_current_room(room_id_edit.text.strip_edges()))
 	map_x = number("Map X",right,0,15)
 	map_y = number("Map Y",right,-15,0)
 	button("Apply map position",right,func(): move_room(current_id,Vector2i(int(map_x.value),int(map_y.value))))
@@ -429,6 +435,7 @@ func refresh() -> void:
 	goal_info.text = str(pack.get("goals",[]).size()) + " objective pickups. Add one to use progression checking."
 	for check in starting_checks: check.button_pressed = check.get_meta("item") in pack.get("starting_items",["wooden_sword"])
 	title_edit.text = room.title
+	room_id_edit.text = room.id
 	pack_title.text = pack.title
 	pack_id.text = pack.id
 	map_x.value = room.map_position[0]
@@ -480,7 +487,7 @@ func refresh_connection() -> void:
 	pick(destination,link.target)
 	pick(door_kind,link.kind)
 func dirty() -> bool: return JSON.stringify(pack) != saved_text or JSON.stringify(appearance) != saved_appearance_text
-func document_snapshot() -> Dictionary: return {"pack":pack.duplicate(true),"appearance":appearance.duplicate(true)}
+func document_snapshot() -> Dictionary: return {"pack":pack.duplicate(true),"appearance":appearance.duplicate(true),"current_id":current_id,"placement_key":placement_key.duplicate(true)}
 func edit(action: Callable) -> void:
 	var before := pack.duplicate(true)
 	var before_art := appearance.duplicate(true)
@@ -504,6 +511,7 @@ func undo() -> void:
 	var previous: Dictionary = undo_stack.pop_back()
 	pack = previous.pack
 	appearance = previous.appearance
+	if previous.has("current_id"): current_id = previous.current_id;placement_key = previous.placement_key.duplicate(true);stairs_inspector.room_id = current_id
 	refresh()
 	validate_pack()
 func redo() -> void:
@@ -513,6 +521,7 @@ func redo() -> void:
 	var following: Dictionary = redo_stack.pop_back()
 	pack = following.pack
 	appearance = following.appearance
+	if following.has("current_id"): current_id = following.current_id;placement_key = following.placement_key.duplicate(true);stairs_inspector.room_id = current_id
 	refresh()
 	validate_pack()
 func paint(cell: Vector2i, erase: bool) -> void:
@@ -556,7 +565,7 @@ func unique_placement_id(entries: Array, prefix: String) -> String:
 	return prefix + "_" + str(n)
 func unique_room_id() -> String:
 	var n := 1
-	while pack.rooms.any(func(r): return r.id == "room_" + str(n)): n += 1
+	while Pack.RoomIds.reserved(pack,"room_"+str(n)): n += 1
 	return "room_" + str(n)
 func unused_map_position() -> Array:
 	for y in range(16):
@@ -586,7 +595,10 @@ func duplicate_room() -> void:
 		pack.rooms.append(room)
 		current_id = room.id)
 func delete_room() -> void:
+	if pack.get("room_aliases",{}).size()>=1024: message("Room migration history limit reached");return
 	edit(func():
+		Pack.upgrade(pack)
+		Pack.RoomIds.retire(pack,current_id)
 		var removed := current_id
 		appearance.room_tiles.erase(removed)
 		if pack.schema == 2: pack.goals = pack.goals.filter(func(g): return g.room != removed)
@@ -1163,3 +1175,16 @@ func scroll_tool_settings(value: String) -> void:
 	var scroll: ScrollContainer = item_type.get_parent().get_parent()
 	var target: Control = item_type if value=="Pickup" else enemy_type if value=="Enemy" else null
 	scroll.scroll_vertical = maxi(0,int(target.position.y)-24) if target!=null else 0
+
+func rename_current_room(id: String) -> bool:
+	flush_text_edits()
+	if id==current_id: message("Room ID already matches");return true
+	var result := Pack.rename_room(pack,current_id,id,appearance)
+	if not result.errors.is_empty(): message("Cannot rename room:\n"+"\n".join(result.errors));return false
+	var old := current_id;var selection := placement_key.duplicate(true)
+	edit(func():
+		pack = result.pack;appearance = result.appearance;current_id = id;stairs_inspector.room_id = id
+		if placement_key.get("room")==old: placement_key.room = id)
+	undo_stack[-1].current_id = old;undo_stack[-1].placement_key = selection
+	message("Renamed "+old+" to "+id+". References updated; save the pack to retain old-checkpoint compatibility.")
+	return true

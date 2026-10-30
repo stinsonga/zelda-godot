@@ -35,7 +35,7 @@ On this Mac, the default application directory is:
 ```
 
 Filenames use a hash of the stable world ID. The JSON document records the actual
-ID in readable form. The format has version 2, with automatic migration from version 1. A normal save writes a temporary
+ID in readable form. The format has version 3, with automatic migration from versions 1 and 2. A normal save writes a temporary
 file, flushes and closes it, preserves the previous valid snapshot as `.bak`, then
 renames the temporary file over the main file. A failed write keeps the prior
 save. The loader can recover a valid backup if the primary JSON is damaged or
@@ -45,14 +45,19 @@ The loader validates structure, version, world identity, integer values, limits,
 item IDs, room IDs, and location before replacing the current game state. Files
 larger than 1 MiB and snapshots that would exceed that size are rejected. A failed
 load leaves the current session intact, apart from displaying its status message.
-Versions newer than 2 are rejected. Version 1 loads automatically; its old enemy
+Versions newer than 3 are rejected. Versions 1 and 2 load automatically; version 1 enemy
 flags migrate to the new count/history model when those rooms are instantiated.
 
 If edited terrain blocks a saved position, the loader tries that room's spawn and
 reports `LOADED AT ROOM ENTRANCE`. If the room or item is unavailable, or neither
 the saved position nor the room spawn is walkable, loading fails without changing
-the session. Keep stable IDs when modifying content; automatic ID remapping is
-not implemented.
+the session. Authored packs support room-ID renaming through the editor: its
+`room_aliases` preserve checkpoint room references, collected items, defeated
+enemies, doors, secrets, room history and kill records. Migrated data is validated
+before replacing the session. Loading does not rewrite the checkpoint; the next
+explicit save uses current room IDs and preserves the previous snapshot as backup.
+See [room-ID renaming](../editor/ROOM_IDS.md) for reserved names and deletion rules.
+Other IDs, including pack identity and placement IDs, must remain stable.
 
 ## Resume behavior and scope
 

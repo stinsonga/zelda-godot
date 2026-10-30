@@ -158,7 +158,9 @@ dungeon rooms, connections, spawns, five enemy behavior families, ten
 pickup types, directional block secrets and stair/cellar links; it does not import or round-trip arbitrary existing `.tres` rooms.
 New packs begin with `custom_dungeon`; set a distinct Pack ID for each world.
 Changing it creates a new world identity rather than migrating existing saves.
-The GUI does not rename stable room or placement IDs yet.
+Use **Room ID → Rename room ID** to rename a room and update its references.
+Old names remain reserved and migrate existing checkpoints. See [ROOM_IDS.md](ROOM_IDS.md).
+Placement IDs and other content IDs still need to remain stable.
 
 No original graphics, maps or dialogue are present in this example. The editor
 can import the local asset library but cannot yet convert imported rooms into
@@ -170,8 +172,8 @@ See [ASSET_BOUNDARY.md](../docs/ASSET_BOUNDARY.md).
 
 The editor now supports an end-to-end MVP authoring loop. Remaining work:
 
-- Room-ID management and pack migration, with explicit handling rather than
-  silently breaking saves. Unique IDs for independently authored packs matter.
+- Migration for other content IDs, including placements and pack identity.
+  Room-ID renaming already preserves older checkpoint references.
 - Room filters and more item/enemy properties. Individual placement selection,
   movement and isolated enemy stat editing are available; see [PLACEMENTS.md](PLACEMENTS.md).
 - Additional animation states, layered sprites and an editable-copy workflow for

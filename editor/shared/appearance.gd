@@ -56,6 +56,7 @@ static func read_local(game_root: String, pack: Dictionary) -> Dictionary:
 	var file := FileAccess.open(path,FileAccess.READ)
 	if file == null or file.get_length() > 2000000: return {"overlay":empty,"warnings":PackedStringArray(["Cannot read local appearance; keeping placeholders"])}
 	var data = JSON.parse_string(file.get_as_text())
+	data = migrate_rooms(data,pack)
 	var errors := validate(data,pack)
 	return {"overlay":data if errors.is_empty() else empty,"warnings":errors}
 func warn(text: String) -> void:
@@ -228,3 +229,17 @@ func clip_ticks(id: String, clip: String) -> int:
 	var group: Dictionary = groups.get(id,{})
 	var selected := ClipPlayback.select(group.get("clips",{}),clip)
 	return int(group.clips[selected].frame_ticks) if not selected.is_empty() else int(group.get("frame_ticks",6))
+
+## Private overlays may outlive a shared pack revision. Keep the current binding
+## on collision; retired rooms disappear without copying ROM choices into packs.
+static func migrate_rooms(overlay, pack: Dictionary):
+	if not overlay is Dictionary or not overlay.get("room_tiles") is Dictionary: return overlay
+	var aliases = pack.get("room_aliases",{})
+	if not aliases is Dictionary or aliases.is_empty(): return overlay
+	var result: Dictionary = overlay.duplicate(true)
+	for old in result.room_tiles.keys():
+		var target = aliases.get(old,old)
+		if not target is String or target==old: continue
+		if not target.is_empty() and not result.room_tiles.has(target): result.room_tiles[target] = result.room_tiles[old]
+		result.room_tiles.erase(old)
+	return result

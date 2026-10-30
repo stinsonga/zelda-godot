@@ -28,3 +28,6 @@ extends Resource
 @export var whirlwinds: Array = []
 ## Renamed room IDs and collected keys, applied when loading older saves.
 @export var legacy_ids: Dictionary[String, String] = {}
+
+## Authored room renames, flattened to current IDs; empty values reserve deleted IDs.
+@export var room_aliases: Dictionary[String, String] = {}

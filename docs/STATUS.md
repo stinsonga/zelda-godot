@@ -169,6 +169,11 @@ one loop. Native graph replays reach completion and exercise an actual guarded
 shortcut. Using generated work now marks it unsaved until saved. See
 [DUNGEON_GENERATION.md](../editor/DUNGEON_GENERATION.md).
 
+Room IDs can now be renamed in the GUI with reference updates, undo/redo and
+checkpoint migration. Old and deleted names stay reserved. Shared artwork and
+private ROM appearance follow room renames without crossing the asset boundary.
+See [ROOM_IDS.md](../editor/ROOM_IDS.md) for the compatibility rules.
+
 Missing:
 
 - richer sprite layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
@@ -176,8 +181,8 @@ Missing:
 - additional resident modes, cave entrance/original cellar transitions, recorder/Armos and other secret types, plus broader
   layout controls, general room-group templates and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
-- automatic ID remapping when content is renamed, so older saves keep loading
-  ([SAVING.md](SAVING.md)).
+- migration for other content IDs (pack identity, placements and enemy variants);
+  authored room-ID renaming is implemented ([SAVING.md](SAVING.md)).
 
 ### 4. Reachability solver limits
 

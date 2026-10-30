@@ -81,6 +81,8 @@ var item_use_remaining := 0
 var portal_armed := true
 var rise_remaining := 0
 var rise_square := Rect2i()
+const RoomSaveMigration = preload("res://scripts/room_save_migration.gd")
+var room_aliases: Dictionary[String, String] = {}
 var legacy_ids: Dictionary[String, String] = {}
 var world_definition_whirlwinds: Array = []
 var overrides: Dictionary = {}
@@ -143,6 +145,7 @@ func _ready() -> void:
 		combat.enemy_variants = selected_world.enemy_variants
 		quest = selected_world.quest
 		legacy_ids = selected_world.legacy_ids
+		room_aliases = selected_world.room_aliases
 		world_definition_whirlwinds = selected_world.whirlwinds
 		world_id = String(selected_world.id)
 		submenu_layout = selected_world.submenu
@@ -2186,6 +2189,15 @@ func begin_file(data: Dictionary) -> bool:
 ## The game state of a checked snapshot, or null (with a status) if its
 ## content is unavailable. Shared by checkpoints and save files.
 func restore_state(data: Dictionary) -> RefCounted:
+	if not room_aliases.is_empty():
+		var checked := save_store.validate(RoomSaveMigration.remap(data,room_aliases),world_id)
+		if not checked.ok:
+			show_status("LOAD FAILED: MIGRATED SAVE IS INVALID")
+			return null
+		if JSON.stringify(checked.data,"\t").to_utf8_buffer().size()>Saves.MAX_BYTES:
+			show_status("LOAD FAILED: MIGRATED SAVE IS TOO LARGE")
+			return null
+		data = checked.data
 	var restored = preload("res://scripts/game_state.gd").new()
 	for item_id in data.inventory:
 		var item := StringName(item_id)
@@ -2222,7 +2234,8 @@ func load_game() -> bool:
 		show_status("LOAD FAILED: " + result.error)
 		return false
 	var data: Dictionary = result.data
-	var id := StringName(legacy_ids.get(data.room_id, data.room_id))
+	var saved_id: String = room_aliases.get(data.room_id,data.room_id)
+	var id := StringName(legacy_ids.get(saved_id,saved_id))
 	if not rooms.has(id):
 		show_status("LOAD FAILED: ROOM IS UNAVAILABLE")
 		return false

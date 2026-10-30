@@ -17,6 +17,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 	var errors := Contract.validate(pack)
 	if not errors.is_empty(): return {"errors":errors}
 	var library = Appearance.new()
+	appearance = Appearance.migrate_rooms(appearance,pack)
 	var art_errors := Appearance.validate(appearance,pack) if not appearance.is_empty() else PackedStringArray()
 	if not art_errors.is_empty(): appearance = {}
 	appearance = Appearance.effective(pack,appearance)
@@ -24,6 +25,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 	var world = World.new()
 	world.id = StringName("authored/" + pack.id)
 	world.title = pack.title
+	world.room_aliases.assign(pack.get("room_aliases",{}))
 	world.start_room = StringName(pack.start_room)
 	for item in pack.get("starting_items",["wooden_sword"]): world.starting_items.append(load("res://content/items/"+item+".tres"))
 	for goal in pack.get("goals",[]): world.completion_goals.append(goal.duplicate(true))

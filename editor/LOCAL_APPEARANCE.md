@@ -65,7 +65,10 @@ An art-only change still marks the editor dirty. If saving the overlay fails,
 the pack may already have saved; the error says so and the appearance stays
 unsaved for retry. Ordinary saves leave an unreadable, unchanged overlay intact.
 Use distinct pack IDs for distinct worlds; appearance follows the stable pack,
-room and enemy-variant IDs. No automatic ID migration is provided.
+room and enemy-variant IDs. [Room-ID renaming](ROOM_IDS.md) moves private room
+bindings along with shared references. Older private overlays also resolve room
+aliases on load without rewriting their files; current bindings take precedence.
+Pack and enemy-variant ID migration is not provided.
 
 The overlay is deliberately outside `imported/`: replacing a generated ROM
 library must not erase your appearance choices. Import does not copy images into
