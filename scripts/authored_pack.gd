@@ -23,6 +23,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 	if Appearance.has_choices(appearance): library.configure(library_root if not library_root.is_empty() else ProjectSettings.globalize_path("res://"))
 	var world = World.new()
 	world.id = StringName("authored/" + pack.id)
+	world.title = pack.title
 	world.start_room = StringName(pack.start_room)
 	for item in pack.get("starting_items",["wooden_sword"]): world.starting_items.append(load("res://content/items/"+item+".tres"))
 	for goal in pack.get("goals",[]): world.completion_goals.append(goal.duplicate(true))

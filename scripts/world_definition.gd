@@ -2,6 +2,8 @@ class_name WorldDefinition
 extends Resource
 
 @export var id: StringName
+## Display name for authored content; identity and saved progress use id.
+@export var title: String = ""
 ## The original's quest number (1 or 2); custom worlds keep 1.
 @export var quest: int = 1
 ## Monster definitions this world substitutes for others, by the replaced ID

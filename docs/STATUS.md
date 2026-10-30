@@ -154,6 +154,9 @@ forms. Library edits are separate from pack undo. ROM overlays remain private. S
 The GUI-authored four-room `content/packs/ember_relay.json` now exercises the
 end-to-end authoring loop and has a native completion replay. Usability checks
 led to compact optional feature forms and automatic brush-settings scrolling.
+Authored playtests now have a content-aware HUD and window title, with objective
+progress, accurate health capacity, controls and persistent completion feedback.
+Long titles are shortened to fit; the original game HUD is unchanged.
 See [EMBER_RELAY.md](../editor/EMBER_RELAY.md) for the route, tested scope and
 remaining friction.
 

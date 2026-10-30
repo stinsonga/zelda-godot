@@ -68,9 +68,10 @@ complete manually played fight.
 - Painting a pickup over a block can temporarily invalidate the document. Select
   that pickup in the placement list, enable **Appears after room secret**, and
   Apply. The example exercises that workflow.
-- The native placeholder preview retains its lab-style HUD and restart behavior.
-  Standalone authored-game packaging/menu and content-specific presentation are
-  separate remaining work.
+- Authored previews now show the dungeon/room names, objective progress, actual
+  health capacity and movement/sword/item/menu controls. Long names are shortened
+  to fit, and completion stays visible after its banner fades. Previews still
+  use lab-style restart behavior; standalone packaging/menu remains future work.
 
 ## Verification
 
@@ -82,3 +83,7 @@ godot --headless --path . --script res://tests/ember_relay.gd
 The first checks inspector visibility, tool scrolling and document isolation.
 The second loads the shipped GUI-authored pack, solves it, and replays the route
 through the native engine. Neither check requires a ROM.
+
+The authored preview HUD was also rendered and inspected with initial objectives,
+completion, long/multiline titles and a five-heart capacity. Worlds without
+objectives display FREE PLAY. The original game HUD remains separate.

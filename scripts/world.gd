@@ -1246,6 +1246,8 @@ func _draw() -> void:
 	if submenu.offset > 0: draw_set_transform(Vector2(0, submenu.offset))
 	if visual_theme.hud_tiles:
 		draw_original_hud()
+	elif world_definition!=null and String(world_definition.id).begins_with("authored/"):
+		draw_authored_hud()
 	else:
 		draw_string(font, Vector2(12, 18), "REPRODUCTION LAB", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, visual_theme.accent_color)
 		draw_string(font, Vector2(170, 18), "%s/3  $%d" % [state.health / 2.0, state.rupees], HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color("ed7770"))
@@ -2275,3 +2277,30 @@ func authored_room_texture(definition: Resource, slot: String) -> Texture2D:
 func authored_room_rect(definition: Resource, slot: String, anchor: Vector2) -> Rect2:
 	var layout: Rect2 = definition.authored_sprite_layouts.get(slot,Rect2(0,0,16,16))
 	return Rect2(anchor+layout.position,layout.size)
+
+## Authored preview presentation uses existing inventory/objective state.
+func authored_progress_text() -> String:
+	var total: int = world_definition.completion_goals.size()
+	if total==0: return "FREE PLAY"
+	var collected := 0
+	for goal in world_definition.completion_goals:
+		if state.has_collected(StringName(goal.room),StringName(goal.pickup)): collected+=1
+	return "COMPLETE" if collected==total else "%d/%d GOALS" % [collected,total]
+func hud_label(value: String, width: float, font_size: int) -> String:
+	# Bound shaping work even for very long imported/authored display names.
+	var text := value.left(256).replace("\n"," ").replace("\r"," ").replace("\t"," ")
+	if value.length()<=256 and font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x<=width: return text
+	var low := 0;var high := text.length()
+	while low<high:
+		var middle := (low+high+1)/2
+		if font.get_string_size(text.left(middle)+"…",HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x<=width: low = middle
+		else: high = middle-1
+	return text.left(low)+"…"
+func draw_authored_hud() -> void:
+	var title: String = world_definition.title if not world_definition.title.strip_edges().is_empty() else "DUNGEON"
+	draw_string(font,Vector2(8,18),hud_label(title,146,11),HORIZONTAL_ALIGNMENT_LEFT,-1,11,visual_theme.accent_color)
+	draw_string(font,Vector2(160,18),"%s/%s  $%d" % [str(state.health/2.0).trim_suffix(".0"),str(state.max_health/2.0).trim_suffix(".0"),state.rupees],HORIZONTAL_ALIGNMENT_RIGHT,88,8,Color("ed7770"))
+	draw_string(font,Vector2(8,34),hud_label(room.title,146,10),HORIZONTAL_ALIGNMENT_LEFT,-1,10)
+	draw_string(font,Vector2(160,34),authored_progress_text(),HORIZONTAL_ALIGNMENT_RIGHT,88,8,Color("86d1ad"))
+	draw_string(font,Vector2(8,48),"MOVE: ARROWS/WASD   Z/SPACE: SWORD",HORIZONTAL_ALIGNMENT_LEFT,-1,7,Color("a6b4bb"))
+	draw_string(font,Vector2(8,60),"X/SHIFT: ITEM   ENTER: MENU",HORIZONTAL_ALIGNMENT_LEFT,-1,7,Color("a6b4bb"))

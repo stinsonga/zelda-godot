@@ -37,6 +37,8 @@ func run() -> void:
 		if not loaded.pack.rooms.any(func(r): return r.id == room_id): world.free(); fail("Unknown preview room"); return
 		result.world.start_room = StringName(room_id)
 	world.tree_exiting.connect(func(): world.combat.encounter_room = null)
+	var title: String = loaded.pack.title.replace("\n"," ").replace("\r"," ").strip_edges().left(120)
+	root.title = "Dungeon playtest"+(" — "+title if not title.is_empty() else "")
 	root.add_child(world)
 	if check_only:
 		world.set_physics_process(false)

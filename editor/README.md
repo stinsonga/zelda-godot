@@ -84,7 +84,10 @@ Choose **New** for a blank room or **Open** to load an authored JSON pack.
 8. **Play room** starts at the selected room's spawn; **Play dungeon** starts at
    the pack's starting room. Arrow keys/WASD move, Z/Space attacks, X/Shift uses
    the selected item, and Enter opens the item submenu. Close the preview window
-   to return to editing. The preview starts with a wooden sword.
+   to return to editing. The preview starts with a wooden sword. Authored previews show the dungeon
+   title, room, objective progress and actual health capacity; packs without
+   objectives show FREE PLAY. Movement, sword, item and menu controls appear in
+   the HUD.
 
 Saving and playing require a valid pack. Invalid painting can be undone or fixed;
 validation lists errors in the bottom panel. Shared packs remain ROM-free; changed local appearance saves separately under
@@ -95,7 +98,8 @@ packs rather than partially loading them.
 
 Play does not require saving the document. It writes a separate snapshot and log
 in `user://previews` under the editor's `ZeldaDungeonWorkshop` user directory.
-Preview files remain there for diagnosis. Playtest state is temporary: it does
+Preview files remain there for diagnosis. The game window is named for the
+authored dungeon. Playtest state is temporary: it does
 not load or write game save files, and dying uses the lab-style restart rather
 than the full front end.
 
