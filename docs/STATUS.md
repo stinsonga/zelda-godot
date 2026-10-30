@@ -1,86 +1,74 @@
-# Status and remaining work
+# Status
 
-Both quests are playable from the title screen to the ending, as far as the
-importer and tests can show. `tests/reachability.gd` finds every treasure, all
-eight Triforce pieces, Zelda, and every dungeon room reachable in each quest.
-This page records the work that remains. Details
-live in the topic documents linked below.
+Both quests are playable from the title screen to the ending. The importer and
+tests show every treasure, all eight Triforce pieces, Zelda, and every dungeon
+room reachable in each quest (`tests/reachability.gd`). All of the original
+game's rooms, caves, items, monsters, bosses, the front end, and both quests are
+implemented, translated from the disassembly. This page sorts what has been
+verified against the original from what has only been translated, and lists
+the known approximations. Details live in the topic documents linked below.
 
-## Resolved: overworld room $0F
+## 1. Verified against the original, frame by frame
 
-Room $0F, the north-east corner with a 100-rupee "IT'S A SECRET TO EVERYBODY"
-cave, looked unreachable. Its waterfall leads down onto solid rock at the top of
-room $1F, and no tile, ladder, raft, or warp gets past it.
+A headless Nestopia/Godot harness replays the same controller input in both and
+compares every frame ([MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md)): 27
+scenarios, 16,622 frames, all matching. They cover:
+- **Link:** walking, turning, reversing, diagonals, walls, the grid offset and
+  movement fraction, knockback, invincibility, and heart damage arithmetic.
+- **Room changes:** overworld in every direction; dungeons in every direction,
+  with the walk-in past the doorway, shutters, and opening a locked door.
+- **The sword:** swing timing, turning while swinging, the beam, hits, kills,
+  and monster knockback.
+- **Monsters:** Octoroks (with rocks), Tektites, Zoras, Moblins (with arrows),
+  Lynels, Red Leevers, Peahats in flight, and level 1's Keese and Stalfos,
+  including edge and spawn-list spawning and the random number generator.
+- **Drops:** rupee and heart drops, their lifetime, pickup, and rupee counting.
 
-The answer was a special case in `Z_07 GetCollidingTileMoving`. In room $1F,
-when Link moves vertically at X $80 with Y below $56, every tile counts as
-walkable: a false wall straight up into $0F's waterfall. Rooms now carry it as
-`false_wall_x` / `false_wall_below_y`, and the importer sets it for $1F.
-`tests/reachability.gd` reaches every room in both quests, and walks Link up the
-passage while the rock beside it still blocks.
+## 2. Translated but not verified
 
-## Remaining work
+Implemented from the disassembly, but not compared against an emulator:
+- **Monsters:** Blue Leevers, Ghini, Peahats once they land, Armos, boulders,
+  and the dungeon monsters other than Keese and Stalfos (Goriyas, Gels and
+  Zols, Darknuts, Wallmasters, Like Likes, Bubbles, Gibdos, Vires, Ropes, Pols
+  Voice, Wizzrobes, Lanmolas) and all bosses.
+- **Drops:** bombs, five rupees, clocks, and the help drops (a bomb or five
+  rupees after ten kills without damage, a fairy at sixteen).
+- **Items** other than the sword: boomerang, bombs, arrows, candle, recorder,
+  food, potions, rod and book, ladder and raft, with their timings.
+- **Movement:** mountain stairs, room $1F's false wall (up to room $0F), cellar
+  stairs, and leaving caves and dungeons.
+- **Rocks** in the shortcut rooms $1D and $49.
 
-### 1. Audio gaps (smaller)
+Verifying more of these is possible with the existing tools
+(`tools/route_autopilot.py`, `movement_trace.py run --case`, `inspect`), one
+emulator case per room or family.
 
-See [AUDIO.md](AUDIO.md).
-- **Completed:** door and menu-selection recordings, and the low-health warning
-  at one heart or less. The warning repeats on the source driver cycle and yields
-  to competing Tune0 effects. DMC sample decoding now supports the door sound.
-- **Completed:** boss appearance/hit/death samples, ambient roars in both quests,
-  Link's damage and sword-beam samples, continuous dungeon-track loops, and the
-  song-code audit for Triforce, Ganon, and death. All ROM recordings remain in ignored imported/audio/.
-- **Synthesis.** It is approximate: per-frame APU writes, incomplete sweep and
-  linear counter, incomplete analog filtering. Godot also mixes effects alongside the music
-  rather than taking over its channels as the original does.
+## 3. Known approximations
 
-### 2. Fidelity pass
-
-These are recorded approximations, each small:
-- **Death sequence.** Its palettes are overlays rather than palette swaps
-  ([FRONT_END.md](FRONT_END.md)).
-- **Ending sprites.** Link, Zelda, and the Triforces keep their in-game palettes
-  instead of the ending palette.
-- **Menu marker.** The file menu's second-quest sword uses the white sword image
-  in place of menu palette 7.
-- **Whirlwind.** Its flight is not animated: Link is set down after the tune
-  ([CAVES_AND_SECRETS.md](CAVES_AND_SECRETS.md)).
-- **Status-bar map.** The overworld map is a scaffold rectangle.
+- **Audio** ([AUDIO.md](AUDIO.md)). Synthesis is approximate: per-frame APU
+  writes, incomplete sweep and linear counter, and incomplete analog filtering.
+  Effects mix alongside the music instead of taking over its channels. Boss
+  sample order and foreground/background timing are untraced.
 - **Sprite limits.** There is no eight-sprites-per-line limit or flicker, and no
-  unified NES object-slot allocator. The ladder's free-slot check approximates it
-  ([LADDER.md](LADDER.md)).
-- **Pols Voice.** Its eight-way jump table is not translated yet
-  (`overworld_enemy.gd`).
-- **Untraced timings.** Item-use pose length, push speed, and some message
-  timing are untraced. The native end-level exit still uses its existing timer;
-  the full fanfare now continues across the overworld transition. Boss sample
-  update order and foreground/background timing need reference comparison.
-- **Visual details.**
-  - Held white and magical swords reuse the wooden sword's tiles.
-  - Link's sprite ignores the magical shield.
-  - A drained pond keeps its water colour.
-- **Unverified rocks.** The shortcut-room rocks in $1D and $49 haven't been
-  checked against an emulator.
-- **Movement.** A headless Nestopia/Godot harness compares 16,622 frames across
-  twenty-seven scenarios, and all of them match, including sword fights, drops,
-  and pickups. They cover `MoveObject`'s grid-point
-  stop, the stateful grid offset, diagonal input, and overworld room changes in
-  every direction, with the original's frames around the scroll. Mountain-stairs speed ($30 on tiles
-  $74/$75) is translated from `InitLinkSpeed` but not yet checked against the
-  emulator, since no scenario reaches stairs. Next:
-  - monster comparisons. Octoroks (edge and spawn-list, with their rocks),
-    Tektites, Zoras, Moblins, Lynels, Red Leevers, and level 1's Keese and
-    Stalfos match the NES on every frame, including Link being knocked back and
-    the sword, its shot, hits, kills, rupee and heart drops, and pickups. Blue
-    Leevers, Ghini, Peahats once they land, the rarer drops, and the other
-    dungeon monsters each need the same tracing;
-  - dungeon room changes match the NES in all four directions, including the
-    walk-in past the doorway (so shutters close behind Link) and opening a
-    locked door with a key;
-    and routes to stairs and room $1F's false wall, all past monsters. See
-  [MOVEMENT_COMPARISON.md](MOVEMENT_COMPARISON.md) for setup, safeguards and findings.
+  single object-slot allocator: shots, the Zora's slot, and the ladder's
+  free-slot check each approximate it ([LADDER.md](LADDER.md)).
+- **Pols Voice.** Its eight-way jump table is not translated (`overworld_enemy.gd`).
+- **Whirlwind.** Its flight is not animated; Link is set down after the tune
+  ([CAVES_AND_SECRETS.md](CAVES_AND_SECRETS.md)).
+- **Status-bar map.** The overworld map is a placeholder rectangle.
+- **Palettes.** The death sequence uses overlays instead of palette swaps
+  ([FRONT_END.md](FRONT_END.md)); the ending keeps in-game palettes for Link,
+  Zelda, and the Triforces; the second-quest menu marker uses the white sword
+  image instead of menu palette 7; a drained pond keeps its water colour.
+- **Sprites.** Held white and magical swords reuse the wooden sword's tiles, and
+  Link's sprite ignores the magical shield.
+- **Timings.** Item-use pose length, push speed, some message timing, and the
+  end-level exit are untraced.
+- **Lag.** The original drops frames when a room is busy. Godot has no CPU
+  budget, so it never lags; the comparison holds Godot on the original's lag
+  frames instead.
 
-### 3. Expansion tools
+## 4. Editing and expansion
 
 The extension model is documented in [EXTENDING.md](EXTENDING.md).
 [Dungeon Workshop](../editor/README.md) now provides a separate GUI project for
@@ -184,10 +172,10 @@ Missing:
 - migration for other content IDs (pack identity, placements and enemy variants);
   authored room-ID renaming is implemented ([SAVING.md](SAVING.md)).
 
-### 4. Reachability solver limits
+## 5. Reachability checker limits
 
-The original-ROM checker (`tests/reachability.gd`) is separate from the new
-authored-pack solver above. It remains a test tool with these approximations:
+The original-content checker (`tests/reachability.gd`) is separate from the
+authored-pack solver above. It is a test tool and does not:
 - count keys;
 - limit the ladder to one square;
 - loop the mazes;
