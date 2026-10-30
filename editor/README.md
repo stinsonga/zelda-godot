@@ -39,7 +39,10 @@ Art brush. Local choices stay outside shared packs; see [LOCAL_APPEARANCE.md](LO
 
 The **Dungeon** tab now offers **Generate…**, **Save template…** and
 **Check progression…**. Generation uses weighted authored templates and a stable
-seed, then checks inventory and room geometry before offering a result. Objective
+seed, then checks inventory and room geometry before offering a result. Optional
+**Custom layout** controls add branch-room counts and gate-preserving loops; the
+GUI-saved `content/packs/looped_dungeon.json` demonstrates seed 42, eight rooms,
+two branch rooms and one loop. Classic seed results remain unchanged. Objective
 pickups, required-item doors and starting equipment are editable in the inspector.
 See [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md) for controls, version-2 packs,
 solver assumptions and unsupported mechanics.
@@ -183,7 +186,7 @@ The editor now supports an end-to-end MVP authoring loop. Remaining work:
   [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
 - A proper standalone game export/pack-loading menu; preview currently launches
   the Godot executable and expects the sibling source project.
-- Broader generation: loops, multiple floors, general room-group templates, advanced dependencies and
+- Broader generation: multiple floors, general room-group templates, advanced dependencies and
   more solver mechanics. The first seeded generator/progression search is now
   available; ordinary structural validation alone is still not a proof.
 

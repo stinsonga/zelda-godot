@@ -13,16 +13,22 @@ func shuffled_edges() -> Array:
 		var j := random_int(i+1)
 		var old = edges[i];edges[i] = edges[j];edges[j] = old
 	return edges
-func generate(catalog: Dictionary, seed_value: int, room_count: int = 8, required_item: String = "blue_candle", verification_ms: int = 6000) -> Dictionary:
+func generate(catalog: Dictionary, seed_value: int, room_count: int = 8, required_item: String = "blue_candle", verification_ms: int = 6000, layout: Dictionary = {}) -> Dictionary:
 	var errors := Templates.validate(catalog)
 	if not errors.is_empty(): return {"errors":errors}
 	if verification_ms<0 or verification_ms>60000: return {"errors":PackedStringArray(["Verification budget must be 0..60000 ms"])}
 	if seed_value<0 or seed_value>2147483647 or room_count<6 or room_count>16 or required_item not in Pack.REQUIRED_ITEMS: return {"errors":PackedStringArray(["Seed must be 0..2147483647, rooms 6..16, required item supported"])}
+	var layout_errors := PackedStringArray()
+	Pack.unknown_fields(layout,["branch_rooms","loop_count"],"Layout",layout_errors)
+	if not layout.is_empty():
+		if not Pack.integer(layout.get("branch_rooms",room_count/4 if room_count>=8 else 0),0,room_count-6): layout_errors.append("Branch rooms must leave at least six primary rooms on the main path")
+		if not Pack.integer(layout.get("loop_count",0),0,8): layout_errors.append("Loop count must be 0..8")
+	if not layout_errors.is_empty(): return {"errors":layout_errors}
 	rng_state = seed_value
 	var last_report: Dictionary = {}
 	var build_errors := PackedStringArray()
 	for attempt in range(12):
-		var candidate := build(catalog,seed_value,room_count,required_item)
+		var candidate := build(catalog,seed_value,room_count,required_item,layout)
 		if not candidate.has("pack"):
 			build_errors = candidate.get("errors",PackedStringArray())
 			continue
@@ -32,8 +38,9 @@ func generate(catalog: Dictionary, seed_value: int, room_count: int = 8, require
 			return {"errors":PackedStringArray(["Verification exceeded its time budget. No alternate candidate was published, preserving seed determinism. Reduce complexity or retry verification."]),"proof":proof}
 		last_report = proof
 	return {"errors":PackedStringArray(["No verified dungeon found in 12 attempts. Templates may block entrances, rewards or required items."])+build_errors,"proof":last_report}
-func build(catalog: Dictionary, seed_value: int, count: int, required_item: String) -> Dictionary:
-	var branch_count := count/4 if count>=8 else 0
+func build(catalog: Dictionary, seed_value: int, count: int, required_item: String, layout: Dictionary = {}) -> Dictionary:
+	var branch_count := int(layout.get("branch_rooms",count/4 if count>=8 else 0))
+	var loop_count := int(layout.get("loop_count",0))
 	var main_count := count-branch_count
 	var positions: Array[Vector2i] = [Vector2i(8,-7)]
 	var parents: Array[int] = [-1]
@@ -70,14 +77,19 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	var resident_library: bool = catalog.templates.any(func(t): return t.room.has("resident") or t.get("annexes",[]).any(func(room): return room.has("resident")))
 	var persistent_library: bool = catalog.templates.any(func(t): return ([t.room]+t.get("annexes",[])).any(func(room): return room.has("secret") and Pack.secret_trigger(room.secret) != "block"))
 	var algorithm_version := 4 if persistent_library else 3 if resident_library else int(catalog.format_version)
+	if not layout.is_empty(): algorithm_version = 5
 	var pack := Pack.fresh()
 	Pack.upgrade(pack)
 	pack.id = ("generated_v"+str(algorithm_version)+"_" if algorithm_version>=3 else "generated_")+"%d_%d_%s_%s" % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
+	if algorithm_version==5: pack.id = "generated_v5_%d_%d_%s_b%d_l%d_%s" % [seed_value,count,required_item,branch_count,loop_count,Templates.fingerprint(catalog).left(8)]
 	pack.title = "Seed %d dungeon" % seed_value
 	pack.start_room = "room_0"
 	pack.enemy_types = catalog.enemy_types.duplicate(true)
 	pack.rooms = []
 	pack.generation = {"algorithm":"authored_tree","version":algorithm_version,"seed":seed_value,"template_sha256":Templates.fingerprint(catalog),"room_count":count,"required_item":required_item,"templates":{}}
+	if algorithm_version==5:
+		pack.generation.algorithm = "authored_graph"
+		pack.generation.branch_rooms = branch_count;pack.generation.loop_count = loop_count;pack.generation.loop_edges = []
 	var units: Array = []
 	for i in range(count):
 		var template: Dictionary = chosen[i]
@@ -121,6 +133,9 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	for i in range(main_count,count):
 		var pickup := add_pickup(units[i].reward_room,"rupee","branch_reward",false,units[i].reward_position)
 		pack.goals.append({"room":units[i].reward_room.id,"pickup":pickup})
+	if algorithm_version==5:
+		var errors := add_loops(pack,chosen,count,loop_count)
+		if not errors.is_empty(): return {"errors":errors}
 	return {"pack":pack}
 func add_pickup(room: Dictionary, item: String, prefix: String, requires_clear: bool = false, position: Array = [120,77]) -> String:
 	var id := prefix
@@ -143,3 +158,50 @@ func annex_position(rooms: Array, primary: Vector2i) -> Array:
 			var delta := absi(x-primary.x)+absi(y-primary.y)
 			if not used.has(at) and delta<distance: best = at;distance = delta
 	return [best.x,best.y]
+
+## Each new edge inherits all permanent-item gates on its ORIGINAL tree path.
+## A single consumable lock can be mirrored on an alternative route; two such
+## cuts would need a door that spends multiple resources, so those pairs fail.
+func loop_gate(tree: Dictionary, source: String, target: String) -> Dictionary:
+	var pending: Array = [source]
+	var previous: Dictionary = {source:{}}
+	var cursor := 0
+	while cursor<pending.size() and not previous.has(target):
+		var id: String = pending[cursor];cursor+=1
+		for link in tree[id].values():
+			if not previous.has(link.target): previous[link.target] = {"source":id,"link":link};pending.append(link.target)
+	if not previous.has(target): return {}
+	var requirements: Array = [];var locks: Array = []
+	var at := target
+	while at!=source:
+		var step: Dictionary = previous[at];var link: Dictionary = step.link
+		for item in link.get("requires",[]):
+			if item not in requirements: requirements.append(item)
+		if link.kind in ["key","bombable"]: locks.append(link.kind)
+		elif link.kind!="open": return {}
+		at = step.source
+	if locks.size()>1: return {}
+	requirements.sort()
+	return {"kind":locks[0] if not locks.is_empty() else "open","requires":requirements}
+func add_loops(pack: Dictionary, chosen: Array, count: int, requested: int) -> PackedStringArray:
+	if requested==0: return PackedStringArray()
+	var tree: Dictionary = {}
+	for i in count: tree[pack.rooms[i].id] = pack.rooms[i].connections.duplicate(true)
+	var options: Array = []
+	for i in count:
+		for j in range(i+1,count):
+			var a: Dictionary = pack.rooms[i];var b: Dictionary = pack.rooms[j]
+			var delta := Vector2i(int(b.map_position[0])-int(a.map_position[0]),int(b.map_position[1])-int(a.map_position[1]))
+			for edge in Pack.EDGES:
+				if delta!=DIRS[edge] or a.connections.has(edge) or b.connections.has(Pack.OPPOSITE[edge]): continue
+				if edge not in chosen[i].ports or Pack.OPPOSITE[edge] not in chosen[j].ports: continue
+				var gate := loop_gate(tree,a.id,b.id)
+				if not gate.is_empty(): options.append({"source":i,"target":j,"edge":edge,"gate":gate})
+	if options.size()<requested: return PackedStringArray(["Cannot fit exactly %d gate-preserving loops in this layout/template selection; try fewer loops, more rooms or another seed." % requested])
+	for i in requested:
+		var index := random_int(options.size());var option: Dictionary = options[index];options.remove_at(index)
+		var a: Dictionary = pack.rooms[option.source];var b: Dictionary = pack.rooms[option.target]
+		a.connections[option.edge] = {"target":b.id,"kind":option.gate.kind,"requires":option.gate.requires.duplicate()}
+		b.connections[Pack.OPPOSITE[option.edge]] = {"target":a.id,"kind":option.gate.kind,"requires":option.gate.requires.duplicate()}
+		pack.generation.loop_edges.append({"room":a.id,"edge":option.edge,"target":b.id})
+	return PackedStringArray()

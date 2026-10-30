@@ -13,23 +13,26 @@ Generation and progression checking run in a worker thread.
    start, key, item, combat, treasure and goal roles.
 3. Enter an integer seed (0..2147483647), choose 6..16 primary rooms and a required item. Cellar annexes are additional
    rooms, with at most 32 rooms total.
-4. Click **Generate and verify**. A candidate is offered only when the solver
+4. Optionally enable **Custom layout** and choose **Branch rooms** and
+   **Extra loops**. Off preserves classic recipes. See the layout details below.
+5. Click **Generate and verify**. A candidate is offered only when the solver
    finds a route collecting every objective under its stated model. Failures,
    unsupported cases and search limits remain failures/inconclusive; they are
    never silently accepted.
-5. Review the route, seed and template SHA256. **Use generated dungeon** loads
+6. Review the route, seed and template SHA256. **Use generated dungeon** loads
    the result as an ordinary editable pack. Unsaved document changes receive the
    usual discard confirmation. Editing recipe fields invalidates the old candidate.
-6. Inspect the room map, change rooms or apply local graphics, save the authored
+7. Inspect the room map, change rooms or apply local graphics, save the authored
    JSON pack, and **Play dungeon**. A playtest uses unsaved pack data too.
 
-The generated layout is a grid tree: a critical path and, for larger dungeons,
+The classic generated layout is a grid tree: a critical path and, for larger dungeons,
 side branches. It places a key before the first key lock, the chosen tool before
 its item gate, and another key before the final lock. Branches may use bombable
 walls; a four-bomb pickup supplies them. Goal-room rewards require clearing that
 room. Branch treasure pickups are also objectives, so the successful route must
 reach them, rather than certifying only the main path. This is a first generator,
-not yet a general procedural puzzle designer with loops or multiple floors.
+not yet a general procedural puzzle designer or multi-floor generator. Custom
+layouts now add configurable branch rooms and gate-preserving loops.
 
 The generated pack contains a recipe: `authored_tree`, algorithm version 1 for
 format-1 libraries or version 2 for format-2 libraries; resident-bearing libraries
@@ -43,6 +46,72 @@ Changes that can select another candidate require an algorithm-version bump. The
 numbers; template array order and weights are significant. Changed libraries
 produce different fingerprints and world IDs. Manual edits are preserved in the
 saved pack; rerunning the recipe recreates its base, not those later edits.
+
+## Custom branches and loops
+
+Enable **Custom layout** to use graph generation version 5 (`authored_graph`).
+Choose **Branch rooms** from zero to `primary rooms - 6`. This counts rooms off
+the main route, not the number of separate branches; several may form one branch.
+At least six rooms remain on the main route for the existing progression recipe.
+Branch rewards remain objectives, including any bombable branches and their
+finite supplies. Key/item placement and encounter assumptions are unchanged.
+
+**Extra loops** requests exactly 0–8 additional reciprocal door pairs between
+adjacent primary rooms. Each adds one independent cycle. Both templates must
+advertise the matching door ports. Cellar stair networks do not count toward this
+setting, and general door-connected multi-room templates remain future work.
+
+A loop inherits every permanent-item requirement along the original tree route
+between its endpoints. If that route crosses one key or bombable lock, the new
+connection receives the same kind of lock. It is a separate door pair: opening
+one route does not unlock the other. Routes crossing two consumable locks are
+rejected because one door cannot represent both costs. New connections therefore
+cannot provide an unguarded crossing around those progression gates.
+
+The solver still checks the entire resulting pack. An exact loop request that
+cannot fit the grid, template ports or supported gate costs fails clearly; it is
+never silently reduced. Try fewer loops, more rooms or another seed. Generation
+keeps the existing 12-attempt and search budgets. SOLVED establishes a route,
+not recovery after wasting keys/bombs on alternative locks or every combat choice.
+
+Try the GUI-saved, ROM-free `content/packs/looped_dungeon.json`, or reproduce it:
+
+- Default `content/templates/dungeon_templates.json` library.
+- Seed **42**, **8** primary rooms, required item **blue_candle**.
+- **Custom layout** on, **2** branch rooms, **1** extra loop.
+
+The map contains a loop through Combat chamber, Item chamber, Treasure chamber
+and Goal chamber. Its added shortcut preserves the key lock and candle requirement.
+You can save, paint, skin, playtest and modify this pack normally.
+
+For code callers, the optional layout dictionary follows the existing verification
+budget argument, so previous calls retain their behavior:
+
+```gdscript
+Generator.new().generate(catalog, 42, 8, "blue_candle", 6000,
+    {"branch_rooms": 2, "loop_count": 1})
+```
+
+With an omitted/empty dictionary, versions 1–4 and their exact seed results are
+unchanged. Explicit graph recipes record `branch_rooms`, `loop_count` and
+`loop_edges` alongside the existing seed/library/template data. Their distinct
+`generated_v5_..._b..._l...` world IDs include the layout settings. A saved recipe
+describes the generated base: later manual door edits do not invalidate its
+historical loop records. Changing any recipe control invalidates the old candidate;
+using a new result marks the document unsaved until it is written to disk.
+
+ROM-free graph checks:
+
+```sh
+godot --headless --path editor --script res://tests/graph_generation.gd
+godot --headless --path . --script res://tests/generated_graphs.gd
+```
+
+They cover deterministic settings/JSON round trips, cycle/branch counts,
+independent gate-cut checks, restricted ports, impossible requests, search limits,
+legacy compatibility, cellars, GUI controls/save state, and native playthroughs.
+The native checks also traverse an actual added key-and-item shortcut. Combat is
+assumed winnable as in the other progression replays.
 
 ## Author and reuse templates
 

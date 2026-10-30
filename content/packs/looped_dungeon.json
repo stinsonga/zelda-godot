@@ -1,0 +1,492 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1.0,
+      "health": 2.0,
+      "speed_subpixels": 128.0,
+      "title": "Crawler"
+    }
+  },
+  "generation": {
+    "algorithm": "authored_graph",
+    "branch_rooms": 2,
+    "loop_count": 1,
+    "loop_edges": [
+      {
+        "edge": "left",
+        "room": "room_2",
+        "target": "room_5"
+      }
+    ],
+    "required_item": "blue_candle",
+    "room_count": 8,
+    "seed": 42,
+    "template_sha256": "bdaf93271d0b23a91afece315e424320a78449f69eba916cb49faa0a7c99a316",
+    "templates": {
+      "room_0": "start_plain",
+      "room_1": "key_plain",
+      "room_2": "combat_plain",
+      "room_3": "item_plain",
+      "room_4": "treasure_plain",
+      "room_5": "goal_plain",
+      "room_6": "treasure_pillars",
+      "room_7": "treasure_pillars"
+    },
+    "version": 5
+  },
+  "goals": [
+    {
+      "pickup": "goal_reward",
+      "room": "room_5"
+    },
+    {
+      "pickup": "branch_reward",
+      "room": "room_6"
+    },
+    {
+      "pickup": "branch_reward",
+      "room": "room_7"
+    }
+  ],
+  "id": "generated_v5_42_8_blue_candle_b2_l1_bdaf9327",
+  "rooms": [
+    {
+      "connections": {
+        "up": {
+          "kind": "open",
+          "requires": [],
+          "target": "room_1"
+        }
+      },
+      "enemies": [],
+      "id": "room_0",
+      "map_position": [
+        8,
+        -7
+      ],
+      "pickups": [],
+      "role": "start",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "start_plain",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Start chamber 1"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "open",
+          "requires": [],
+          "target": "room_0"
+        },
+        "left": {
+          "kind": "key",
+          "requires": [],
+          "target": "room_2"
+        }
+      },
+      "enemies": [],
+      "id": "room_1",
+      "map_position": [
+        8,
+        -8
+      ],
+      "pickups": [
+        {
+          "id": "progress_key",
+          "item": "key",
+          "position": [
+            120,
+            77
+          ],
+          "requires_clear": false
+        },
+        {
+          "id": "branch_bombs",
+          "item": "bombs",
+          "position": [
+            120,
+            77
+          ],
+          "requires_clear": false
+        }
+      ],
+      "role": "key",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "key_plain",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Key chamber 2"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "bombable",
+          "requires": [],
+          "target": "room_7"
+        },
+        "left": {
+          "kind": "key",
+          "requires": [
+            "blue_candle"
+          ],
+          "target": "room_5"
+        },
+        "right": {
+          "kind": "key",
+          "requires": [],
+          "target": "room_1"
+        },
+        "up": {
+          "kind": "open",
+          "requires": [],
+          "target": "room_3"
+        }
+      },
+      "enemies": [
+        {
+          "id": "guard",
+          "position": [
+            80.0,
+            61.0
+          ],
+          "type": "crawler"
+        }
+      ],
+      "id": "room_2",
+      "map_position": [
+        7,
+        -8
+      ],
+      "pickups": [],
+      "role": "combat",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "combat_plain",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Combat chamber 3"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "open",
+          "requires": [],
+          "target": "room_2"
+        },
+        "left": {
+          "kind": "open",
+          "requires": [
+            "blue_candle"
+          ],
+          "target": "room_4"
+        }
+      },
+      "enemies": [],
+      "id": "room_3",
+      "map_position": [
+        7,
+        -9
+      ],
+      "pickups": [
+        {
+          "id": "required_item",
+          "item": "blue_candle",
+          "position": [
+            120,
+            77
+          ],
+          "requires_clear": false
+        }
+      ],
+      "role": "item",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "item_plain",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Item chamber 4"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "key",
+          "requires": [],
+          "target": "room_5"
+        },
+        "right": {
+          "kind": "open",
+          "requires": [
+            "blue_candle"
+          ],
+          "target": "room_3"
+        }
+      },
+      "enemies": [],
+      "id": "room_4",
+      "map_position": [
+        6,
+        -9
+      ],
+      "pickups": [
+        {
+          "id": "final_key",
+          "item": "key",
+          "position": [
+            120,
+            77
+          ],
+          "requires_clear": false
+        }
+      ],
+      "role": "treasure",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "treasure_plain",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Treasure chamber 5"
+    },
+    {
+      "connections": {
+        "left": {
+          "kind": "bombable",
+          "requires": [],
+          "target": "room_6"
+        },
+        "right": {
+          "kind": "key",
+          "requires": [
+            "blue_candle"
+          ],
+          "target": "room_2"
+        },
+        "up": {
+          "kind": "key",
+          "requires": [],
+          "target": "room_4"
+        }
+      },
+      "enemies": [
+        {
+          "id": "guard",
+          "position": [
+            80.0,
+            61.0
+          ],
+          "type": "crawler"
+        }
+      ],
+      "id": "room_5",
+      "map_position": [
+        6,
+        -8
+      ],
+      "pickups": [
+        {
+          "id": "goal_reward",
+          "item": "rupee",
+          "position": [
+            120,
+            77
+          ],
+          "requires_clear": true
+        }
+      ],
+      "role": "goal",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "goal_plain",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Goal chamber 6"
+    },
+    {
+      "connections": {
+        "right": {
+          "kind": "bombable",
+          "requires": [],
+          "target": "room_5"
+        }
+      },
+      "enemies": [],
+      "id": "room_6",
+      "map_position": [
+        5,
+        -8
+      ],
+      "pickups": [
+        {
+          "id": "branch_reward",
+          "item": "rupee",
+          "position": [
+            120,
+            77
+          ],
+          "requires_clear": false
+        }
+      ],
+      "role": "treasure",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "treasure_pillars",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##..#......#..##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##..#......#..##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Pillar gallery 7"
+    },
+    {
+      "connections": {
+        "up": {
+          "kind": "bombable",
+          "requires": [],
+          "target": "room_2"
+        }
+      },
+      "enemies": [],
+      "id": "room_7",
+      "map_position": [
+        7,
+        -7
+      ],
+      "pickups": [
+        {
+          "id": "branch_reward",
+          "item": "rupee",
+          "position": [
+            120,
+            77
+          ],
+          "requires_clear": false
+        }
+      ],
+      "role": "treasure",
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "template_id": "treasure_pillars",
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##..#......#..##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##..#......#..##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Pillar gallery 8"
+    }
+  ],
+  "schema": 2,
+  "start_room": "room_0",
+  "starting_items": [
+    "wooden_sword"
+  ],
+  "title": "Seed 42 dungeon"
+}

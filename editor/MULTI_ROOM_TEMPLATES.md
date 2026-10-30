@@ -89,7 +89,7 @@ reward-room reference use template-local IDs before instantiation. All six roles
 weights, item requirements and primary door ports retain their existing meaning.
 A format-2 library may mix ordinary templates and multi-room units.
 
-Without residents, format-1 libraries retain generation algorithm version 1 and format-2 libraries use
+In classic mode, without residents, format-1 libraries retain generation algorithm version 1 and format-2 libraries use
 version 2. Libraries containing residents use recipe version 3 and a separate
 world ID prefix; bomb/fire libraries use version 4. See
 [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md) and
@@ -105,8 +105,10 @@ matching `content/art/` libraries remain separate files to share alongside recip
 
 Limits for this pass: up to three cellar annexes per template, stairs as internal
 connections, and a single automatic reward location per unit. Arbitrary dungeon
-room groups, internal door networks, multiple floors, loops between generated
-units, rotated templates and dependency planning remain future work.
+room groups, internal door networks, multiple floors, rotated templates and
+dependency planning remain future work. Version-5 custom layouts can add loops
+between adjacent primary rooms while preserving their crossed gates, without
+changing internal cellar stairs. See [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md).
 
 ## Verification
 

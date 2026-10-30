@@ -160,12 +160,21 @@ Long titles are shortened to fit; the original game HUD is unchanged.
 See [EMBER_RELAY.md](../editor/EMBER_RELAY.md) for the route, tested scope and
 remaining friction.
 
+Generation now optionally configures branch-room counts and exact loop counts.
+Version-5 graph recipes preserve crossed key/bomb locks and item requirements,
+respect template ports, and retain linked cellars and authored graphics. Classic
+versions 1–4 keep their existing seed results. The GUI-saved
+`content/packs/looped_dungeon.json` demonstrates eight rooms, two branch rooms and
+one loop. Native graph replays reach completion and exercise an actual guarded
+shortcut. Using generated work now marks it unsaved until saved. See
+[DUNGEON_GENERATION.md](../editor/DUNGEON_GENERATION.md).
+
 Missing:
 
 - richer sprite layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
 - additional resident modes, cave entrance/original cellar transitions, recorder/Armos and other secret types, plus broader
-  generation layouts, general room-group templates and solver support for water, advanced dependencies and
+  layout controls, general room-group templates and solver support for water, advanced dependencies and
   capacity-sensitive pickup routing;
 - automatic ID remapping when content is renamed, so older saves keep loading
   ([SAVING.md](SAVING.md)).

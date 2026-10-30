@@ -16,6 +16,9 @@ var tabs: TabContainer
 var catalog_path: LineEdit
 var seed_input: LineEdit
 var count: SpinBox
+var custom_layout: CheckBox
+var branch_rooms: SpinBox
+var loop_count: SpinBox
 var required_item: OptionButton
 var report: TextEdit
 var generate_button: Button
@@ -59,17 +62,25 @@ func _ready() -> void:
 	seed_input.text_changed.connect(func(_value): invalidate_recipe())
 	random_seed_button = button("Random seed",recipe,func(): seed_input.text = str(Time.get_ticks_usec()%2147483648);invalidate_recipe())
 	label("Primary rooms",recipe);count = SpinBox.new();count.min_value = 6;count.max_value = 16;count.value = 8;recipe.add_child(count)
-	count.value_changed.connect(func(_value): invalidate_recipe())
+	count.value_changed.connect(func(_value): update_layout_controls();invalidate_recipe())
 	required_item = OptionButton.new()
 	for item in ["blue_candle","bow","ladder","recorder","magic_key"]: required_item.add_item(item)
 	recipe.add_child(required_item)
 	required_item.item_selected.connect(func(_value): invalidate_recipe())
 	catalog_path.text_changed.connect(func(_value): invalidate_recipe())
+	var layout_row := HBoxContainer.new();generate.add_child(layout_row)
+	custom_layout = CheckBox.new();custom_layout.text = "Custom layout";custom_layout.tooltip_text = "Off preserves classic recipes and seed results";layout_row.add_child(custom_layout)
+	label("Branch rooms",layout_row);branch_rooms = SpinBox.new();branch_rooms.min_value = 0;branch_rooms.max_value = 2;branch_rooms.value = 2;branch_rooms.tooltip_text = "Rooms off the main route, not a count of separate branches";layout_row.add_child(branch_rooms)
+	label("Extra loops",layout_row);loop_count = SpinBox.new();loop_count.min_value = 0;loop_count.max_value = 8;loop_count.tooltip_text = "Exact extra connections between adjacent primary rooms; cellar stairs are separate";layout_row.add_child(loop_count)
+	custom_layout.toggled.connect(func(_value): update_layout_controls();invalidate_recipe())
+	branch_rooms.value_changed.connect(func(_value): invalidate_recipe())
+	loop_count.value_changed.connect(func(_value): invalidate_recipe())
+	update_layout_controls()
 	var actions := HBoxContainer.new();generate.add_child(actions)
 	generate_button = button("Generate and verify",actions,start_generation)
 	use_button = button("Use generated dungeon",actions,use_candidate)
 	use_button.disabled = true
-	label("The required item is placed before its gate. Two key locks and optional bomb branches are checked.\nUsing a result replaces the document after any unsaved-change confirmation. No ROM assets are generated.",generate)
+	label("The required item is placed before its gate. Two key locks and optional bomb branches are checked.\nCustom layouts keep at least six main-path rooms and require the exact loop count. Loops preserve crossed gates.\nUsing a result replaces the document after any unsaved-change confirmation. No ROM assets are generated.",generate)
 	var capture := VBoxContainer.new();capture.name = "Templates";tabs.add_child(capture)
 	label("Capture a primary room, optionally with linked cellars. Authored graphics are preserved; external doors and private ROM choices are omitted. Enemy definitions and generated stair destinations are namespaced.",capture)
 	var identity := HBoxContainer.new();capture.add_child(identity)
@@ -125,6 +136,8 @@ func set_busy(value: bool) -> void:
 	catalog_path.editable = not value
 	seed_input.editable = not value
 	count.editable = not value
+	custom_layout.disabled = value
+	update_layout_controls()
 	required_item.disabled = value
 	browse_button.disabled = value
 	random_seed_button.disabled = value
@@ -140,10 +153,11 @@ func start_generation() -> void:
 	var seed_value := int(seed_input.text)
 	var room_count := int(count.value)
 	var item := required_item.get_item_text(required_item.selected)
+	var layout := {"branch_rooms":int(branch_rooms.value),"loop_count":int(loop_count.value)} if custom_layout.button_pressed else {}
 	candidate = {};job_kind = "generate";set_busy(true)
 	report.text = "Generating and checking progression… The editor stays responsive."
 	worker = Thread.new()
-	var error := worker.start(func(): return Generator.new().generate(catalog,seed_value,room_count,item))
+	var error := worker.start(func(): return Generator.new().generate(catalog,seed_value,room_count,item,6000,layout))
 	if error != OK: set_busy(false);report.text = "Could not start generation: "+error_string(error)
 func start_solver() -> void:
 	if busy: return
@@ -159,7 +173,7 @@ func _process(_delta: float) -> void:
 	if job_kind == "generate":
 		if result.errors.is_empty():
 			candidate = result.pack
-			report.text = "Seed %d • %d primary / %d total rooms • attempt %d\nTemplate SHA256: %s\n\n%s" % [candidate.generation.seed,candidate.generation.room_count,candidate.rooms.size(),result.attempts,candidate.generation.template_sha256,Solver.format_report(result.proof)]
+			report.text = ("Layout: %d branch rooms, %d extra loops\n" % [candidate.generation.branch_rooms,candidate.generation.loop_count] if candidate.generation.algorithm=="authored_graph" else "Layout: classic tree\n")+"Seed %d • %d primary / %d total rooms • attempt %d\nTemplate SHA256: %s\n\n%s" % [candidate.generation.seed,candidate.generation.room_count,candidate.rooms.size(),result.attempts,candidate.generation.template_sha256,Solver.format_report(result.proof)]
 		else: report.text = "Generation failed:\n"+"\n".join(result.errors)+("\n\n"+Solver.format_report(result.proof) if result.has("proof") and not result.proof.is_empty() else "")
 	else: report.text = Solver.format_report(result)
 	set_busy(false)
@@ -212,3 +226,10 @@ func refresh_reward_controls() -> void:
 	var enabled := not busy and custom_reward.button_pressed
 	reward_room.disabled = not enabled
 	reward_x.editable = enabled;reward_y.editable = enabled
+
+func update_layout_controls() -> void:
+	if branch_rooms==null: return
+	branch_rooms.max_value = int(count.value)-6
+	if not custom_layout.button_pressed: branch_rooms.value = int(count.value)/4 if count.value>=8 else 0
+	branch_rooms.editable = not busy and custom_layout.button_pressed
+	loop_count.editable = not busy and custom_layout.button_pressed

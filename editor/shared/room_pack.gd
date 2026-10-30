@@ -268,8 +268,11 @@ static func validate_progression(pack: Dictionary, rooms: Dictionary, errors: Pa
 	if pack.has("generation"):
 		var g = pack.generation
 		if not g is Dictionary: errors.append("Generation provenance must be an object"); return
-		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"],"Generation",errors)
-		if g.get("algorithm") != "authored_tree" or not integer(g.get("version"),1,4) or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
+		var graph: bool = g.get("algorithm")=="authored_graph"
+		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"] + (["branch_rooms","loop_count","loop_edges"] if graph else []),"Generation",errors)
+		var supported: bool = g.get("version")==5 if graph else g.get("algorithm")=="authored_tree" and integer(g.get("version"),1,4)
+		if not supported or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
+		if graph: validate_graph_recipe(g,errors)
 		var hash = g.get("template_sha256")
 		if not hash is String or hash.length() != 64 or not hash.is_valid_hex_number(): errors.append("Invalid template fingerprint")
 		if g.get("required_item") not in REQUIRED_ITEMS or not g.get("templates") is Dictionary: errors.append("Invalid generator template metadata")
@@ -403,3 +406,19 @@ static func secret_approach(secret: Dictionary) -> Vector2i:
 	var direction: Vector2i = {"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[secret.direction]
 	var distance := 2 if secret_trigger(secret) == "fire" else 1
 	return (Vector2i(int(secret.cell[0]),int(secret.cell[1]))-direction*distance)*16+Vector2i(0,-3)
+
+## Provenance describes the generated base, even after manual room edits.
+static func validate_graph_recipe(g: Dictionary, errors: PackedStringArray) -> void:
+	if not integer(g.get("room_count"),6,16): return
+	if not integer(g.get("branch_rooms"),0,int(g.room_count)-6) or not integer(g.get("loop_count"),0,8):
+		errors.append("Invalid graph branch/loop counts");return
+	var edges = g.get("loop_edges")
+	if not edges is Array or edges.size()!=g.get("loop_count"): errors.append("Graph recipe needs one record per requested loop");return
+	var seen: Array = []
+	for edge in edges:
+		if not edge is Dictionary: errors.append("Loop record must be an object");continue
+		unknown_fields(edge,["room","edge","target"],"Loop record",errors)
+		if not identifier(edge.get("room")) or not identifier(edge.get("target")) or edge.get("edge") not in EDGES or edge.get("room")==edge.get("target"): errors.append("Invalid loop record");continue
+		var pair: Array = [edge.room,edge.target];pair.sort()
+		if pair in seen: errors.append("Duplicate loop record")
+		seen.append(pair)

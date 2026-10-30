@@ -397,7 +397,7 @@ func build_ui() -> void:
 	dungeon_tools = DungeonTools.new()
 	dungeon_tools.game_root = game_root
 	add_child(dungeon_tools)
-	dungeon_tools.generated.connect(func(value): request_action(func(): replace_pack(value,""); views.current_tab = 1; dungeon_map.call_deferred("fit_to_rooms")))
+	dungeon_tools.generated.connect(func(value): request_action(func(): replace_pack(value,""); saved_text = ""; refresh(); views.current_tab = 1; dungeon_map.call_deferred("fit_to_rooms")))
 	importer = ImportDialog.new()
 	importer.game_root = game_root
 	add_child(importer)
