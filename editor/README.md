@@ -44,6 +44,13 @@ pickups, required-item doors and starting equipment are editable in the inspecto
 See [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md) for controls, version-2 packs,
 solver assumptions and unsupported mechanics.
 
+## End-to-end example
+
+[Ember Relay](EMBER_RELAY.md) is a four-room original dungeon built through the
+GUI: a cellar item, key door, guards, item-gated shutter and push-block objective.
+Open `content/packs/ember_relay.json`, check progression, and Play dungeon. Its
+native replay reaches completion without imported content.
+
 ## First dungeon
 
 The editor opens **Lantern vault**, a hand-authored three-room example. Its key,
@@ -91,6 +98,10 @@ in `user://previews` under the editor's `ZeldaDungeonWorkshop` user directory.
 Preview files remain there for diagnosis. Playtest state is temporary: it does
 not load or write game save files, and dying uses the lab-style restart rather
 than the full front end.
+
+The sidebar’s **Secret / Stairs / Resident** toggles reveal optional feature
+forms. Selecting a Secret or Stairs brush opens its settings; the Enemy and
+Pickup brushes bring their selectors into view.
 
 ## Dungeon map
 
@@ -150,15 +161,15 @@ See [ASSET_BOUNDARY.md](../docs/ASSET_BOUNDARY.md).
 
 ### Limits and next editor work
 
-This is the first usable editing loop, not the complete editor. Next:
+The editor now supports an end-to-end MVP authoring loop. Remaining work:
 
 - Room-ID management and pack migration, with explicit handling rather than
   silently breaking saves. Unique IDs for independently authored packs matter.
 - Room filters and more item/enemy properties. Individual placement selection,
   movement and isolated enemy stat editing are available; see [PLACEMENTS.md](PLACEMENTS.md).
-- Authored replacement libraries, more sprite layouts and an editable-copy
-  workflow for locally imported rooms. The current local Art layer and terrain
-  collision layer are separate; only supported ROM sprite sets/atlases resolve.
+- Additional animation states, layered sprites and an editable-copy workflow for
+  locally imported rooms. Authored libraries and optional private ROM appearance
+  resolve independently of the terrain collision layer.
 - Additional cave/resident modes, other secret types, more items and advanced doors. Directional blocks,
   secret pickups and block shutters are available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
   Bomb/fire room secrets are available; see [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md).

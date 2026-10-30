@@ -24,6 +24,8 @@ var redo_stack: Array = []
 var stroke_before: Dictionary = {}
 var selected_tool := "Select"
 var placement_key: Dictionary = {}
+var feature_buttons: Dictionary = {}
+var feature_panels: Dictionary = {}
 var placement_inspector: VBoxContainer
 var stairs_inspector: VBoxContainer
 const TemplateData = preload("../shared/dungeon_templates.gd")
@@ -243,6 +245,7 @@ func build_ui() -> void:
 	canvas.stair_chosen.connect(inspect_stair)
 	canvas.secret_chosen.connect(func():
 		select_placement("","")
+		set_feature("Secret")
 		block_inspector.cell_x.get_line_edit().grab_focus())
 	canvas.entity_chosen.connect(select_placement)
 	canvas.entity_moved.connect(move_placement)
@@ -306,6 +309,10 @@ func build_ui() -> void:
 	placement_inspector.snap_requested.connect(func():
 		var data := selected_placement()
 		if not data.is_empty(): move_placement(current_id,[clampi(roundi(data.position[0]/8.0)*8,0,240),clampi(roundi((data.position[1]-5)/8.0)*8+5,5,157)]))
+	var feature_tools := HBoxContainer.new();right.add_child(feature_tools)
+	for name in ["Secret","Stairs","Resident"]:
+		var toggle := Button.new();toggle.text = name;toggle.toggle_mode = true;toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL;feature_tools.add_child(toggle)
+		feature_buttons[name] = toggle;toggle.toggled.connect(toggle_feature.bind(name))
 	block_inspector = BlockInspector.new()
 	right.add_child(block_inspector)
 	block_inspector.applied.connect(apply_block)
@@ -319,6 +326,8 @@ func build_ui() -> void:
 	resident_inspector = ResidentInspector.new();right.add_child(resident_inspector)
 	resident_inspector.applied.connect(apply_resident)
 	resident_inspector.reset_requested.connect(refresh)
+	feature_panels = {"Secret":block_inspector,"Stairs":stairs_inspector,"Resident":resident_inspector}
+	set_feature("")
 	section("ROOM",right)
 	title_edit = LineEdit.new()
 	right.add_child(title_edit)
@@ -932,7 +941,9 @@ func set_tool(value: String) -> void:
 	canvas.dragging = false
 	canvas.select_mode = value == "Select"
 	tool_buttons[value].button_pressed = true
+	set_feature("Secret" if value=="Block" else "Stairs" if value=="Stairs" else "")
 	refresh()
+	call_deferred("scroll_tool_settings",value)
 func selected_placement() -> Dictionary:
 	if placement_key.get("room") != current_id: return {}
 	if placement_key.get("kind") == "spawn": return {"position":current().spawn}
@@ -1114,6 +1125,7 @@ func create_cellar(value: Dictionary, cave: bool = false) -> void:
 
 func inspect_stair(id: String) -> void:
 	select_placement("","")
+	set_feature("Stairs")
 	stairs_inspector.choose(id)
 	stairs_inspector.cell_x.get_line_edit().grab_focus()
 	await get_tree().process_frame
@@ -1133,6 +1145,21 @@ func apply_resident(data: Dictionary) -> void:
 	edit(func(): pack = candidate)
 func inspect_resident() -> void:
 	select_placement("","")
+	set_feature("Resident")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	resident_inspector.get_parent().get_parent().scroll_vertical = int(resident_inspector.position.y)
+
+## Keep optional feature forms out of the basic room/brush editing path.
+func toggle_feature(enabled: bool, name: String) -> void:
+	set_feature(name if enabled else "")
+func set_feature(name: String) -> void:
+	for key in feature_panels:
+		feature_panels[key].visible = key==name
+		feature_buttons[key].set_pressed_no_signal(key==name)
+
+func scroll_tool_settings(value: String) -> void:
+	if value!=selected_tool: return
+	var scroll: ScrollContainer = item_type.get_parent().get_parent()
+	var target: Control = item_type if value=="Pickup" else enemy_type if value=="Enemy" else null
+	scroll.scroll_vertical = maxi(0,int(target.position.y)-24) if target!=null else 0

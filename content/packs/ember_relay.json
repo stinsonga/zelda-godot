@@ -1,0 +1,252 @@
+{
+  "enemy_types": {
+    "crawler": {
+      "behavior": "walker",
+      "contact_damage": 1.0,
+      "health": 2.0,
+      "speed_subpixels": 128.0,
+      "title": "Crawler"
+    }
+  },
+  "goals": [
+    {
+      "pickup": "item_1",
+      "room": "room_2"
+    }
+  ],
+  "id": "ember_relay",
+  "rooms": [
+    {
+      "connections": {
+        "up": {
+          "kind": "key",
+          "target": "room_1"
+        }
+      },
+      "enemies": [],
+      "id": "entry",
+      "map_position": [
+        0.0,
+        0.0
+      ],
+      "pickups": [
+        {
+          "id": "item_1",
+          "item": "key",
+          "position": [
+            64.0,
+            77.0
+          ]
+        }
+      ],
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "stairs": [
+        {
+          "cell": [
+            10,
+            7
+          ],
+          "id": "stairs_1",
+          "requires_secret": false,
+          "target": "room_3",
+          "target_position": [
+            48,
+            61
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Key Landing"
+    },
+    {
+      "connections": {
+        "down": {
+          "kind": "key",
+          "target": "entry"
+        },
+        "right": {
+          "kind": "shutter",
+          "requires": [
+            "bow"
+          ],
+          "target": "room_2"
+        }
+      },
+      "enemies": [
+        {
+          "id": "enemy_1",
+          "position": [
+            80.0,
+            61.0
+          ],
+          "type": "crawler"
+        },
+        {
+          "id": "enemy_2",
+          "position": [
+            176.0,
+            93.0
+          ],
+          "type": "crawler"
+        }
+      ],
+      "id": "room_1",
+      "map_position": [
+        0.0,
+        -1.0
+      ],
+      "pickups": [],
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Watchpost"
+    },
+    {
+      "connections": {
+        "left": {
+          "kind": "shutter",
+          "requires": [
+            "bow"
+          ],
+          "target": "room_1"
+        }
+      },
+      "enemies": [],
+      "id": "room_2",
+      "map_position": [
+        1.0,
+        -1.0
+      ],
+      "pickups": [
+        {
+          "id": "item_1",
+          "item": "rupee",
+          "position": [
+            96,
+            77
+          ],
+          "requires_secret": true
+        }
+      ],
+      "secret": {
+        "cell": [
+          6,
+          5
+        ],
+        "direction": "right",
+        "reveal": "item"
+      },
+      "shutter_trigger": 1.0,
+      "spawn": [
+        120.0,
+        125.0
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Relay Chamber"
+    },
+    {
+      "connections": {
+
+      },
+      "enemies": [],
+      "id": "room_3",
+      "kind": "cellar",
+      "map_position": [
+        1,
+        0
+      ],
+      "pickups": [
+        {
+          "id": "item_1",
+          "item": "bow",
+          "position": [
+            160,
+            125
+          ]
+        }
+      ],
+      "shutter_trigger": 1,
+      "spawn": [
+        120,
+        125
+      ],
+      "stairs": [
+        {
+          "cell": [
+            3,
+            3
+          ],
+          "id": "return",
+          "target": "entry",
+          "target_position": [
+            120.0,
+            125.0
+          ]
+        }
+      ],
+      "tiles": [
+        "################",
+        "################",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "###.########.###",
+        "##............##",
+        "################",
+        "################"
+      ],
+      "title": "Lower Store"
+    }
+  ],
+  "schema": 2,
+  "start_room": "entry",
+  "starting_items": [
+    "wooden_sword"
+  ],
+  "title": "Ember Relay"
+}

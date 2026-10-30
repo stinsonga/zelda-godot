@@ -151,6 +151,12 @@ without rebinding packs or replacing PNGs, refreshes previews and rejects stale
 forms. Library edits are separate from pack undo. ROM overlays remain private. See
 [AUTHORED_ART.md](../editor/AUTHORED_ART.md).
 
+The GUI-authored four-room `content/packs/ember_relay.json` now exercises the
+end-to-end authoring loop and has a native completion replay. Usability checks
+led to compact optional feature forms and automatic brush-settings scrolling.
+See [EMBER_RELAY.md](../editor/EMBER_RELAY.md) for the route, tested scope and
+remaining friction.
+
 Missing:
 
 - richer sprite layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
