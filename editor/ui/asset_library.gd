@@ -4,6 +4,7 @@ const Bindings = preload("../shared/art_bindings.gd")
 const ImportDialog = preload("graphics_import_dialog.gd")
 const Appearance = preload("../shared/appearance.gd")
 const Preview = preload("asset_preview.gd")
+signal preview_clip_chosen(clip: String)
 signal library_changed
 signal room_sprite_chosen(slot: String, id: String)
 signal room_sprite_cleared(slot: String)
@@ -17,6 +18,7 @@ var selected_entry: Dictionary = {}
 var enemy_apply: Button
 var tile_apply: Button
 var frame_clock := 0.0
+var preview_clip: OptionButton
 var direction: OptionButton
 var game_root := ""
 var entries: Array = []
@@ -75,6 +77,11 @@ func _ready() -> void:
 	for value in ["down","up","right","left"]: direction.add_item(value)
 	right.add_child(direction)
 	direction.item_selected.connect(func(_i): update_frame())
+	var clip_row := HBoxContainer.new();right.add_child(clip_row)
+	preview_clip = OptionButton.new();preview_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL;preview_clip.add_item("default");clip_row.add_child(preview_clip)
+	var replay := Button.new();replay.text = "Replay clip";clip_row.add_child(replay)
+	replay.pressed.connect(func(): frame_clock = 0.0;update_frame();preview_clip_chosen.emit(preview_clip.get_item_text(preview_clip.selected)))
+	preview_clip.item_selected.connect(func(_i): frame_clock = 0.0;update_frame();preview_clip_chosen.emit(preview_clip.get_item_text(preview_clip.selected)))
 	details = Label.new()
 	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(details)
@@ -146,7 +153,7 @@ func populate() -> void:
 		matches += 1
 		if shown.size() >= 250: continue
 		shown.append(entry)
-		list.add_item(entry.name,library.enemy_texture(entry.id) if entry.has("frames") else texture(entry.path))
+		list.add_item(entry.name,library.animation_texture(entry.id,"down","idle",0) if entry.has("frames") else texture(entry.path))
 		list.set_item_tooltip(list.item_count-1,entry.path)
 	summary.text = catalog_message + (" • %d choices (first 250 shown; refine filter)" % matches if matches > 250 else " • %d choices" % matches)
 func select_image(index: int) -> void:
@@ -158,7 +165,13 @@ func select_image(index: int) -> void:
 	room_apply.disabled = not (selected_entry.has("frames") and Bindings.asset_id(selected_entry.id))
 	enemy_apply.disabled = not selected_entry.has("frames")
 	tile_apply.disabled = not preview.tile_mode
+	preview_clip.clear()
+	for name in ["idle","walk","attack"]:
+		if selected_entry.get("clips",{}).has(name): preview_clip.add_item(name)
+	if preview_clip.item_count==0: preview_clip.add_item("default")
+	preview_clip.disabled = not selected_entry.has("frames")
 	frame_clock = 0.0
+	preview_clip_chosen.emit(preview_clip.get_item_text(preview_clip.selected))
 	update_frame()
 	if preview.tile_mode: details.text += "\nClick an atlas cell, then choose Paint."
 func _process(delta: float) -> void:
@@ -167,5 +180,9 @@ func _process(delta: float) -> void:
 	update_frame()
 func update_frame() -> void:
 	if selected_entry.is_empty(): return
-	preview.texture = library.enemy_texture(selected_entry.id,direction.get_item_text(direction.selected),int(frame_clock*60/int(selected_entry.get("frame_ticks",6)))) if selected_entry.has("frames") else texture(selected_entry.path)
+	preview.texture = library.animation_texture(selected_entry.id,direction.get_item_text(direction.selected),preview_clip.get_item_text(preview_clip.selected),int(frame_clock*60)) if selected_entry.has("frames") else texture(selected_entry.path)
 	details.text = String(selected_entry.name) + ("\n%d × %d pixels" % [preview.texture.get_width(),preview.texture.get_height()] if preview.texture != null else "\nImage is missing or unreadable; reimport to restore it.")
+	if Bindings.asset_id(selected_entry.get("id","")) and selected_entry.has("frames"):
+		var layout := library.sprite_layout(selected_entry.id)
+		details.text += "\nDraw %s; offset %s logical pixels" % [layout.size,layout.position]
+		if not selected_entry.get("clips",{}).is_empty(): details.text += "\nClip: "+preview_clip.get_item_text(preview_clip.selected)+" (attack holds its final frame)"

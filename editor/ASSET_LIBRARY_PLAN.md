@@ -87,6 +87,8 @@ separate throughout.
 
 The import/catalog/browser, grouped sprite assignment, separate visual tile
 layer and matching runtime overlays are implemented and verified. Authored replacement libraries now support 16/32/64-pixel tiles and directional
-animated sprites, plus secret/stair/resident slots. Next: richer sprite layouts,
+animated sprites, plus secret/stair/resident slots. Rectangular sprite frames and
+independent logical sizes/offsets and idle/walk/attack clips with separate timing
+are also supported. Next: additional animation states, layered sprites and
 imported-room editable copies. Template capture and seeded generation now retain
 shared art, including linked cellars and scoped enemy skins.

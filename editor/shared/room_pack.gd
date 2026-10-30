@@ -83,8 +83,9 @@ static func validate(pack) -> PackedStringArray:
 	for id in definitions:
 		var e = definitions[id]
 		if not identifier(id) or not e is Dictionary: errors.append("Invalid enemy definition"); continue
-		unknown_fields(e,["title","behavior","health","speed_subpixels","contact_damage"],"Enemy " + id,errors)
+		unknown_fields(e,["title","behavior","health","speed_subpixels","contact_damage"] + (["shooting_enabled"] if version==2 else []),"Enemy " + id,errors)
 		if not e.get("title") is String or e.get("behavior") not in BEHAVIORS: errors.append("Enemy " + id + ": invalid title or behavior")
+		if e.has("shooting_enabled") and (not e.shooting_enabled is bool or (e.shooting_enabled and e.get("behavior")!="walker")): errors.append("Shooting is an optional boolean for walker variants")
 		for field in {"health":[1,255],"speed_subpixels":[0,2048],"contact_damage":[0,16]}:
 			var bounds: Array = {"health":[1,255],"speed_subpixels":[0,2048],"contact_damage":[0,16]}[field]
 			if not integer(e.get(field),bounds[0],bounds[1]): errors.append("Enemy " + id + ": invalid " + field)

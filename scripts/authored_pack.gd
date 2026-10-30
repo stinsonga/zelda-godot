@@ -37,7 +37,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 		enemy.health = int(source.health)
 		enemy.speed_subpixels = int(source.speed_subpixels)
 		enemy.contact_damage = int(source.contact_damage)
-		enemy.shooting_enabled = false
+		enemy.shooting_enabled = source.get("shooting_enabled",false)
 		enemy.fallback_color = Color("ec7967")
 		if appearance.get("enemy_sprites",{}).has(id):
 			var group: String = appearance.enemy_sprites[id]
@@ -47,6 +47,9 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 				var visual: Dictionary = library.groups[group]
 				if visual.get("authored",false):
 					enemy.authored_frame_count = int(visual.frame_count)
+					enemy.authored_clips = visual.get("clips",{}).duplicate(true)
+					var layout := library.sprite_layout(group)
+					enemy.authored_draw_size = layout.size;enemy.authored_draw_offset = layout.position
 					enemy.animation_frame_ticks = int(visual.frame_ticks)
 				for direction in ["down","up","right","left"]:
 					for pose in range(maxi(2,enemy.authored_frame_count)): world.visual_theme.sprites[StringName("%s_%s_%d" % [enemy.sprite,direction,pose])] = library.enemy_texture(group,direction,pose)
@@ -80,10 +83,11 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 		room.atlas_cell_size = Vector2i(cell,cell)
 		for slot in appearance.get("room_sprites",{}).get(source.id,{}):
 			var id: String = appearance.room_sprites[source.id][slot]
-			var frames := library.sprite_frames(id)
+			var frames := library.sprite_frames(id,"idle")
 			if not frames.is_empty():
 				room.authored_sprites[slot] = frames
-				room.authored_frame_ticks[slot] = int(library.groups[id].get("frame_ticks",6))
+				room.authored_sprite_layouts[slot] = library.sprite_layout(id)
+				room.authored_frame_ticks[slot] = library.clip_ticks(id,"idle")
 		if room.tile_atlas != null:
 			for index in range(176): room.tile_indices.append(index)
 		for edge in source.connections:

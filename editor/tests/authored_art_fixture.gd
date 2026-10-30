@@ -28,3 +28,23 @@ static func pack() -> Dictionary:
 	value.appearance.room_sprites = {"entry":{"secret":"art/test_art/beast","stairs":"art/test_art/beast"},"vault":{"resident":"art/test_art/beast"}}
 	return value
 static func remove(folder: String) -> void: Cleanup.remove(folder)
+
+static func add_tall(folder: String) -> Dictionary:
+	var sprite := Image.create(64,192,false,Image.FORMAT_RGBA8)
+	for row in range(4):
+		for frame in range(2):
+			sprite.fill_rect(Rect2i(frame*32,row*48,32,48),[Color.RED,Color.GREEN,Color.YELLOW,Color.CYAN][row])
+			sprite.fill_rect(Rect2i(frame*32,row*48+32,32,16),Color.BLUE if frame==0 else Color.MAGENTA)
+	sprite.save_png(folder.path_join("tall_source.png"))
+	return Importer.import_png(folder,folder.path_join("tall_source.png"),"test_art","tall","sprite",16,["down","up","right","left"],2,7,[32,48],[16,24],[-2,-8])
+static func clips() -> Dictionary:
+	return {"idle":{"frames":[0],"frame_ticks":9,"loop":true},"walk":{"frames":[1,2],"frame_ticks":4,"loop":true},"attack":{"frames":[3,4],"frame_ticks":3,"loop":false}}
+static func add_clips(folder: String) -> Dictionary:
+	var image := Image.create(80,48,false,Image.FORMAT_RGBA8)
+	var colors := [Color.RED,Color.GREEN,Color.BLUE,Color.YELLOW,Color.MAGENTA]
+	for row in range(2):
+		for frame in range(5):
+			image.fill_rect(Rect2i(frame*16,row*24,16,24),colors[frame])
+			image.fill_rect(Rect2i(frame*16,row*24+22,16,2),Color.WHITE if row==1 else Color.BLACK)
+	image.save_png(folder.path_join("clips_source.png"))
+	return Importer.import_png(folder,folder.path_join("clips_source.png"),"test_art","clips","sprite",16,["down","right"],5,6,[16,24],[16,24],[0,-8],clips())

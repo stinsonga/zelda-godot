@@ -18,6 +18,7 @@ var enemy_title: LineEdit
 var behavior: OptionButton
 var health: SpinBox
 var speed: SpinBox
+var shooting: CheckBox
 var damage: SpinBox
 var item: OptionButton
 var secret_reward: CheckBox
@@ -63,6 +64,7 @@ func _ready() -> void:
 	health = number("Health",enemy_fields,1,255)
 	speed = number("Speed / 256",enemy_fields,0,2048)
 	damage = number("Half-heart damage",enemy_fields,0,16)
+	shooting = CheckBox.new();shooting.text = "Walker shoots rocks";enemy_fields.add_child(shooting)
 	label("Stat edits affect this placement. A shared variant is copied automatically; other enemies keep their settings.",enemy_fields)
 	pickup_fields = VBoxContainer.new();form.add_child(pickup_fields)
 	item = options(Pack.ITEMS,pickup_fields)
@@ -104,10 +106,12 @@ func refresh_variant() -> void:
 	var source: Dictionary = definitions[choice(variant)]
 	enemy_title.text = source.title;pick(behavior,source.behavior)
 	health.value = source.health;speed.value = source.speed_subpixels;damage.value = source.contact_damage
+	shooting.button_pressed = source.get("shooting_enabled",false)
 func apply() -> void:
 	if current_kind.is_empty(): return
 	var properties := {"position":[int(x.value),int(y.value)]}
 	if current_kind == "enemies": properties.merge({"type":choice(variant),"settings":{"title":enemy_title.text,"behavior":choice(behavior),"health":int(health.value),"speed_subpixels":int(speed.value),"contact_damage":int(damage.value)}})
+	if current_kind=="enemies" and (shooting.button_pressed or definitions[choice(variant)].has("shooting_enabled")): properties.settings.shooting_enabled = shooting.button_pressed and choice(behavior)=="walker"
 	if current_kind == "pickups": properties.merge({"item":choice(item),"requires_clear":clear_reward.button_pressed,"requires_secret":secret_reward.button_pressed,"objective":objective.button_pressed})
 	properties_applied.emit(properties)
 static func is_objective(pack: Dictionary, room: String, id: String) -> bool:

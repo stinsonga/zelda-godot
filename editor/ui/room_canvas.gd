@@ -19,6 +19,11 @@ signal stroke_finished
 var room: Dictionary = {}
 var visual_texture: Texture2D
 var enemy_textures: Dictionary = {}
+var enemy_layouts: Dictionary = {}
+var room_sprite_layouts: Dictionary = {}
+const ClipPlayback = preload("../shared/sprite_animation.gd")
+var enemy_sprite_clips: Dictionary = {}
+var enemy_preview_clip := "idle"
 var enemy_sprite_frames: Dictionary = {}
 var enemy_sprite_ticks: Dictionary = {}
 var room_sprite_frames: Dictionary = {}
@@ -34,7 +39,7 @@ func artwork(slot: String) -> Texture2D:
 func enemy_art(id: String) -> Texture2D:
 	var frames: Array = enemy_sprite_frames.get(id,[])
 	if frames.is_empty(): return enemy_textures.get(id)
-	return frames[int(art_clock*60/maxi(1,int(enemy_sprite_ticks.get(id,6))))%frames.size()]
+	return frames[ClipPlayback.frame(enemy_sprite_clips.get(id,{}),enemy_preview_clip,int(art_clock*60),frames.size(),int(enemy_sprite_ticks.get(id,6)))]
 var show_collision := false
 var painting := false
 var last_cell := Vector2i(-1,-1)
@@ -117,7 +122,7 @@ func _draw() -> void:
 		var at := rect.position + (Vector2(enemy.position[0],enemy.position[1]+3)+Vector2(8,8))/16.0*step
 		if enemy_textures.has(enemy.type):
 			var top := rect.position + Vector2(enemy.position[0],enemy.position[1])/16.0*step
-			draw_texture_rect(enemy_art(enemy.type),Rect2(top,step),false)
+			draw_art(enemy_art(enemy.type),top,enemy_layouts.get(enemy.type,Rect2(0,0,16,16)),step)
 		else:
 			draw_circle(at,minf(step.x,step.y)*0.32,Color("ec7967"))
 			label_at("E",at+Vector2(-5,5),Color("1d2128"))
@@ -130,7 +135,7 @@ func _draw() -> void:
 	label_at("S",spawn+Vector2(-5,5),Color("86d1ad"))
 	if room.has("resident"):
 		var top := rect.position+Vector2(120,64)/16.0*step
-		if artwork("resident") != null: draw_texture_rect(artwork("resident"),Rect2(top,step),false)
+		if artwork("resident") != null: draw_art(artwork("resident"),top,room_sprite_layouts.get("resident",Rect2(0,0,16,16)),step)
 		else: draw_rect(Rect2(top,step),Color("e0a060"));label_at("N",top+step*0.5+Vector2(-5,5),Color("18232e"))
 		for i in range(3):
 			if room.resident.wares[i] == null: continue
@@ -140,7 +145,7 @@ func _draw() -> void:
 	for stair in room.get("stairs",[]):
 		var top := rect.position+Vector2(stair.cell[0],stair.cell[1])*step
 		var color := Color("7ecad5") if not stair.get("requires_secret",false) else Color("c2a5ee")
-		if artwork("stairs") != null: draw_texture_rect(artwork("stairs"),Rect2(top,step),false);continue
+		if artwork("stairs") != null: draw_art(artwork("stairs"),top,room_sprite_layouts.get("stairs",Rect2(0,0,16,16)),step);continue
 		draw_rect(Rect2(top,step),Color("111b26"));draw_rect(Rect2(top,step),color,false,2)
 		for i in range(4): draw_line(top+Vector2(i*0.12,0.18+i*0.2)*step,top+Vector2(0.9,0.18+i*0.2)*step,color,2)
 	if room.has("secret"):
@@ -149,7 +154,7 @@ func _draw() -> void:
 		var block := Rect2(rect.position+cell*step,step)
 		var kind := Pack.secret_trigger(room.secret)
 		var color := Color("a78bd4") if kind == "block" else Color("969faa") if kind == "bomb" else Color("e99052")
-		if artwork("secret") != null: draw_texture_rect(artwork("secret"),block,false)
+		if artwork("secret") != null: draw_art(artwork("secret"),block.position,room_sprite_layouts.get("secret",Rect2(0,0,16,16)),step)
 		else: draw_rect(block,color)
 		draw_rect(block,Color("e4d7fa"),false,2)
 		if artwork("secret") == null: label_at("B" if kind == "block" else "X" if kind == "bomb" else "F",block.get_center()+Vector2(-5,5),Color("18232e"))
@@ -227,3 +232,12 @@ func draw_selection() -> void:
 		var pos := [int(drag_position.x),int(drag_position.y)]
 		var valid := Pack.point(pos,0,240,0,157) and Pack.walkable(room.tiles,pos)
 		draw_rect(Rect2(rect.position+drag_position*scale,Vector2(16,19)*scale),Color(0.4,1,0.6,0.5) if valid else Color(1,0.2,0.2,0.5))
+
+func art_rect(anchor: Vector2, layout: Rect2, step: Vector2) -> Rect2:
+	return Rect2(anchor+layout.position*step/16.0,layout.size*step/16.0)
+func draw_art(texture: Texture2D, anchor: Vector2, layout: Rect2, step: Vector2) -> void:
+	var destination := art_rect(anchor,layout,step)
+	var visible := destination.intersection(geometry())
+	if not visible.has_area(): return
+	var ratio := texture.get_size()/destination.size
+	draw_texture_rect_region(texture,visible,Rect2((visible.position-destination.position)*ratio,visible.size*ratio))

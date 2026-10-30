@@ -2,6 +2,7 @@ extends RefCounted
 ## Optional local appearance, shared by the editor and runtime adapter.
 ## Asset IDs resolve only through the generated catalog; packs never gain paths.
 const Bindings = preload("art_bindings.gd")
+const ClipPlayback = preload("sprite_animation.gd")
 const Authored = preload("authored_library.gd")
 const Contract = preload("room_pack.gd")
 const SHA1 := "a12d74c73a0481599a5d832361d168f4737bbcf6"
@@ -195,15 +196,35 @@ func configure(game_root: String) -> void:
 			if asset.kind == "tiles": entry.cell_size = int(asset.cell_size)
 			entries[id] = entry
 			if asset.kind == "sprite":
-				groups[id] = {"id":id,"name":entry.name,"path":entry.path,"category":"sprites","frames":{},"authored":true,"frame_count":int(asset.frames),"frame_ticks":int(asset.frame_ticks),"frame_size":asset.frame_size,"directions":asset.directions}
+				groups[id] = {"id":id,"name":entry.name,"path":entry.path,"category":"sprites","frames":{},"authored":true,"frame_count":int(asset.frames),"frame_ticks":int(asset.frame_ticks),"frame_size":asset.frame_size,"directions":asset.directions,"draw_size":asset.get("draw_size",[16,16]),"draw_offset":asset.get("draw_offset",[0,0]),"clips":asset.get("clips",{})}
 func room_cell_size(room: Dictionary, overlay: Dictionary) -> int:
 	var id: String = overlay.get("room_tiles",{}).get(room.id,{}).get("atlas","")
 	return int(entries.get(id,{}).get("cell_size",16))
-func sprite_frames(id: String) -> Array:
+func sprite_frames(id: String, clip: String = "") -> Array:
 	var result: Array = []
 	var count := int(groups.get(id,{}).get("frame_count",1))
-	for i in count:
+	var columns: Array = range(count)
+	var selected := ClipPlayback.select(groups.get(id,{}).get("clips",{}),clip) if not clip.is_empty() else ""
+	if not selected.is_empty(): columns = groups[id].clips[selected].frames
+	for i in columns:
 		var value := enemy_texture(id,"down",i)
 		if value == null: return []
 		result.append(value)
 	return result
+
+## Source pixels and logical drawing geometry are deliberately independent.
+func sprite_layout(id: String) -> Rect2:
+	var group: Dictionary = groups.get(id,{})
+	var size: Array = group.get("draw_size",[16,16])
+	var offset: Array = group.get("draw_offset",[0,0])
+	return Rect2(Vector2(offset[0],offset[1]),Vector2(size[0],size[1]))
+
+func animation_texture(id: String, direction: String, clip: String, ticks: int) -> Texture2D:
+	var group: Dictionary = groups.get(id,{})
+	if not group.get("authored",false): return enemy_texture(id,direction,int(ticks/6))
+	return enemy_texture(id,direction,ClipPlayback.frame(group.get("clips",{}),clip,ticks,int(group.frame_count),int(group.frame_ticks)))
+
+func clip_ticks(id: String, clip: String) -> int:
+	var group: Dictionary = groups.get(id,{})
+	var selected := ClipPlayback.select(group.get("clips",{}),clip)
+	return int(group.clips[selected].frame_ticks) if not selected.is_empty() else int(group.get("frame_ticks",6))

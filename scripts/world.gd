@@ -1410,7 +1410,7 @@ func draw_room_objects() -> void:
 		var top := Vector2(portal.area.position)+Vector2(0,HUD_HEIGHT+3)
 		var authored := authored_room_texture(room,"stairs")
 		if authored != null:
-			draw_clipped_texture(authored,Rect2(top,Vector2(16,16)),Rect2(Vector2.ZERO,authored.get_size()))
+			draw_clipped_texture(authored,authored_room_rect(room,"stairs",top),Rect2(Vector2.ZERO,authored.get_size()))
 			continue
 		draw_rect(Rect2(top,Vector2(16,16)),Color("111b26"))
 		for i in range(4):
@@ -1478,7 +1478,7 @@ func draw_cave() -> void:
 	if session.person_visible():
 		var authored := authored_room_texture(room,"resident")
 		if authored != null:
-			draw_clipped_texture(authored,Rect2(120,64+HUD_HEIGHT,16,16),Rect2(Vector2.ZERO,authored.get_size()))
+			draw_clipped_texture(authored,authored_room_rect(room,"resident",Vector2(120,64+HUD_HEIGHT)),Rect2(Vector2.ZERO,authored.get_size()))
 		elif visual_theme.sprites.has(session.cave.person_sprite):
 			draw_named_sprite(session.cave.person_sprite, Vector2(120, 64))
 		else:
@@ -1851,7 +1851,7 @@ func draw_combat() -> void:
 		elif actor.body_visible() and (actor.invulnerability == 0 or simulation_tick % 4 < 2):
 			var sprite: StringName = actor.sprite_name()
 			if actor.definition.authored_frame_count>0:
-				var frame: int = int(simulation_tick/maxi(1,actor.definition.animation_frame_ticks))%actor.definition.authored_frame_count
+				var frame: int = actor.authored_frame() if not actor.definition.authored_clips.is_empty() else int(simulation_tick/maxi(1,actor.definition.animation_frame_ticks))%actor.definition.authored_frame_count
 				sprite = StringName("%s_%s_%d" % [actor.definition.sprite,direction_name(actor.facing),frame])
 			# Dungeon monsters use their level's pattern blocks and palettes.
 			var leveled := StringName("l%d_%s" % [room.dungeon_level, sprite])
@@ -1860,7 +1860,12 @@ func draw_combat() -> void:
 				var cycled := StringName("%s_p%d" % [sprite, combat.frame_clock & 3])
 				if visual_theme.sprites.has(cycled): sprite = cycled
 			if visual_theme.sprites.has(sprite):
-				draw_named_sprite(sprite, Vector2(actor.position()), actor.definition.tint, Vector2(actor.size()))
+				var draw_position := Vector2(actor.position())
+				var draw_size := Vector2(actor.size())
+				if actor.definition.authored_frame_count>0:
+					draw_position += actor.definition.authored_draw_offset
+					draw_size = actor.definition.authored_draw_size
+				draw_named_sprite(sprite, draw_position, actor.definition.tint, draw_size)
 			else:
 				draw_rect(Rect2(at + Vector2(1, 2), Vector2(14, 12)), actor.definition.fallback_color)
 				draw_line(at + Vector2(8, 8), at + Vector2(8, 8) + Vector2(actor.facing) * 8, Color.BLACK, 2)
@@ -1975,7 +1980,7 @@ func draw_square(definition: Resource, index: int, at: Vector2, kind: String) ->
 	var rect := Rect2(at + Vector2(0, HUD_HEIGHT), Vector2(16, 16))
 	var authored := authored_room_texture(definition,"secret") if kind == "object" else null
 	if authored != null:
-		draw_clipped_texture(authored,rect,Rect2(Vector2.ZERO,authored.get_size()))
+		draw_clipped_texture(authored,authored_room_rect(definition,"secret",rect.position),Rect2(Vector2.ZERO,authored.get_size()))
 	elif definition.tile_atlas and index >= 0:
 		var cell_size: Vector2i = definition.atlas_cell_size
 		var columns: int = definition.tile_atlas.get_width() / cell_size.x
@@ -2266,3 +2271,7 @@ func authored_room_texture(definition: Resource, slot: String) -> Texture2D:
 	if frames.is_empty(): return null
 	var ticks := maxi(1,int(definition.authored_frame_ticks.get(slot,6)))
 	return frames[int(simulation_tick/ticks)%frames.size()]
+
+func authored_room_rect(definition: Resource, slot: String, anchor: Vector2) -> Rect2:
+	var layout: Rect2 = definition.authored_sprite_layouts.get(slot,Rect2(0,0,16,16))
+	return Rect2(anchor+layout.position,layout.size)

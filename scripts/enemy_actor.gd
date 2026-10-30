@@ -1,6 +1,7 @@
 class_name EnemyActor
 extends RefCounted
 
+const AuthoredAnimation = preload("res://editor/shared/sprite_animation.gd")
 const DIRECTIONS := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
 var family = preload("res://scripts/overworld_enemy.gd").new()
 var source = preload("res://scripts/nes_octorok.gd").new()
@@ -48,6 +49,7 @@ var just_woke := false
 
 ## A world may substitute its own variant for the spawn's monster.
 func setup(spawn: Resource, variant: Resource = null) -> void:
+	authored_state = "idle";authored_state_ticks = 0;authored_attack_remaining = 0;authored_attack_active = false
 	id = spawn.id
 	definition = spawn.enemy if variant == null else variant
 	health = definition.health
@@ -197,7 +199,30 @@ func affected_by_clock() -> bool:
 	return definition.behavior not in ["trap", "dodongo", "gohma", "manhandla", "gleeok", "gleeok_head", "patra", "patra_child", "ganon", "zelda", "guard_fire", "rupee_stash"]
 
 ## Returns true on the frame a rock should be emitted.
+var authored_state := "idle"
+var authored_state_ticks := 0
+var authored_attack_remaining := 0
+var authored_attack_active := false
 func tick(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Callable(), can_shoot: bool = true, context: Dictionary = {}) -> bool:
+	if definition.authored_clips.is_empty(): return tick_behavior(target,can_occupy,segment_probe,can_shoot,context)
+	var before := subposition
+	var animate: bool = alive() and wake_remaining==0 and stun_ticks==0 and not (context.get("clock",false) and affected_by_clock())
+	var shoved := shove_remaining>0
+	var shot := tick_behavior(target,can_occupy,segment_probe,can_shoot,context)
+	if animate:
+		var attacking: bool = windup>0 or (definition.shooting_enabled and definition.behavior in ["walker","nes_octorok"] and source.shoot_timer>0)
+		var started: bool = (attacking and not authored_attack_active) or (shot and not authored_attack_active) or not pending_shots.is_empty()
+		if started:
+			authored_attack_remaining = AuthoredAnimation.duration(definition.authored_clips,"attack")
+		else: authored_attack_remaining = maxi(0,authored_attack_remaining-1)
+		var next := "attack" if attacking or shot or authored_attack_remaining>0 else "walk" if subposition!=before and not shoved else "idle"
+		authored_state_ticks = authored_state_ticks+1 if authored_state==next and not started else 0
+		authored_state = next
+		authored_attack_active = attacking
+	return shot
+func authored_frame() -> int:
+	return AuthoredAnimation.frame(definition.authored_clips,authored_state,authored_state_ticks,definition.authored_frame_count,definition.animation_frame_ticks)
+func tick_behavior(target: Vector2i, can_occupy: Callable, segment_probe: Callable = Callable(), can_shoot: bool = true, context: Dictionary = {}) -> bool:
 	if waiting_spawn: return false
 	if spawn_remaining > 0:
 		if not cloud_started:

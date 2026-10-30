@@ -33,6 +33,9 @@ extends Resource
 @export var animation_frame_ticks: int = 6
 ## Render-only authored sheet cycle; zero keeps native behavior-specific poses.
 @export var authored_frame_count: int = 0
+@export var authored_clips: Dictionary = {}
+@export var authored_draw_size: Vector2 = Vector2(16,16)
+@export var authored_draw_offset: Vector2 = Vector2.ZERO
 @export var tint: Color = Color.WHITE
 @export var fallback_color: Color = Color("d94b3d")
 @export_range(0, 255) var turn_chance: int = 112

@@ -139,11 +139,14 @@ Version-4 generation keeps their new identities separate. Try
 [DESTRUCTIBLE_SECRETS.md](../editor/DESTRUCTIBLE_SECRETS.md).
 
 Authored graphics libraries now import distributable PNG sheets under `content/art/`,
-with 16/32/64-pixel source cells, directional animation, tile painting and
+with 16/32/64-pixel tile cells, rectangular sprite frames, independent draw sizes
+and offsets, directional animation, tile painting and
 secret/stair/resident bindings. Shared appearance survives save/undo/copy and
 uses the same resolver in editor and game. Template capture and seeded generation
 preserve shared art for primary rooms, linked cellars and scoped enemy variants.
-ROM overlays remain private. See
+Idle/walk/attack clips now have independent frame sequences and timing, with
+behavior-driven playback, named previews, and existing walker shooting exposed
+as an optional variant setting. ROM overlays remain private. See
 [AUTHORED_ART.md](../editor/AUTHORED_ART.md).
 
 Missing:

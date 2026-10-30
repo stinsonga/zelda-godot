@@ -61,6 +61,7 @@ var item_type: OptionButton
 var enemy_behavior: OptionButton
 var health: SpinBox
 var speed: SpinBox
+var shooting: CheckBox
 var damage: SpinBox
 var edge: OptionButton
 var destination: OptionButton
@@ -281,6 +282,7 @@ func build_ui() -> void:
 	views.add_child(asset_library)
 	asset_library.load_catalog(game_root)
 	asset_library.enemy_chosen.connect(apply_enemy_art)
+	asset_library.preview_clip_chosen.connect(func(clip): canvas.enemy_preview_clip = clip;canvas.art_clock = 0.0;canvas.queue_redraw())
 	asset_library.room_sprite_chosen.connect(apply_room_sprite)
 	asset_library.room_sprite_cleared.connect(func(slot): edit(func():
 		if pack.has("appearance") and pack.appearance.room_sprites.has(current_id): pack.appearance.room_sprites[current_id].erase(slot)))
@@ -339,6 +341,7 @@ func build_ui() -> void:
 	health = number("Health",right,1,255)
 	speed = number("Speed / 256",right,0,2048)
 	damage = number("Half-heart damage",right,0,16)
+	shooting = CheckBox.new();shooting.text = "Walker shoots rocks";right.add_child(shooting)
 	button("Apply variant settings",right,apply_enemy)
 	button("Duplicate enemy variant",right,duplicate_enemy)
 	button("Clear variant art",right,func(): edit(func():
@@ -430,7 +433,7 @@ func refresh() -> void:
 	start_button.disabled = current_id == pack.start_room
 	enemy_type.clear()
 	for id in pack.enemy_types:
-		var icon: Texture2D = asset_library.library.enemy_texture(visual.enemy_sprites[id]) if visual.enemy_sprites.has(id) else null
+		var icon: Texture2D = asset_library.library.animation_texture(visual.enemy_sprites[id],"down","idle",0) if visual.enemy_sprites.has(id) else null
 		if icon != null: enemy_type.add_icon_item(icon,id)
 		else: enemy_type.add_item(id)
 	pick(enemy_type,enemy_selection)
@@ -460,6 +463,7 @@ func refresh_enemy() -> void:
 	health.value = enemy.health
 	speed.value = enemy.speed_subpixels
 	damage.value = enemy.contact_damage
+	shooting.button_pressed = enemy.get("shooting_enabled",false)
 func refresh_connection() -> void:
 	var link: Dictionary = current().connections.get(selected(edge),{})
 	for check in requirement_checks: check.button_pressed = check.text in link.get("requires",[])
@@ -591,7 +595,10 @@ func apply_enemy() -> void:
 		enemy.behavior = selected(enemy_behavior)
 		enemy.health = int(health.value)
 		enemy.speed_subpixels = int(speed.value)
-		enemy.contact_damage = int(damage.value))
+		enemy.contact_damage = int(damage.value)
+		if enemy.behavior=="walker" and shooting.button_pressed:
+			Pack.upgrade(pack);enemy.shooting_enabled = true
+		else: enemy.erase("shooting_enabled"))
 func duplicate_enemy() -> void:
 	if pack.enemy_types.size() >= 128 or enemy_type.item_count == 0: return
 	var id := "variant_1"
@@ -826,20 +833,23 @@ func public_art() -> Dictionary:
 	return pack.appearance
 func refresh_appearance_canvas() -> void:
 	canvas.visual_texture = null
-	canvas.enemy_textures.clear();canvas.enemy_sprite_frames.clear();canvas.enemy_sprite_ticks.clear();canvas.room_sprite_frames.clear();canvas.room_sprite_ticks.clear()
+	canvas.enemy_sprite_clips.clear();canvas.enemy_layouts.clear();canvas.room_sprite_layouts.clear();canvas.enemy_textures.clear();canvas.enemy_sprite_frames.clear();canvas.enemy_sprite_ticks.clear();canvas.room_sprite_frames.clear();canvas.room_sprite_ticks.clear()
 	asset_library.library.warnings.clear()
 	var visual := effective_art()
 	canvas.visual_texture = asset_library.library.room_texture(current(),visual)
 	for id in visual.enemy_sprites:
-		var texture: Texture2D = asset_library.library.enemy_texture(visual.enemy_sprites[id])
+		var texture: Texture2D = asset_library.library.animation_texture(visual.enemy_sprites[id],"down","idle",0)
 		if texture != null:
 			canvas.enemy_textures[id] = texture
+			canvas.enemy_sprite_clips[id] = asset_library.library.groups.get(visual.enemy_sprites[id],{}).get("clips",{})
+			canvas.enemy_layouts[id] = asset_library.library.sprite_layout(visual.enemy_sprites[id])
 			canvas.enemy_sprite_frames[id] = asset_library.library.sprite_frames(visual.enemy_sprites[id])
 			canvas.enemy_sprite_ticks[id] = int(asset_library.library.groups.get(visual.enemy_sprites[id],{}).get("frame_ticks",6))
 	for slot in visual.get("room_sprites",{}).get(current_id,{}):
 		var id: String = visual.room_sprites[current_id][slot]
-		canvas.room_sprite_frames[slot] = asset_library.library.sprite_frames(id)
-		canvas.room_sprite_ticks[slot] = int(asset_library.library.groups.get(id,{}).get("frame_ticks",6))
+		canvas.room_sprite_frames[slot] = asset_library.library.sprite_frames(id,"idle")
+		canvas.room_sprite_layouts[slot] = asset_library.library.sprite_layout(id)
+		canvas.room_sprite_ticks[slot] = asset_library.library.clip_ticks(id,"idle")
 	canvas.queue_redraw()
 func apply_enemy_art(group_id: String) -> void:
 	if enemy_type.item_count == 0: message("Create an enemy variant first"); return
@@ -987,7 +997,7 @@ func apply_placement(properties: Dictionary) -> void:
 		for field in properties.settings:
 			if field in ["health","speed_subpixels","contact_damage"]:
 				if int(properties.settings[field]) != int(original[field]): changed = true
-			elif properties.settings[field] != original[field]: changed = true
+			elif properties.settings[field] != original.get(field,false): changed = true
 		for room in pack.rooms:
 			for enemy in room.enemies:
 				if enemy.type == variant: uses += 1
@@ -1006,6 +1016,7 @@ func apply_placement(properties: Dictionary) -> void:
 					while pack.enemy_types.has(target): n+=1;target = variant.left(40)+"_instance_"+str(n)
 					if appearance.enemy_sprites.has(variant): appearance.enemy_sprites[target] = appearance.enemy_sprites[variant]
 					if pack.has("appearance") and pack.appearance.enemy_sprites.has(variant): pack.appearance.enemy_sprites[target] = pack.appearance.enemy_sprites[variant]
+				if properties.settings.get("shooting_enabled",false): Pack.upgrade(pack)
 				pack.enemy_types[target] = properties.settings.duplicate(true)
 			data.type = target
 		else:

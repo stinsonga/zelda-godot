@@ -11,7 +11,7 @@ static func validate(data) -> PackedStringArray:
 	var ids: Dictionary = {}
 	for asset in assets:
 		if not asset is Dictionary: errors.append("Art entry must be an object");continue
-		Pack.unknown_fields(asset,["id","name","kind","file","width","height","cell_size","frame_size","directions","frames","frame_ticks"],"Art entry",errors)
+		Pack.unknown_fields(asset,["id","name","kind","file","width","height","cell_size","frame_size","directions","frames","frame_ticks","draw_size","draw_offset","clips"],"Art entry",errors)
 		if not Pack.identifier(asset.get("id")) or ids.has(asset.get("id")): errors.append("Art asset IDs must be unique");continue
 		ids[asset.id] = true
 		if not asset.get("name") is String or asset.get("file") != asset.id+".png": errors.append("Art PNG must be named asset_id.png")
@@ -20,8 +20,9 @@ static func validate(data) -> PackedStringArray:
 			if not Pack.integer(asset.get("cell_size"),16,64) or int(asset.cell_size) not in [16,32,64]: errors.append("Tile cells must be 16, 32 or 64 pixels");continue
 			if int(asset.width)%int(asset.cell_size) != 0 or int(asset.height)%int(asset.cell_size) != 0: errors.append("Atlas dimensions must be multiples of its cell size")
 		elif asset.get("kind") == "sprite":
-			if not Pack.point(asset.get("frame_size"),16,64,16,64): errors.append("Invalid sprite frame size");continue
-			if asset.frame_size[0] != asset.frame_size[1] or int(asset.frame_size[0]) not in [16,32,64]: errors.append("Sprite frames must be square, 16/32/64 pixels")
+			if not Pack.point(asset.get("frame_size"),1,256,1,256): errors.append("Invalid sprite frame size");continue
+			if not Pack.point(asset.get("draw_size",[16,16]),1,128,1,128): errors.append("Sprite draw size must be 1..128 logical pixels per side")
+			if not Pack.point(asset.get("draw_offset",[0,0]),-128,128,-128,128): errors.append("Sprite offset must be -128..128 logical pixels")
 			var directions = asset.get("directions")
 			if not directions is Array or directions.is_empty() or directions.size()>4: errors.append("Choose 1..4 sprite direction rows");continue
 			var seen: Array = []
@@ -30,6 +31,7 @@ static func validate(data) -> PackedStringArray:
 				seen.append(direction)
 			if "all" in directions and directions.size()!=1: errors.append("All-direction row cannot mix with directional rows")
 			if not Pack.integer(asset.get("frames"),1,16) or not Pack.integer(asset.get("frame_ticks"),1,120): errors.append("Sprite needs 1..16 frames and timing 1..120 ticks");continue
+			validate_clips(asset.get("clips",{}),int(asset.frames),errors)
 			if int(asset.width) != int(asset.frame_size[0])*int(asset.frames) or int(asset.height) != int(asset.frame_size[1])*directions.size(): errors.append("Sprite sheet must match frame columns and direction rows exactly")
 		else: errors.append("Art kind must be tiles or sprite")
 	return errors
@@ -38,7 +40,7 @@ static func read(path: String) -> Dictionary:
 	if file == null or file.get_length()>1000000: return {"errors":PackedStringArray(["Cannot read art library (max 1 MB)"])}
 	var data = JSON.parse_string(file.get_as_text())
 	return {"library":data,"errors":validate(data)}
-static func import_png(root: String, source: String, library_id: String, asset_id: String, kind: String, cell_size: int, directions: Array = ["all"], frames: int = 1, frame_ticks: int = 6) -> Dictionary:
+static func import_png(root: String, source: String, library_id: String, asset_id: String, kind: String, cell_size: int, directions: Array = ["all"], frames: int = 1, frame_ticks: int = 6, frame_size: Array = [], draw_size: Array = [16,16], draw_offset: Array = [0,0], clips: Dictionary = {}) -> Dictionary:
 	if not Pack.identifier(library_id) or not Pack.identifier(asset_id): return {"errors":PackedStringArray(["Library and asset IDs need lowercase letters, digits, underscores or hyphens"])}
 	var absolute := canonical_path(source)
 	if absolute.is_empty(): return {"errors":PackedStringArray(["Cannot resolve source path"])}
@@ -67,7 +69,11 @@ static func import_png(root: String, source: String, library_id: String, asset_i
 		if data.id != library_id: return {"errors":PackedStringArray(["Existing library ID differs from its folder"])}
 	var asset := {"id":asset_id,"name":asset_id.capitalize(),"kind":kind,"file":asset_id+".png","width":width,"height":height}
 	if kind == "tiles": asset.cell_size = cell_size
-	else: asset.frame_size = [cell_size,cell_size];asset.directions = directions.duplicate();asset.frames = frames;asset.frame_ticks = frame_ticks
+	else:
+		asset.frame_size = frame_size.duplicate() if not frame_size.is_empty() else [cell_size,cell_size]
+		if not clips.is_empty(): asset.clips = clips.duplicate(true)
+		asset.draw_size = draw_size.duplicate();asset.draw_offset = draw_offset.duplicate()
+		asset.directions = directions.duplicate();asset.frames = frames;asset.frame_ticks = frame_ticks
 	data.assets.append(asset)
 	var errors := validate(data)
 	if not errors.is_empty(): return {"errors":errors}
@@ -101,3 +107,17 @@ static func canonical_path(path: String, depth: int = 0) -> String:
 			return canonical_path(target,depth+1)
 		parent = parent.path_join(parts[i])
 	return parent.simplify_path()
+
+static func validate_clips(clips, count: int, errors: PackedStringArray) -> void:
+	if not clips is Dictionary: errors.append("Sprite clips must be an object");return
+	for name in clips:
+		if name not in ["idle","walk","attack"]: errors.append("Unknown sprite clip: "+str(name));continue
+		var clip = clips[name]
+		if not clip is Dictionary: errors.append("Sprite clip must be an object");continue
+		Pack.unknown_fields(clip,["frames","frame_ticks","loop"],"Sprite clip "+name,errors)
+		if not Pack.integer(clip.get("frame_ticks"),1,120): errors.append("Clip timing must be 1..120 ticks")
+		if not clip.get("loop") is bool or clip.loop != (name != "attack"): errors.append("Idle/walk clips loop; attack clips play once")
+		var frames = clip.get("frames")
+		if not frames is Array or frames.is_empty() or frames.size()>64: errors.append("Clip needs 1..64 frame indices");continue
+		for index in frames:
+			if not Pack.integer(index,0,count-1): errors.append("Clip frame index outside sprite sheet");break
