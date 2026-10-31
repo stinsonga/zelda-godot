@@ -16,6 +16,10 @@ var dragging := ""
 var drag_cell := Vector2i.ZERO
 var panning := false
 var fitted := false
+## The floor shown; rooms on other floors are hidden, and stairs to them are
+## marked with the floor they lead to.
+var storey := 0
+func shown(room: Dictionary) -> bool: return Contract.floor_of(room) == storey
 func _ready() -> void:
 	custom_minimum_size = Vector2(450,330)
 	clip_contents = true
@@ -32,9 +36,11 @@ func fit_to_rooms() -> void:
 	var low := Vector2(16,1)
 	var high := Vector2(0,-15)
 	for room in pack.rooms:
+		if not shown(room): continue
 		var at := Vector2(room.map_position[0],room.map_position[1])
 		low = low.min(at)
 		high = high.max(at)
+	if low.x > high.x: low = Vector2(6,-8);high = Vector2(9,-5)
 	var span := (high-low+Vector2.ONE).max(Vector2(3,3))
 	var width := clampf(minf((size.x-100)/span.x,(size.y-80)/span.y*1.4),32,200)
 	cell_size = Vector2(width,width/1.4)
@@ -52,7 +58,7 @@ func valid_cell(cell: Vector2i) -> bool: return cell.x >= 0 and cell.x < 16 and 
 func room_at(cell: Vector2i) -> String:
 	if pack.is_empty(): return ""
 	for room in pack.rooms:
-		if int(room.map_position[0]) == cell.x and int(room.map_position[1]) == cell.y: return room.id
+		if shown(room) and int(room.map_position[0]) == cell.x and int(room.map_position[1]) == cell.y: return room.id
 	return ""
 func center(room: Dictionary) -> Vector2:
 	var at := Vector2(room.map_position[0],room.map_position[1])
@@ -98,10 +104,12 @@ func _draw() -> void:
 	for y in range(-15,2): draw_line(origin+Vector2(0,y)*cell_size,origin+Vector2(16,y)*cell_size,grid_color)
 	var lookup: Dictionary = {}
 	for room in pack.rooms: lookup[room.id] = room
+	text(Contract.floor_name(storey),Vector2(10,24),Color("86d1ad"),18)
 	for room in pack.rooms:
+		if not shown(room): continue
 		for edge in room.connections:
 			var link: Dictionary = room.connections[edge]
-			if not lookup.has(link.target) or String(room.id) > String(link.target): continue
+			if not lookup.has(link.target) or String(room.id) > String(link.target) or not shown(lookup[link.target]): continue
 			var target: Dictionary = lookup[link.target]
 			var direction: Vector2 = Vector2(DIRECTIONS[edge])
 			var a := center(room)+direction*cell_size*0.36
@@ -117,12 +125,18 @@ func _draw() -> void:
 				draw_rect(Rect2(middle-extent/2-Vector2(4,6),extent+Vector2(8,8)),Color("111b26"))
 				text(label,middle-extent/2+Vector2(0,7),color,12)
 	for room in pack.rooms:
+		if not shown(room): continue
 		for stair in room.get("stairs",[]):
-			if lookup.has(stair.target):
+			if lookup.has(stair.target) and not shown(lookup[stair.target]):
+				var at := center(room)+Vector2(cell_size.x*0.2,-cell_size.y*0.2)
+				draw_circle(at,3,Color("7ecad5"))
+				text("→"+Contract.floor_name(Contract.floor_of(lookup[stair.target])),at+Vector2(5,5),Color("7ecad5"),11)
+			elif lookup.has(stair.target):
 				var a := center(room);var b := center(lookup[stair.target])
 				draw_dashed_line(a,b,Color("7ecad5"),2,5,true)
 				draw_circle(a.lerp(b,0.7),3,Color("7ecad5"))
 	for room in pack.rooms:
+		if not shown(room): continue
 		var at := center(room)
 		var rect := Rect2(at-cell_size*0.36,cell_size*0.72)
 		var color := Color("86d1ad") if room.id == selected_id else Color("8496a8")

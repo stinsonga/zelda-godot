@@ -76,6 +76,8 @@ var door_kind: OptionButton
 var shutter: CheckBox
 var map_x: SpinBox
 var map_y: SpinBox
+var map_floor: SpinBox
+var shown_floor: SpinBox
 var undo_button: Button
 var redo_button: Button
 var file_dialog: FileDialog
@@ -266,6 +268,8 @@ func build_ui() -> void:
 	var map_tools := HFlowContainer.new()
 	map_view.add_child(map_tools)
 	button("Fit map",map_tools,func(): dungeon_map.fit_to_rooms())
+	shown_floor = number("Floor shown",map_tools,Pack.MIN_FLOOR,Pack.MAX_FLOOR)
+	shown_floor.value_changed.connect(func(value): if not syncing: dungeon_map.storey = int(value);dungeon_map.fit_to_rooms())
 	button("Generate…",map_tools,func(): open_dungeon_tools(0))
 	button("Save template…",map_tools,func(): open_dungeon_tools(1))
 	button("Check progression…",map_tools,func(): open_dungeon_tools(2))
@@ -349,7 +353,8 @@ func build_ui() -> void:
 	button("Rename room ID",right,func(): rename_current_room(room_id_edit.text.strip_edges()))
 	map_x = number("Map X",right,0,15)
 	map_y = number("Map Y",right,-15,0)
-	button("Apply map position",right,func(): move_room(current_id,Vector2i(int(map_x.value),int(map_y.value))))
+	map_floor = number("Floor (0 = 1F, -1 = B1)",right,Pack.MIN_FLOOR,Pack.MAX_FLOOR)
+	button("Apply map position",right,func(): move_room(current_id,Vector2i(int(map_x.value),int(map_y.value)),int(map_floor.value)))
 	shutter = CheckBox.new()
 	shutter.text = "Clear enemies opens shutters"
 	right.add_child(shutter)
@@ -450,6 +455,8 @@ func refresh() -> void:
 	pack_id.text = pack.id
 	map_x.value = room.map_position[0]
 	map_y.value = room.map_position[1]
+	map_floor.value = Pack.floor_of(room)
+	shown_floor.value = dungeon_map.storey
 	shutter.button_pressed = room.shutter_trigger == 1
 	shutter.disabled = room.shutter_trigger == 4
 	shutter.tooltip_text = "Controlled by the room secret" if shutter.disabled else ""
@@ -581,13 +588,14 @@ func unique_room_id() -> String:
 func unused_map_position() -> Array:
 	for y in range(16):
 		for x in range(16):
-			if not pack.rooms.any(func(r): return int(r.map_position[0]) == x and int(r.map_position[1]) == -y): return [x,-y]
+			if room_at_map(Vector2i(x,-y)).is_empty(): return [x,-y]
 	return [0,0]
 func add_room() -> void:
 	if pack.rooms.size() >= 256: message("At most 256 rooms."); return
 	edit(func():
 		var room := Pack.room(unique_room_id())
-		room.map_position = unused_map_position()
+		var cell: Array = unused_map_position()
+		place_room(room,Vector2i(cell[0],cell[1]),dungeon_map.storey)
 		pack.rooms.append(room)
 		current_id = room.id)
 func duplicate_room() -> void:
@@ -596,7 +604,8 @@ func duplicate_room() -> void:
 		var room := current().duplicate(true)
 		room.id = unique_room_id()
 		room.title += " copy"
-		room.map_position = unused_map_position()
+		var cell: Array = unused_map_position()
+		place_room(room,Vector2i(cell[0],cell[1]),dungeon_map.storey)
 		room.connections = {}
 		room.erase("stairs")
 		if appearance.room_tiles.has(current_id): appearance.room_tiles[room.id] = appearance.room_tiles[current_id].duplicate(true)
@@ -819,21 +828,29 @@ func select_room(id: String) -> void:
 	canvas.dragging = false
 	flush_text_edits()
 	current_id = id
+	# The map follows the selected room to its floor.
+	if dungeon_map.storey != Pack.floor_of(current()): dungeon_map.storey = Pack.floor_of(current());dungeon_map.fit_to_rooms()
 	refresh()
 	validate_pack()
 func map_position(room: Dictionary) -> Vector2i:
 	return Vector2i(int(room.map_position[0]),int(room.map_position[1]))
-func room_at_map(cell: Vector2i) -> Dictionary:
+func room_at_map(cell: Vector2i, storey: int = dungeon_map.storey) -> Dictionary:
 	for room in pack.rooms:
-		if map_position(room) == cell: return room
+		if map_position(room) == cell and Pack.floor_of(room) == storey: return room
 	return {}
-func move_room(id: String, cell: Vector2i) -> void:
+## Places a room at a map cell on a floor; floor 0 leaves the field out.
+func place_room(room: Dictionary, cell: Vector2i, storey: int) -> void:
+	room.map_position = [cell.x,cell.y]
+	if storey == 0: room.erase("floor")
+	else: Pack.upgrade(pack);room.floor = storey
+func move_room(id: String, cell: Vector2i, storey: int = dungeon_map.storey) -> void:
 	if not dungeon_map.valid_cell(cell): message("Map positions must stay inside X 0..15 and Y -15..0."); return
-	var occupant := room_at_map(cell)
+	var occupant := room_at_map(cell,storey)
 	if not occupant.is_empty() and occupant.id != id: message("That map cell belongs to " + String(occupant.id) + ". Move it first."); return
 	var room := find_room(id)
-	if room.is_empty() or map_position(room) == cell: return
-	edit(func(): room.map_position = [cell.x,cell.y])
+	if room.is_empty() or (map_position(room) == cell and Pack.floor_of(room) == storey): return
+	edit(func(): place_room(room,cell,storey))
+	if storey != dungeon_map.storey: dungeon_map.storey = storey;dungeon_map.fit_to_rooms();refresh()
 func adjacent_cell() -> Vector2i:
 	return map_position(current()) + DungeonMap.DIRECTIONS[selected(adjacent_edge)]
 func add_adjacent_room() -> void:
@@ -850,7 +867,7 @@ func add_adjacent_room() -> void:
 		if not requirements.is_empty(): Pack.upgrade(pack)
 		var room := Pack.room(unique_room_id())
 		room.title = "Room " + str(pack.rooms.size()+1)
-		room.map_position = [cell.x,cell.y]
+		place_room(room,cell,Pack.floor_of(source))
 		unlink(source,direction)
 		source.connections[direction] = connection(room.id,kind,requirements)
 		room.connections[Pack.OPPOSITE[direction]] = connection(source.id,kind,requirements)
@@ -871,7 +888,7 @@ func add_at_selected_cell() -> void:
 	if pack.rooms.size() >= 256: message("At most 256 rooms."); return
 	edit(func():
 		var room := Pack.room(unique_room_id())
-		room.map_position = [selected_map_cell.x,selected_map_cell.y]
+		place_room(room,selected_map_cell,dungeon_map.storey)
 		pack.rooms.append(room)
 		current_id = room.id)
 
@@ -1152,7 +1169,9 @@ func create_cellar(value: Dictionary, cave: bool = false) -> void:
 		if room.id == current_id: source = room;break
 	var cellar := Pack.room(unique_room_id(),"Cave") if cave else Pack.cellar(unique_room_id())
 	if cave: cellar.kind = "cave";cellar.resident = Pack.resident()
-	cellar.map_position = unused_map_position()
+	var free_cell: Array = unused_map_position()
+	cellar.map_position = free_cell
+	if dungeon_map.storey != 0: cellar.floor = dungeon_map.storey
 	var stair := value.duplicate(true)
 	var entries: Array = source.get("stairs",[])
 	stair.id = unique_placement_id(entries,"stairs")

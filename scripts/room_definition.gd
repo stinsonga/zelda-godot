@@ -40,6 +40,8 @@ extends Resource
 @export var dialogue_until_pickup: StringName
 @export var dialogue_character_ticks: int = 6
 @export var map_room_id: int = -1
+## Authored dungeons may stack floors; maps show the current floor only.
+@export var map_floor: int = 0
 @export var id: StringName
 @export var title: String = ""
 @export var ambient_sample: StringName

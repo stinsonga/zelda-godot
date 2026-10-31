@@ -120,7 +120,7 @@ static func capture(catalog: Dictionary, pack: Dictionary, room_id: String, id: 
 	if not matches[0].get("stairs",[]).is_empty(): return {"errors":PackedStringArray(["Linked stairs require multi-room templates; remove the links before capturing a single room."])}
 	var room: Dictionary = matches[0].duplicate(true)
 	room.connections = {}
-	room.erase("template_id");room.erase("role")
+	room.erase("template_id");room.erase("role");room.erase("floor")
 	room.map_position = [0,0]
 	var variants: Dictionary = {}
 	for enemy in room.enemies:
@@ -175,7 +175,7 @@ static func capture_unit(catalog: Dictionary, pack: Dictionary, root: String, id
 		else:
 			for edge in room.connections.keys():
 				if room.connections[edge].target not in members: room.connections.erase(edge)
-		room.erase("template_id");room.erase("role")
+		room.erase("template_id");room.erase("role");room.erase("floor")
 		room.map_position = [i,0] if door_rooms.is_empty() else [int(room.map_position[0])-min_x,int(room.map_position[1])-max_y]
 		for enemy in room.enemies:
 			var original: String = enemy.type

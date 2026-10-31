@@ -1,0 +1,35 @@
+extends SceneTree
+const Fixture = preload("floors_fixture.gd")
+const Pack = preload("../shared/room_pack.gd")
+const Solver = preload("../shared/progression_solver.gd")
+var failures := 0
+func check(ok: bool, message: String) -> void:
+	if not ok: failures+=1;push_error(message)
+func _initialize() -> void:
+	create_timer(60).timeout.connect(func(): push_error("Floor test timed out");quit(1))
+	call_deferred("run")
+func run() -> void:
+	var pack := Fixture.sample()
+	check(Pack.validate(pack).is_empty() and Pack.layout_warnings(pack).is_empty(),"Rooms may share map cells on different floors: "+str(Pack.validate(pack))+str(Pack.layout_warnings(pack)))
+	var clash: Dictionary = pack.duplicate(true);clash.rooms[1].erase("floor")
+	check(Array(Pack.validate(clash)).any(func(e): return e.contains("overlaps")),"Cells stay unique on one floor")
+	var high: Dictionary = pack.duplicate(true);high.rooms[1].floor = 9
+	check(Array(Pack.validate(high)).any(func(e): return e.contains("floor must")),"Floors are bounded")
+	var crossing: Dictionary = pack.duplicate(true);crossing.rooms[2].floor = 0;crossing.rooms[2].map_position = [8,-6]
+	check(Array(Pack.layout_warnings(crossing)).any(func(w): return w.contains("same floor")),"Doors between floors are flagged")
+	check(Pack.floor_name(0) == "1F" and Pack.floor_name(1) == "2F" and Pack.floor_name(-1) == "B1","Floors are named 1F, 2F, B1")
+	check(Solver.new().solve(pack).status == "solved","Stairs carry the solver between floors")
+	var ui = preload("../ui/main.tscn").instantiate();root.add_child(ui);ui.replace_pack(pack,"",false)
+	await process_frame
+	check(ui.room_at_map(Vector2i(int(pack.rooms[0].map_position[0]),int(pack.rooms[0].map_position[1]))).id == "entry","The map shows 1F first")
+	ui.select_room("landing")
+	check(ui.dungeon_map.storey == 1 and ui.room_at_map(Vector2i(int(pack.rooms[0].map_position[0]),int(pack.rooms[0].map_position[1]))).id == "landing","Selecting a room shows its floor")
+	ui.selected_map_cell = Vector2i(2,-2);ui.add_at_selected_cell()
+	check(Pack.floor_of(ui.current()) == 1 and Pack.validate(ui.pack).is_empty(),"New rooms go on the shown floor")
+	ui.move_room(ui.current_id,Vector2i(2,-2),-1)
+	check(Pack.floor_of(ui.current()) == -1 and ui.dungeon_map.storey == -1,"Rooms move between floors")
+	ui.move_room(ui.current_id,Vector2i(2,-2),0)
+	check(not ui.current().has("floor"),"The ground floor leaves the field out")
+	ui.free()
+	print("Floor checks: ","PASS" if failures == 0 else "FAIL")
+	quit(0 if failures == 0 else 1)

@@ -12,6 +12,12 @@ const OPPOSITE := {"up":"down", "down":"up", "left":"right", "right":"left"}
 const KINDS := ["open", "key", "bombable", "shutter", "false", "wall"]
 const ITEMS := ["key", "rupee", "heart", "bombs", "wooden_sword","bow","ladder","blue_candle","recorder","magic_key"]
 const BEHAVIORS := ["walker", "jumper", "gel", "rope", "flyer"]
+## Optional per-room floor: 0 is the ground floor (1F), -1 the first basement
+## (B1), 1 the second floor (2F). Map cells are unique per floor.
+const MIN_FLOOR := -3
+const MAX_FLOOR := 3
+static func floor_of(room: Dictionary) -> int: return int(room.get("floor",0))
+static func floor_name(value: int) -> String: return "B%d" % -value if value<0 else "%dF" % (value+1)
 const ROOM_FIELDS := ["id", "title", "tiles", "spawn", "enemies", "pickups", "connections", "shutter_trigger", "map_position"]
 
 static func room(id: String, title: String = "New room") -> Dictionary:
@@ -104,7 +110,7 @@ static func validate(pack) -> PackedStringArray:
 		if ids.has(id): errors.append("Duplicate room ID: " + id)
 		ids[id] = r
 		var room_fields: Array = ROOM_FIELDS.duplicate()
-		if version == 2: room_fields.append_array(["template_id","role","secret","stairs","kind","resident"])
+		if version == 2: room_fields.append_array(["template_id","role","secret","stairs","kind","resident","floor"])
 		unknown_fields(r,room_fields,id,errors)
 		if version == 2:
 			if r.has("kind") and r.kind not in ["dungeon","cellar","cave"]: errors.append(id + ": room kind must be dungeon, cellar or cave")
@@ -123,7 +129,8 @@ static func validate(pack) -> PackedStringArray:
 		elif good_tiles and not walkable(tiles,r.spawn): errors.append(id + ": spawn feet are blocked")
 		if not point(r.get("map_position"),0,15,-15,0): errors.append(id + ": map position needs X 0..15 and Y -15..0")
 		else:
-			var map_key := "%d,%d" % [int(r.map_position[0]),int(r.map_position[1])]
+			if r.has("floor") and not integer(r.floor,MIN_FLOOR,MAX_FLOOR): errors.append(id + ": floor must be %d..%d" % [MIN_FLOOR,MAX_FLOOR])
+			var map_key := "%d,%d,%d" % [int(r.map_position[0]),int(r.map_position[1]),floor_of(r)]
 			if map_cells.has(map_key): errors.append(id + ": map position overlaps " + str(map_cells[map_key]))
 			map_cells[map_key] = id
 		if not integer(r.get("shutter_trigger"),0,4) or int(r.get("shutter_trigger")) not in ([0,1,4] if version == 2 else [0,1]): errors.append(id + ": shutter trigger must be 0 (one-way), 1 (clear enemies), or 4 (push block)")
@@ -220,7 +227,8 @@ static func layout_warnings(pack: Dictionary) -> PackedStringArray:
 			if String(room.id) > String(link.target): continue
 			var target: Dictionary = rooms[link.target]
 			var offset := Vector2i(int(target.map_position[0])-int(room.map_position[0]),int(target.map_position[1])-int(room.map_position[1]))
-			if offset != directions[edge]: warnings.append("%s %s -> %s: map positions are not adjacent in that direction" % [room.id,edge,target.id])
+			if floor_of(room) != floor_of(target): warnings.append("%s %s -> %s: doors join rooms on the same floor; use stairs between floors" % [room.id,edge,target.id])
+			elif offset != directions[edge]: warnings.append("%s %s -> %s: map positions are not adjacent in that direction" % [room.id,edge,target.id])
 	var visited: Dictionary = {pack.start_room:true}
 	var pending: Array = [pack.start_room]
 	while not pending.is_empty():

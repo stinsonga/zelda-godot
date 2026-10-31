@@ -1465,11 +1465,14 @@ func draw_room_objects() -> void:
 func draw_level_map(markers: bool = true) -> void:
 	var level: int = room.dungeon_level
 	draw_hud_text("LEVEL-%d" % level, Vector2(16, 8))
+	if rooms.values().any(func(d: Resource) -> bool: return d.dungeon_level == level and d.map_floor != 0):
+		var storey: int = room.map_floor
+		draw_hud_text("B%d" % -storey if storey < 0 else "%dF" % (storey + 1), Vector2(88, 8))
 	var cells: Array[int] = []
 	var left := 15
 	var triforce_room := -1
 	for definition in rooms.values():
-		if definition.dungeon_level != level or definition.map_room_id < 0: continue
+		if definition.dungeon_level != level or definition.map_room_id < 0 or definition.map_floor != room.map_floor: continue
 		cells.append(definition.map_room_id)
 		left = mini(left, definition.map_room_id % 16)
 		for pickup in definition.pickups:
@@ -1636,7 +1639,7 @@ func draw_submenu_map(top: Vector2) -> void:
 	var rotation: int = submenu_layout.map_rotations[level - 1] if submenu_layout != null and level <= submenu_layout.map_rotations.size() else 0
 	var by_map: Dictionary = {}
 	for definition in rooms.values():
-		if definition.dungeon_level == level and definition.map_room_id >= 0: by_map[definition.map_room_id] = definition
+		if definition.dungeon_level == level and definition.map_room_id >= 0 and definition.map_floor == room.map_floor: by_map[definition.map_room_id] = definition
 	for row in range(8):
 		for column in range(16):
 			var place := (column + rotation) % 16
@@ -2353,7 +2356,10 @@ func draw_authored_hud() -> void:
 	var title: String = world_definition.title if not world_definition.title.strip_edges().is_empty() else "DUNGEON"
 	draw_string(font,Vector2(8,18),hud_label(title,146,11),HORIZONTAL_ALIGNMENT_LEFT,-1,11,visual_theme.accent_color)
 	draw_string(font,Vector2(160,18),"%s/%s  $%d" % [str(state.health/2.0).trim_suffix(".0"),str(state.max_health/2.0).trim_suffix(".0"),state.rupees],HORIZONTAL_ALIGNMENT_RIGHT,88,8,Color("ed7770"))
-	draw_string(font,Vector2(8,34),hud_label(room.title,146,10),HORIZONTAL_ALIGNMENT_LEFT,-1,10)
+	var room_label: String = room.title
+	if rooms.values().any(func(d: Resource) -> bool: return d.map_floor != 0):
+		room_label = ("B%d" % -room.map_floor if room.map_floor < 0 else "%dF" % (room.map_floor + 1)) + "  " + room_label
+	draw_string(font,Vector2(8,34),hud_label(room_label,146,10),HORIZONTAL_ALIGNMENT_LEFT,-1,10)
 	draw_string(font,Vector2(160,34),authored_progress_text(),HORIZONTAL_ALIGNMENT_RIGHT,88,8,Color("86d1ad"))
 	draw_string(font,Vector2(8,48),"MOVE: ARROWS/WASD   Z/SPACE: SWORD",HORIZONTAL_ALIGNMENT_LEFT,-1,7,Color("a6b4bb"))
 	draw_string(font,Vector2(8,60),"X/SHIFT: ITEM   ENTER: MENU",HORIZONTAL_ALIGNMENT_LEFT,-1,7,Color("a6b4bb"))

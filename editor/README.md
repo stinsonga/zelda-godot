@@ -81,6 +81,14 @@ Choose **New** for a blank room or **Open** to load an authored JSON pack.
    room. Positions currently describe HUD map placement, not a generated layout.
    Connection directions are explicit. The Dungeon tab draws their graph and
    warns when connections disagree with the saved map positions.
+   **Floors:** a room's **Floor** (0 is 1F, 1 is 2F, -1 is B1; -3..3) lets
+   floors stack on the same map cells. The Dungeon tab shows one floor (**Floor
+   shown**, or select a room to follow it); new rooms go on the shown floor and
+   **Apply map position** can move a room between floors. Doors join rooms on
+   the same floor; stairs join floors and are marked with the floor they reach.
+   In the game the HUD names the floor ("2F Landing") and the maps show the
+   current floor only. Templates capture rooms without floors and generation
+   places them on 1F.
 7. **Validate**, then **Save as** under `content/packs/`. Title edits apply on
    Enter or when the field loses focus. Cmd/Ctrl+S saves; Cmd/Ctrl+Z undoes;
    Cmd/Ctrl+Shift+Z redoes. Undo history holds up to 100 operations.
@@ -183,9 +191,9 @@ recommended order:
 1. **Broader progression solving.** Enemy drops, other secret types and bomb
    shops mixed with finite bombs. Standalone packaging, ladder crossings and
    bomb supplies beyond the bag are implemented.
-2. **More flexible generation.** Multiple floors. Door-connected groups, their
-   live footprint preview, mirrored templates and companion ports are
-   implemented.
+2. **More flexible generation.** Generating across floors. Door-connected
+   groups, their live footprint preview, mirrored templates, companion ports and
+   hand-built floors are implemented.
 3. **More authoring coverage and usability.** Additional cave/resident modes,
    secret types, items, advanced doors, room filters and enemy properties. Current
    support includes individual placement editing, push blocks, bomb/fire secrets,

@@ -70,6 +70,7 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 		room.movement_bounds = Rect2i(0,-3,241,161)
 		room.dungeon_level = 10
 		room.map_room_id = (15+int(source.map_position[1]))*16+int(source.map_position[0])
+		room.map_floor = int(source.get("floor",0))
 		room.shutter_trigger = int(source.shutter_trigger)
 		room.enemy_persistence = "reset"
 		room.music = &""
