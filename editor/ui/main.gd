@@ -7,6 +7,7 @@ const ImportDialog = preload("import_dialog.gd")
 const DungeonTools = preload("dungeon_tools.gd")
 const ArtBindings = preload("../shared/art_bindings.gd")
 const Appearance = preload("../shared/appearance.gd")
+const Bundle = preload("../shared/pack_bundle.gd")
 var appearance: Dictionary = Appearance.fresh("lantern_vault")
 var saved_appearance_text := ""
 var appearance_load_warnings := PackedStringArray()
@@ -166,6 +167,7 @@ func build_ui() -> void:
 	button("Validate",toolbar,validate_pack)
 	button("Play room",toolbar,func(): playtest(true))
 	button("Play dungeon",toolbar,func(): playtest(false))
+	button("Export game…",toolbar,show_export)
 	heading = label("",layout)
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -393,6 +395,7 @@ func build_ui() -> void:
 	file_dialog.access = FileDialog.ACCESS_FILESYSTEM
 	file_dialog.filters = PackedStringArray(["*.json ; Dungeon packs"])
 	file_dialog.file_selected.connect(file_selected)
+	file_dialog.dir_selected.connect(export_game)
 	add_child(file_dialog)
 	confirmation = ConfirmationDialog.new()
 	confirmation.confirmed.connect(func():
@@ -741,6 +744,19 @@ func save_to(filename: String) -> bool:
 	refresh()
 	message("Saved " + filename + (" • ROM art saved separately in ignored reference-inputs/editor-overrides/" if Appearance.has_choices(appearance) else ""))
 	return true
+## A standalone bundle (pack and its shared art) for the game's packs/ folder.
+func show_export() -> void:
+	flush_text_edits()
+	if not Pack.validate(pack).is_empty(): validate_pack(); return
+	file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+	file_dialog.title = "Choose a packs folder; the game is exported into " + pack.id + "/"
+	file_dialog.popup_centered_ratio(0.7)
+func export_game(folder: String) -> void:
+	var destination := folder.path_join(pack.id)
+	if forbidden_destination(destination.path_join(Bundle.PACK_FILE)): message("Export outside imported/, reference-inputs/ and editor caches."); return
+	var errors := Bundle.write_bundle(pack,game_root,destination)
+	if not errors.is_empty(): message("Export failed:\n" + "\n".join(errors)); return
+	message("Exported " + destination + (" • local ROM art is not included" if Appearance.has_choices(appearance) else "") + ". Place it in packs/ beside the game, or in its user://packs.")
 func forbidden_destination(filename: String) -> bool:
 	var absolute := filename.simplify_path()
 	for folder in ["imported","reference-inputs",".godot","editor/.godot"]:

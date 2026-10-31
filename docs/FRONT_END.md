@@ -1,7 +1,10 @@
 # Front end
 
-The game now starts at the original's title (`scenes/front_end.tscn`), or at
-the file menu when the title isn't imported. The world-only scene
+The game starts in `scenes/pack_launcher.tscn`. Without authored game bundles
+it goes straight to the original's title (`scenes/front_end.tscn`), or to the
+file menu when the title isn't imported. With bundles it lists them (and the
+original game, when imported); a bundle plays through the same front end
+without the title, keeping its files in `user://pack_files/<pack id>`. The world-only scene
 (`scenes/main.tscn`) remains for the labs and tests.
 
 Keys in the menus: arrows; **Enter** is Start, **Tab** is Select, **Z** is A,

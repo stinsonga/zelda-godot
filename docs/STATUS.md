@@ -172,15 +172,33 @@ checkpoint migration. Old and deleted names stay reserved. Shared artwork and
 private ROM appearance follow room renames without crossing the asset boundary.
 See [ROOM_IDS.md](../editor/ROOM_IDS.md) for the compatibility rules.
 
-Missing:
+Standalone play: **Export game…** writes a bundle (the pack and the shared art
+it uses), and an exported game lists the bundles in its `packs/` folder or
+`user://packs`, each with its own save files (README, *Distributing an authored
+game*).
 
-- richer sprite layouts and importing/editable copies of existing resources; the optional ROM asset-library plan is in
-  [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md);
-- additional resident modes, cave entrance/original cellar transitions, recorder/Armos and other secret types, plus broader
-  layout controls, external ports on companion rooms and solver support for water, advanced dependencies and
-  capacity-sensitive pickup routing;
-- migration for other content IDs (pack identity, placements and enemy variants);
-  authored room-ID renaming is implemented ([SAVING.md](SAVING.md)).
+Remaining editor work, in recommended order:
+
+1. **Broader progression solving.** Model water/ladder traversal, more complex
+   dependencies and capacity-sensitive pickup routing. Continue reporting
+   unsupported mechanics rather than certifying them.
+2. **More flexible generation.** External ports on companion rooms, template
+   rotation and multiple floors. Bounded door-connected groups, internal locks,
+   linked cellars, branches/loops and the live capture preview are implemented.
+3. **Other content-ID migrations.** Placements, enemy variants, items and pack
+   identity. Room-ID renaming and its checkpoint migration are implemented; see
+   [ROOM_IDS.md](../editor/ROOM_IDS.md).
+4. **More authoring coverage and usability.** Additional resident modes,
+   cave entrance/original cellar transitions, recorder/Armos and other secrets,
+   advanced doors, room filters and more item/enemy properties. See
+   [RESIDENTS.md](../editor/RESIDENTS.md) and
+   [PLACEMENTS.md](../editor/PLACEMENTS.md) for current support.
+5. **Further graphics workflows.** Layered sprites, animation states beyond the
+   implemented idle/walk/attack clips, and editable copies of imported rooms.
+   Rectangular sprite layouts, directional clips and independent timing are
+   already implemented. Shared authored art and private ROM overlays remain
+   separate; see [AUTHORED_ART.md](../editor/AUTHORED_ART.md) and
+   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md).
 
 ## 5. Reachability checker limits
 

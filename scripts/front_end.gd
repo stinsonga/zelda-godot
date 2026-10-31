@@ -22,6 +22,9 @@ const RING_TINTS := [Color.WHITE, Color("8fb4ff"), Color("ff8a70")]
 const TILE_CHARS := {0x24: " ", 0x28: ",", 0x29: "!", 0x2A: "'", 0x2B: "&", 0x2C: ".", 0x62: "-", 0x63: "."}
 
 @export var files_directory := "user://files"
+## An authored world (from a game bundle) to play instead of the original;
+## it skips the title and keeps to its own files.
+var pack_world: Resource
 var files: RefCounted
 var world: Node
 ## The title and story, when imported; without them the game opens on the files.
@@ -44,10 +47,10 @@ var pressed := {"start": false, "select": false, "a": false, "b": false}
 
 func _ready() -> void:
 	files = Files.new(files_directory)
-	make_world(null)
+	make_world(pack_world)
 	screen = NesScreen.new()
 	add_child(screen)
-	var title_data: Dictionary = Title.load_data()
+	var title_data: Dictionary = Title.load_data() if pack_world == null else {}
 	if title_data.is_empty(): show_files()
 	else:
 		title = Title.new(title_data, screen, world.audio)
@@ -97,6 +100,7 @@ func make_world(definition: Resource) -> void:
 
 ## Z_06 InitMode2_Sub0 picks the level blocks by the file's quest: here, the world.
 func use_quest(quest: int) -> void:
+	if pack_world != null: return
 	var wanted := quest if quest == 2 and ResourceLoader.exists(SECOND_QUEST_PATH) else 1
 	if world.quest == wanted: return
 	world.free()

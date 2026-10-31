@@ -69,8 +69,9 @@ Godot exports need its export templates and an export preset per platform.
    version).
 3. **Project → Export → Add…** and choose **macOS**, **Windows Desktop** or
    **Linux**. On the **Resources** tab, keep *Export all resources in the
-   project*, and add `editor/*, tests/*, tools/*, docs/*, reference-inputs/*`
-   to *Filters to exclude files/folders*.
+   project*, and add
+   `editor/ui/*, editor/tests/*, tests/*, tools/*, docs/*, reference-inputs/*`
+   to *Filters to exclude files/folders* (the game uses `editor/shared/`).
 4. **Export Project**, into the ignored `exports/` folder, for example
    `exports/macos/Zelda.zip`, `exports/windows/Zelda.exe` or
    `exports/linux/Zelda.x86_64`.
@@ -90,6 +91,22 @@ builds need right-click **Open** the first time.
 A build includes whatever is in `imported/`, so a build made after importing
 contains material derived from your ROM. Keep such builds for your own use and
 don't distribute them.
+
+## Distributing an authored game
+
+A build made **without** importing a ROM contains no original material, so it
+can carry dungeons made in the Dungeon Workshop:
+
+1. In the workshop, **Export game…** into a folder; it writes a bundle named
+   after the pack, holding `pack.json` and the shared art it uses.
+2. Put bundles in a `packs/` folder beside the exported executable (beside the
+   `.app` on macOS), or in the game's `user://packs` folder.
+3. At start-up the game lists the installed bundles; with one bundle and no
+   imported game, it starts that bundle directly. Each bundle keeps its own save
+   files.
+
+`godot --path . -- --pack <bundle folder or pack.json>` plays one bundle
+directly, which also works from the source project.
 
 ## Tests
 

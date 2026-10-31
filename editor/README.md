@@ -106,6 +106,13 @@ authored dungeon. Playtest state is temporary: it does
 not load or write game save files, and dying uses the lab-style restart rather
 than the full front end.
 
+**Export game…** writes a standalone bundle for players: choose a folder (the
+game's `packs/`, say) and the editor creates `<pack id>/` there, holding
+`pack.json` and the shared art libraries the pack uses, copied from
+`content/art/`. Local ROM appearance is never included; ROM-dressed rooms play
+with placeholders. The game lists installed bundles at start-up (see the main
+README); bundles need only an exported game, not this repository.
+
 The sidebar’s **Secret / Stairs / Resident** toggles reveal optional feature
 forms. Selecting a Secret or Stairs brush opens its settings; the Enemy and
 Pickup brushes bring their selectors into view.
@@ -170,27 +177,32 @@ See [ASSET_BOUNDARY.md](../docs/ASSET_BOUNDARY.md).
 
 ### Limits and next editor work
 
-The editor now supports an end-to-end MVP authoring loop. Remaining work:
+The editor supports an end-to-end MVP authoring loop. Remaining work, in
+recommended order:
 
-- Migration for other content IDs, including placements and pack identity.
-  Room-ID renaming already preserves older checkpoint references.
-- Room filters and more item/enemy properties. Individual placement selection,
-  movement and isolated enemy stat editing are available; see [PLACEMENTS.md](PLACEMENTS.md).
-- Additional animation states, layered sprites and an editable-copy workflow for
-  locally imported rooms. Authored libraries and optional private ROM appearance
-  resolve independently of the terrain collision layer.
-- Additional cave/resident modes, other secret types, more items and advanced doors. Directional blocks,
-  secret pickups and block shutters are available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
-  Bomb/fire room secrets are available; see [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md).
-  Hidden stairs and linked cellars are available; see [STAIRS.md](STAIRS.md).
-  Hint/gift/shop residents and linked caves are available; see [RESIDENTS.md](RESIDENTS.md).
-  Their bounded progression model covers gifts, coins and purchases; see
-  [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
-- A proper standalone game export/pack-loading menu; preview currently launches
-  the Godot executable and expects the sibling source project.
-- Broader generation: multiple floors, external ports on companion rooms, advanced dependencies and
-  more solver mechanics. The first seeded generator/progression search is now
-  available; ordinary structural validation alone is still not a proof.
+1. **Standalone authored-game packaging and loading.** Distribute packs and shared
+   graphics without requiring the sibling source project; keep ROM assets private.
+2. **Broader progression solving.** Water/ladder traversal, complex dependencies
+   and capacity-sensitive pickups.
+3. **More flexible generation.** External ports on companion rooms, template
+   rotation and multiple floors. Door-connected groups and their live footprint
+   preview are implemented.
+4. **Other content-ID migrations.** Placements, enemy variants, items and pack
+   identity. Room-ID renaming already preserves checkpoint references; see
+   [ROOM_IDS.md](ROOM_IDS.md).
+5. **More authoring coverage and usability.** Additional cave/resident modes,
+   secret types, items, advanced doors, room filters and enemy properties. Current
+   support includes individual placement editing, push blocks, bomb/fire secrets,
+   hidden stairs, linked cellars and hint/gift/shop residents; see
+   [PLACEMENTS.md](PLACEMENTS.md), [PUSH_BLOCKS.md](PUSH_BLOCKS.md),
+   [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md), [STAIRS.md](STAIRS.md),
+   [RESIDENTS.md](RESIDENTS.md) and [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
+6. **Further graphics workflows.** Layered sprites, animation states beyond
+   idle/walk/attack, and editable copies of imported rooms. Rectangular layouts,
+   directional clips and independent timing are already available; see
+   [AUTHORED_ART.md](AUTHORED_ART.md).
+
+The current project-wide work list is [STATUS.md](../docs/STATUS.md).
 
 Primary rooms with up to three stair-linked cellar annexes can now be captured
 and reused during generation, including configurable reward positions. See
