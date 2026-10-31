@@ -32,7 +32,7 @@ static func validate(data) -> PackedStringArray:
 	var enemy_art: Dictionary = {}
 	for entry in data.templates:
 		if not entry is Dictionary: errors.append("Template must be an object");continue
-		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version >= 2 else [])+(["mirrors"] if data.format_version >= 3 else []),"Template",errors)
+		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version >= 2 else [])+(["mirrors","companion_ports"] if data.format_version >= 3 else []),"Template",errors)
 		if not Pack.identifier(entry.get("id")) or ids.has(entry.get("id")): errors.append("Template IDs must be unique");continue
 		ids[entry.id] = true
 		if entry.get("role") not in ROLES: errors.append(entry.id+": invalid role")
@@ -64,6 +64,8 @@ static func validate(data) -> PackedStringArray:
 			if enemy_art.has(variant) and enemy_art[variant] != art: errors.append("Conflicting template art for enemy variant "+variant)
 			enemy_art[variant] = art
 		if not Pack.layout_warnings(pack).is_empty(): errors.append(entry.id+": all rooms must be reachable and internal doors must join adjacent map cells")
+		if entry.has("companion_ports"):
+			for error in companion_port_problems(entry): errors.append(entry.id+": "+error)
 		if entry.has("mirrors"):
 			var mirror_errors := mirror_problems(entry)
 			for error in mirror_errors: errors.append(entry.id+": "+error)
@@ -269,6 +271,7 @@ static func mirrored(entry: Dictionary, mode: String) -> Dictionary:
 	var result := entry.duplicate(true)
 	result.erase("mirrors")
 	result.ports = entry.ports.map(func(edge): return mirror_edge(edge,flip_x,flip_y))
+	for id in result.get("companion_ports",{}): result.companion_ports[id] = result.companion_ports[id].map(func(edge): return mirror_edge(edge,flip_x,flip_y))
 	var origin: Array = entry.room.map_position
 	var rooms: Array = [result.room]+result.get("annexes",[])
 	for room in rooms:
@@ -317,3 +320,27 @@ static func variants(templates: Array) -> Array:
 		result.append(entry)
 		for mode in entry.get("mirrors",[]): result.append(mirrored(entry,mode))
 	return result
+
+## Ports on dungeon companions: each names a companion by its local ID and lists
+## distinct edges that are not internal doors and lead out of the unit.
+static func companion_port_problems(entry: Dictionary) -> PackedStringArray:
+	var errors := PackedStringArray()
+	var ports = entry.companion_ports
+	if not ports is Dictionary or ports.is_empty(): return PackedStringArray(["companion_ports must map companion IDs to edges"])
+	var rooms: Array = [entry.room]+entry.get("annexes",[])
+	var cells: Dictionary = {}
+	for room in rooms: cells[Vector2i(int(room.map_position[0]),int(room.map_position[1]))] = true
+	for id in ports:
+		var matches: Array = entry.get("annexes",[]).filter(func(r): return r.id == id)
+		if matches.is_empty() or matches[0].get("kind") == "cellar": errors.append("companion port room must be a dungeon companion: "+str(id));continue
+		var room: Dictionary = matches[0]
+		var edges = ports[id]
+		if not edges is Array or edges.is_empty(): errors.append(str(id)+": list at least one companion port");continue
+		var seen: Array = []
+		for edge in edges:
+			if edge not in Pack.EDGES or edge in seen: errors.append(str(id)+": invalid or duplicate companion port");continue
+			seen.append(edge)
+			if room.connections.has(edge): errors.append(str(id)+": companion port overlaps an internal door: "+edge)
+			var outside: Vector2i = Vector2i(int(room.map_position[0]),int(room.map_position[1]))+{"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[edge]
+			if cells.has(outside): errors.append(str(id)+": companion port "+edge+" leads into its own unit")
+	return errors

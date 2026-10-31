@@ -3,6 +3,8 @@ extends Control
 const DIRS := {"up":Vector2.UP,"right":Vector2.RIGHT,"down":Vector2.DOWN,"left":Vector2.LEFT}
 var rooms: Array = []
 var ports: Array = []
+## Ports on companion rooms, by room ID.
+var companion_ports: Dictionary = {}
 var primary := ""
 var reward := ""
 var error := ""
@@ -10,8 +12,8 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(260,190)
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	resized.connect(queue_redraw)
-func set_unit(selected: Array, external_ports: Array, reward_id: String, problem: String = "") -> void:
-	rooms = selected.duplicate(true);ports = external_ports.duplicate()
+func set_unit(selected: Array, external_ports: Array, reward_id: String, problem: String = "", companions: Dictionary = {}) -> void:
+	rooms = selected.duplicate(true);ports = external_ports.duplicate();companion_ports = companions.duplicate(true)
 	primary = str(rooms[0].id) if not rooms.is_empty() else ""
 	reward = reward_id;error = problem
 	queue_redraw()
@@ -52,6 +54,12 @@ func _draw() -> void:
 	for port in ports:
 		var start: Vector2 = root.get_center()+DIRS[port]*root.size*0.5
 		draw_line(start,start+DIRS[port]*14,Color("79d9ac"),3)
+	for id in companion_ports:
+		if not bounds.has(id): continue
+		for port in companion_ports[id]:
+			if not DIRS.has(port): continue
+			var start: Vector2 = bounds[id].get_center()+DIRS[port]*bounds[id].size*0.5
+			draw_line(start,start+DIRS[port]*14,Color("79d9ac"),3)
 	for room in rooms:
 		var box: Rect2 = bounds[room.id]
 		var tint := Color("856b3c") if room.id==primary else Color("584675") if room.get("kind")=="cellar" else Color("35536c")

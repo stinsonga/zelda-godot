@@ -29,6 +29,7 @@ var template_id: LineEdit
 var role: OptionButton
 var port_checks: Array[CheckBox] = []
 var mirror_checks: Array[CheckBox] = []
+var companion_ports_edit: LineEdit
 var requirement_checks: Array[CheckBox] = []
 var companion_rooms: ItemList
 var include_linked: CheckBox
@@ -98,6 +99,10 @@ func _ready() -> void:
 	for edge in Pack.EDGES:
 		var check := CheckBox.new();check.text = edge;check.button_pressed = true;ports.add_child(check);port_checks.append(check)
 		check.toggled.connect(func(_value): refresh_capture_preview())
+	var companion_row := HBoxContainer.new();capture.add_child(companion_row);label("Companion ports (format 3)",companion_row)
+	companion_ports_edit = LineEdit.new();companion_ports_edit.placeholder_text = "side: up right; vault: left"
+	companion_ports_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL;companion_row.add_child(companion_ports_edit)
+	companion_ports_edit.text_changed.connect(func(_text): refresh_capture_preview())
 	var mirrors := HBoxContainer.new();capture.add_child(mirrors);label("Mirrored versions (format 3)",mirrors)
 	for mode in Templates.MIRRORS:
 		var check := CheckBox.new();check.text = mode;mirrors.add_child(check);mirror_checks.append(check)
@@ -215,10 +220,13 @@ func file_selected(path: String) -> void:
 	var mirrors: Array = []
 	for check in mirror_checks:
 		if check.button_pressed: mirrors.append(check.text)
-	if not mirrors.is_empty():
-		if int(result.catalog.format_version) < 3: report.text = "Cannot save template:\nMirrored versions need a format-3 (door-group) library.";return
+	var companions := companion_ports()
+	if not mirrors.is_empty() or not companions.is_empty():
+		if int(result.catalog.format_version) < 3: report.text = "Cannot save template:\nMirrored versions and companion ports need a format-3 (door-group) library.";return
 		for entry in result.catalog.templates:
-			if entry.id == template_id.text: entry.mirrors = mirrors
+			if entry.id != template_id.text: continue
+			if not mirrors.is_empty(): entry.mirrors = mirrors
+			if not companions.is_empty(): entry.companion_ports = companions
 		var mirror_errors := Templates.validate(result.catalog)
 		if not mirror_errors.is_empty(): report.text = "Cannot save template:\n"+"\n".join(mirror_errors);return
 	var error := Pack.write(path,result.catalog)
@@ -291,4 +299,17 @@ func refresh_capture_preview() -> void:
 	for check in port_checks:
 		if check.button_pressed and not check.disabled: ports.append(check.text)
 	var reward_id := reward_room.get_item_text(reward_room.selected) if custom_reward.button_pressed and reward_room.selected>=0 else room_id
-	capture_preview.set_unit(capture_rooms if capture_problem.is_empty() else [],ports,reward_id,capture_problem)
+	capture_preview.set_unit(capture_rooms if capture_problem.is_empty() else [],ports,reward_id,capture_problem,companion_ports())
+
+## "side: up right; vault: left" as {"side":["up","right"],"vault":["left"]};
+## template validation reports unknown rooms or edges.
+func companion_ports() -> Dictionary:
+	var result: Dictionary = {}
+	if companion_ports_edit == null: return result
+	for part in companion_ports_edit.text.split(";",false):
+		var pieces := part.split(":")
+		if pieces.size() != 2 or pieces[0].strip_edges().is_empty(): continue
+		var edges: Array = []
+		for edge in pieces[1].replace(","," ").split(" ",false): edges.append(edge.strip_edges())
+		result[pieces[0].strip_edges()] = edges
+	return result

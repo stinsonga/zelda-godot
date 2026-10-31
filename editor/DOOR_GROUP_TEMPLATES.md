@@ -2,8 +2,9 @@
 
 A reusable unit may contain one primary room and up to three companion rooms.
 Internal reciprocal doors, their locks and item requirements, stairs, enemies,
-pickups, secrets and shared graphics remain editable ordinary pack data. Only
-the primary room offers external ports to the generator.
+pickups, secrets and shared graphics remain editable ordinary pack data. The
+primary room offers external ports to the generator, and companions may too
+(see *Companion ports*).
 
 ## Try it
 
@@ -36,9 +37,12 @@ directions.
 5. Optionally choose the generated reward room and pixel position. This may be
    any room in the captured unit. Without an override the primary's `(120,77)`
    remains the reward location.
-6. Optionally tick **Mirrored versions**: horizontal, vertical or both (a 180°
+6. Optionally list **Companion ports**, as `side: up right; vault: left`: the
+   generator may then hang further rooms off those companions. The preview
+   shows them in green with the primary's ports.
+7. Optionally tick **Mirrored versions**: horizontal, vertical or both (a 180°
    turn). Rooms are 16×11 tiles, so they mirror rather than turn by 90°.
-7. Review the live footprint below the capture controls, then save the derived
+8. Review the live footprint below the capture controls, then save the derived
    library, choose it for generation and verify a recipe.
 
 The preview marks the primary room with **P**, the generated reward with **\***,
@@ -60,6 +64,22 @@ The source document is unchanged. Existing pickups are copied; remove example
 pickups that would grant progression items early. Enemy definitions are scoped
 to the template. Shared art follows all captured rooms and enemy variants;
 private ROM appearance never enters the library.
+
+## Companion ports
+
+A format-3 template may carry `"companion_ports": {"side": ["up", "left"]}`,
+naming dungeon companions (not cellars) by local ID. Each edge must not be an
+internal door and must lead out of the unit. A generated room always enters a
+unit through its primary; its own children may then attach to any free port of
+the unit, primary or companion. The connection's lock and item requirements
+apply to that companion's door, so reaching the next room can mean crossing the
+unit's internal doors first; the solver verifies this as usual.
+
+A library with any companion ports uses a different layout: rooms are placed
+one by one, each template chosen as its room is placed, rather than laying out
+all primary cells first. Its recipes are version **7**. Libraries without
+companion ports keep the version-6 layout and their seed results. Loops still
+join primary rooms only.
 
 ## Mirrored versions
 
@@ -109,9 +129,9 @@ Formats 1 and 2 and their prior recipe identities/seed results remain unchanged.
 Room-ID alias history is a separate manual-edit feature; regenerating content
 does not replay manual edits or their migration history.
 
-Current limits: four rooms per unit, external ports on the primary only, one
-automatic reward location per unit, mirroring but no 90° turns, and no
-multiple floors.
+Current limits: four rooms per unit, entry through the primary, loops between
+primaries only, one automatic reward location per unit, mirroring but no 90°
+turns, and no multiple floors.
 Advanced dependencies remain outside solver support; water is solved with the
 ladder (see [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md)).
 
@@ -122,7 +142,7 @@ ladder (see [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md)).
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tests/generated_door_groups.gd --log-file /tmp/door-groups-native.log
 ```
 
-Checks (also `editor/tests/mirrors.gd`) cover explicit membership and outside-door removal, repeated instances,
+Checks (also `editor/tests/mirrors.gd` and `editor/tests/companion_ports.gd`) cover explicit membership and outside-door removal, repeated instances,
 shared art, invalid/cyclic/disconnected units, footprint bounds and overlap,
 JSON determinism, unavailable internal dependencies, GUI capture, and native
 replays through internal key doors, generated loops and mixed cellar stairs.

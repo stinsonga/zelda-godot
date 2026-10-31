@@ -272,7 +272,7 @@ static func validate_progression(pack: Dictionary, rooms: Dictionary, errors: Pa
 		if not g is Dictionary: errors.append("Generation provenance must be an object"); return
 		var graph: bool = g.get("algorithm")=="authored_graph"
 		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"] + (["branch_rooms","loop_count","loop_edges"] if graph else []),"Generation",errors)
-		var supported: bool = integer(g.get("version"),5,6) if graph else g.get("algorithm")=="authored_tree" and (integer(g.get("version"),1,4) or g.get("version")==6)
+		var supported: bool = integer(g.get("version"),5,7) if graph else g.get("algorithm")=="authored_tree" and (integer(g.get("version"),1,4) or integer(g.get("version"),6,7))
 		if not supported or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
 		if graph: validate_graph_recipe(g,errors)
 		var hash = g.get("template_sha256")

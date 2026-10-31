@@ -42,42 +42,16 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	var branch_count := int(layout.get("branch_rooms",count/4 if count>=8 else 0))
 	var loop_count := int(layout.get("loop_count",0))
 	var main_count := count-branch_count
-	var positions: Array[Vector2i] = [Vector2i(8,-7)]
-	var parents: Array[int] = [-1]
-	var edges: Array[String] = [""]
-	for i in range(1,count):
-		var options: Array = []
-		var sources: Array = [i-1] if i<main_count else range(i)
-		for source in sources:
-			for edge in shuffled_edges():
-				var at: Vector2i = positions[source]+DIRS[edge]
-				if at.x>=0 and at.x<16 and at.y>=-15 and at.y<=0 and at not in positions: options.append({"parent":source,"edge":edge,"at":at})
-		if options.is_empty(): return {}
-		var selected: Dictionary = options[random_int(options.size())]
-		positions.append(selected.at);parents.append(selected.parent);edges.append(selected.edge)
 	var roles: Array = []
 	for i in range(count):
 		roles.append("start" if i == 0 else "key" if i == 1 else "combat" if i == 2 else "item" if i == 3 else "goal" if i == main_count-1 else "treasure")
-	var chosen: Array = []
-	var candidates := Templates.variants(catalog.templates)
-	var occupied: Array = positions.duplicate()
-	for i in range(count):
-		var ports: Array = []
-		if i>0: ports.append(Pack.OPPOSITE[edges[i]])
-		for j in range(i+1,count):
-			if parents[j] == i: ports.append(edges[j])
-		var eligible: Array = candidates.filter(func(t): return t.role == roles[i] and ports.all(func(port): return port in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")))
-		if catalog.format_version>=3: eligible = eligible.filter(func(t): return footprint_fits(t,positions[i],occupied))
-		if eligible.is_empty(): return {"errors":PackedStringArray(["No template fits the required ports and room-group footprint"])}
-		var total := 0
-		for t in eligible: total += int(t.weight)
-		var roll := random_int(total)
-		for t in eligible:
-			roll -= int(t.weight)
-			if roll<0:
-				chosen.append(t)
-				if catalog.format_version>=3: occupied.append_array(footprint(t,positions[i]))
-				break
+	var laid := grow_units(catalog,count,main_count,roles) if companion_library(catalog) else layout_tree(catalog,count,main_count,roles)
+	if not laid.has("chosen"): return laid
+	var positions: Array = laid.positions
+	var parents: Array = laid.parents
+	var edges: Array = laid.edges
+	var chosen: Array = laid.chosen
+	var exits: Array = laid.exits
 	# Resident solvability changes candidate acceptance. Give those libraries
 	# a new recipe and world identity, preserving existing v1/v2 seed results.
 	var resident_library: bool = catalog.templates.any(func(t): return t.room.has("resident") or t.get("annexes",[]).any(func(room): return room.has("resident")))
@@ -85,6 +59,8 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	var algorithm_version := 4 if persistent_library else 3 if resident_library else int(catalog.format_version)
 	if not layout.is_empty(): algorithm_version = 5
 	if catalog.format_version>=3: algorithm_version = 6
+	# Companion ports grow the layout unit by unit, consuming the PRNG differently.
+	if companion_library(catalog): algorithm_version = 7
 	var pack := Pack.fresh()
 	Pack.upgrade(pack)
 	pack.id = ("generated_v"+str(algorithm_version)+"_" if algorithm_version>=3 else "generated_")+"%d_%d_%s_%s" % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
@@ -126,7 +102,7 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 			pack.rooms.append(annex)
 			pack.generation.templates[annex.id] = chosen[i].id
 	for i in range(1,count):
-		var source: Dictionary = pack.rooms[parents[i]]
+		var source: Dictionary = pack.rooms[parents[i]] if exits[i] == 0 else units[parents[i]].annexes[exits[i]-1]
 		var target: Dictionary = pack.rooms[i]
 		var kind := "key" if i == 2 or i == main_count-1 else "bombable" if i>=main_count and random_int(2) == 0 else "open"
 		var requirements: Array = chosen[i].requires.duplicate()
@@ -232,3 +208,92 @@ func footprint_fits(entry: Dictionary, origin: Vector2i, occupied: Array) -> boo
 	for at in footprint(entry,origin):
 		if at.x<0 or at.x>15 or at.y < -15 or at.y>0 or at in occupied: return false
 	return true
+
+## The original layout: a tree of primary cells first, then templates whose
+## primary rooms offer every port the tree needs.
+func layout_tree(catalog: Dictionary, count: int, main_count: int, roles: Array) -> Dictionary:
+	var positions: Array[Vector2i] = [Vector2i(8,-7)]
+	var parents: Array[int] = [-1]
+	var edges: Array[String] = [""]
+	for i in range(1,count):
+		var options: Array = []
+		var sources: Array = [i-1] if i<main_count else range(i)
+		for source in sources:
+			for edge in shuffled_edges():
+				var at: Vector2i = positions[source]+DIRS[edge]
+				if at.x>=0 and at.x<16 and at.y>=-15 and at.y<=0 and at not in positions: options.append({"parent":source,"edge":edge,"at":at})
+		if options.is_empty(): return {}
+		var selected: Dictionary = options[random_int(options.size())]
+		positions.append(selected.at);parents.append(selected.parent);edges.append(selected.edge)
+	var chosen: Array = []
+	var candidates := Templates.variants(catalog.templates)
+	var occupied: Array = positions.duplicate()
+	for i in range(count):
+		var ports: Array = []
+		if i>0: ports.append(Pack.OPPOSITE[edges[i]])
+		for j in range(i+1,count):
+			if parents[j] == i: ports.append(edges[j])
+		var eligible: Array = candidates.filter(func(t): return t.role == roles[i] and ports.all(func(port): return port in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")))
+		if catalog.format_version>=3: eligible = eligible.filter(func(t): return footprint_fits(t,positions[i],occupied))
+		if eligible.is_empty(): return {"errors":PackedStringArray(["No template fits the required ports and room-group footprint"])}
+		var total := 0
+		for t in eligible: total += int(t.weight)
+		var roll := random_int(total)
+		for t in eligible:
+			roll -= int(t.weight)
+			if roll<0:
+				chosen.append(t)
+				if catalog.format_version>=3: occupied.append_array(footprint(t,positions[i]))
+				break
+	var exits: Array = [];exits.resize(count);exits.fill(0)
+	return {"positions":positions,"parents":parents,"edges":edges,"chosen":chosen,"exits":exits}
+
+func companion_library(catalog: Dictionary) -> bool:
+	return catalog.templates.any(func(t): return t.has("companion_ports"))
+## Ports of a placed unit: the primary's (exit 0) and its companions' (exit k
+## for annex k), each with the cell it leaves from.
+func unit_ports(entry: Dictionary, origin: Vector2i) -> Array:
+	var result: Array = []
+	for edge in entry.ports: result.append({"exit":0,"edge":edge,"cell":origin})
+	var cells := footprint(entry,origin)
+	var annexes: Array = entry.get("annexes",[])
+	for k in range(annexes.size()):
+		for edge in entry.get("companion_ports",{}).get(annexes[k].id,[]): result.append({"exit":k+1,"edge":edge,"cell":cells[k]})
+	return result
+## Libraries with companion ports: each new room attaches to a free port of an
+## earlier unit (its primary or a companion), and its template is chosen as it
+## is placed, entering through its primary.
+func grow_units(catalog: Dictionary, count: int, main_count: int, roles: Array) -> Dictionary:
+	var candidates := Templates.variants(catalog.templates)
+	var positions: Array = [Vector2i(8,-7)]
+	var parents: Array = [-1];var edges: Array = [""];var exits: Array = [0];var chosen: Array = []
+	var occupied: Array = [positions[0]]
+	var used: Dictionary = {}
+	for i in range(count):
+		var at: Vector2i = positions[0]
+		var incoming := ""
+		if i>0:
+			var options: Array = []
+			for source in ([i-1] if i<main_count else range(i)):
+				for port in unit_ports(chosen[source],positions[source]):
+					var cell: Vector2i = port.cell+DIRS[port.edge]
+					if used.has("%d/%d/%s" % [source,port.exit,port.edge]) or cell.x<0 or cell.x>15 or cell.y < -15 or cell.y>0 or cell in occupied: continue
+					options.append({"parent":source,"exit":port.exit,"edge":port.edge,"at":cell})
+			if options.is_empty(): return {"errors":PackedStringArray(["No free port leads to an empty map cell"])}
+			var selected: Dictionary = options[random_int(options.size())]
+			at = selected.at;incoming = Pack.OPPOSITE[selected.edge]
+			used["%d/%d/%s" % [selected.parent,selected.exit,selected.edge]] = true
+			positions.append(at);parents.append(selected.parent);edges.append(selected.edge);exits.append(selected.exit)
+			occupied.append(at)
+		var eligible: Array = candidates.filter(func(t): return t.role == roles[i] and (incoming.is_empty() or incoming in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")) and footprint_fits(t,at,occupied))
+		if eligible.is_empty(): return {"errors":PackedStringArray(["No template fits the required ports and room-group footprint"])}
+		var total := 0
+		for t in eligible: total += int(t.weight)
+		var roll := random_int(total)
+		for t in eligible:
+			roll -= int(t.weight)
+			if roll<0:
+				chosen.append(t);occupied.append_array(footprint(t,at))
+				if i>0: used["%d/0/%s" % [i,incoming]] = true
+				break
+	return {"positions":positions,"parents":parents,"edges":edges,"chosen":chosen,"exits":exits}

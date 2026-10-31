@@ -49,3 +49,15 @@ static func mirrored_catalog() -> Dictionary:
 	for entry in right.templates:
 		if entry.id.contains("_suite_right"): entry.mirrors = ["horizontal"];catalog.templates.append(entry)
 	return catalog
+
+## Door suites whose companion rooms also offer every outward edge as a port.
+static func companion_catalog() -> Dictionary:
+	var catalog := catalog()
+	if catalog.has("errors"): return catalog
+	catalog.id = "companion_door_templates"
+	for entry in catalog.templates:
+		if not entry.id.contains("_suite_"): continue
+		var side: Dictionary = entry.annexes[0]
+		var inward: Array = side.connections.keys()
+		entry.companion_ports = {side.id:Pack.EDGES.filter(func(edge): return edge not in inward)}
+	return catalog

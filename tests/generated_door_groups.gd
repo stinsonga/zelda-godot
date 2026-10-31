@@ -21,5 +21,10 @@ func run() -> void:
 		var generated := Generator.new().generate(Fixture.mirrored_catalog(),seed_value,8)
 		check(generated.errors.is_empty(),"Mirrored suites verify for seed %d" % seed_value)
 		if generated.has("pack"): replay(generated.pack,generated.proof)
+	# Rooms hung off companion rooms' ports.
+	for seed_value in [42,7]:
+		var generated := Generator.new().generate(Fixture.companion_catalog(),seed_value,8)
+		check(generated.errors.is_empty(),"Companion ports verify for seed %d" % seed_value)
+		if generated.has("pack"): replay(generated.pack,generated.proof)
 	print("Generated door-group native checks: ","PASS" if failures==0 else "FAIL")
 	quit(1 if failures else 0)

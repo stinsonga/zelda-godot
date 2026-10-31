@@ -183,8 +183,8 @@ Remaining editor work, in recommended order:
    beyond the bag are solved and replayed; still to model: more complex
    dependencies (enemy drops, other secret types, bomb shops mixed with finite
    bombs). Continue reporting unsupported mechanics rather than certifying them.
-2. **More flexible generation.** External ports on companion rooms and multiple
-   floors. Templates can now be mirrored (rooms are 16×11, so not turned). Bounded door-connected groups, internal locks,
+2. **More flexible generation.** Multiple floors. Templates can now be mirrored
+   (rooms are 16×11, so not turned) and give companion rooms external ports. Bounded door-connected groups, internal locks,
    linked cellars, branches/loops and the live capture preview are implemented.
 3. **Other content-ID migrations.** Placements, enemy variants, items and pack
    identity. Room-ID renaming and its checkpoint migration are implemented; see
