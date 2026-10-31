@@ -7,6 +7,7 @@ extends Node2D
 const Bundle = preload("res://editor/shared/pack_bundle.gd")
 const Adapter = preload("res://scripts/authored_pack.gd")
 const ORIGINAL := ""
+const CREDIT := "Translated from Aldo Núñez's Zelda disassembly\ngithub.com/aldonunez/zelda1-disassembly"
 
 ## Bundle folders, with ORIGINAL first when the original game is available.
 var choices: PackedStringArray = []
@@ -73,6 +74,7 @@ func _draw() -> void:
 		draw_string(font, Vector2(36, 60 + i * 16), titles[i].left(28), HORIZONTAL_ALIGNMENT_LEFT, -1, 10)
 	if not titles.is_empty(): draw_string(font, Vector2(24, 60 + cursor * 16), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 10)
 	if not error.is_empty(): draw_multiline_string(font, Vector2(24, 200), error.left(200), HORIZONTAL_ALIGNMENT_LEFT, 208, 8, 3, Color("e85050"))
+	else: draw_multiline_string(font, Vector2(24, 212), CREDIT, HORIZONTAL_ALIGNMENT_LEFT, 208, 7, 2, Color("8a949a"))
 
 ## Each bundle's file slots, under its pack ID; a renamed pack keeps using the
 ## folder of its most recent earlier ID until it has its own.

@@ -1,7 +1,8 @@
 # NES Zelda reproduction in Godot
 
 A faithful reimplementation of the original NES *The Legend of Zelda* (1986) in
-Godot 4.6, translated routine by routine from a community disassembly and checked
+Godot 4.6, translated routine by routine from Aldo Núñez's
+[disassembly](https://github.com/aldonunez/zelda1-disassembly) and checked
 frame by frame against an emulator. Both quests are playable from the title screen
 to the ending. Rooms, enemies, items and dungeons are ordinary Godot resources, so
 the game can also be extended or modded.
@@ -141,3 +142,20 @@ generation and inventory/geometry progression checks with witness routes. See
   checked against the original, and what that found.
 - Topic notes in [docs/](docs/): combat, dungeons, caves, scrolling, audio,
   saving, the front end, the second quest and more.
+
+## Credits
+
+- **The disassembly.** The game logic is translated from Aldo Núñez's complete,
+  commented disassembly of *The Legend of Zelda*,
+  [aldonunez/zelda1-disassembly](https://github.com/aldonunez/zelda1-disassembly)
+  (commit `50a1c86`). Routine names cited throughout the code and documents,
+  such as `Z_01 TakeItem` or `UpdateMoblin`, are its labels. This project would
+  not exist without it. The disassembly is not included here; it is read, never
+  modified.
+- **The original game.** *The Legend of Zelda* (1986) was made by Nintendo.
+  Nintendo owns the game and its content, none of which is included here.
+- **Reference tools.** Frame comparisons use a locally built, unmodified
+  [Nestopia libretro core](https://github.com/libretro/nestopia), and the sample
+  channel notes follow [Mesen2](https://github.com/SourMesen/Mesen2)'s DMC implementation.
+  Neither is distributed with this project.
+- **Engine.** Built with [Godot](https://godotengine.org).
