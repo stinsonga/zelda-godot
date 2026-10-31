@@ -133,6 +133,9 @@ monster/item counts and the starting-room star. Connections show door kinds.
 
 - Click a card to select it and update the shared room inspector. Double-click
   to open its room canvas. The room list and map share the same selection.
+- The box above the room list filters it: every word must match a room's title,
+  ID, kind, role, floor (`2f`, `b1`), template, `start` or `goal`, so
+  `2f goal` lists objective rooms on 2F. Hover over a row for the room's ID.
 - Drag a card to an empty map cell. One drag is one undo step. Occupied cells and
   positions beyond X 0..15, Y -15..0 are rejected without changing the document.
 - Choose a direction and door kind in the map toolbar, then **Add adjacent room**
@@ -197,8 +200,8 @@ recommended order:
    generation across floors are implemented. Still open: floors below 1F,
    floor changes from branch rooms, and stair cells on companion rooms.
 3. **More authoring coverage and usability.** Additional cave/resident modes,
-   secret types, items, advanced doors, room filters and enemy properties. Current
-   support includes individual placement editing, push blocks, bomb/fire secrets,
+   secret types, items, advanced doors and enemy properties. Current
+   support includes room-list filters, individual placement editing, push blocks, bomb/fire secrets,
    hidden stairs, linked cellars and hint/gift/shop residents; see
    [PLACEMENTS.md](PLACEMENTS.md), [PUSH_BLOCKS.md](PUSH_BLOCKS.md),
    [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md), [STAIRS.md](STAIRS.md),

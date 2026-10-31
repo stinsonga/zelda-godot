@@ -195,7 +195,7 @@ Remaining editor work, in recommended order:
    linked cellars, branches/loops and the live capture preview are implemented.
 3. **More authoring coverage and usability.** Additional resident modes,
    cave entrance/original cellar transitions, recorder/Armos and other secrets,
-   advanced doors, room filters and more item/enemy properties. See
+   advanced doors and more item/enemy properties (room-list filters are done). See
    [RESIDENTS.md](../editor/RESIDENTS.md) and
    [PLACEMENTS.md](../editor/PLACEMENTS.md) for current support.
 4. **Further graphics workflows.** Layered sprites, animation states beyond the

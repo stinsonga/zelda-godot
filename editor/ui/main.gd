@@ -48,6 +48,10 @@ var goal_info: Label
 var importer: AcceptDialog
 var asset_library: Control
 var rooms_list: ItemList
+var room_filter: LineEdit
+var room_count: Label
+## Room IDs in list order, after filtering.
+var listed_rooms: Array = []
 var canvas: Control
 var dungeon_map: Control
 var views: TabContainer
@@ -195,10 +199,15 @@ func build_ui() -> void:
 	pack_id.focus_exited.connect(func():
 		if not syncing and pack_id.text != pack.id: edit(func(): pack.id = pack_id.text))
 	pack_id.tooltip_text = "Lowercase letters, numbers, underscores and hyphens. Changing this creates a new world identity."
+	room_filter = LineEdit.new();room_filter.placeholder_text = "Filter rooms: name, ID, 2F, cellar, goal…";room_filter.clear_button_enabled = true
+	room_filter.tooltip_text = "Every word must match a room's title, ID, kind, role, floor, template, \"start\" or \"goal\""
+	left.add_child(room_filter)
+	room_filter.text_changed.connect(func(_text): refresh_room_list())
+	room_count = Label.new();left.add_child(room_count)
 	rooms_list = ItemList.new()
 	rooms_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(rooms_list)
-	rooms_list.item_selected.connect(func(index): select_room(pack.rooms[index].id))
+	rooms_list.item_selected.connect(func(index): select_room(listed_rooms[index]))
 	var room_buttons := HBoxContainer.new()
 	left.add_child(room_buttons)
 	button("+ Room",room_buttons,add_room)
@@ -435,16 +444,35 @@ func selected(option: OptionButton) -> String:
 func pick(option: OptionButton, text: String) -> void:
 	for i in range(option.item_count):
 		if option.get_item_text(i) == text: option.select(i); return
+## What a room filter matches: title, ID, kind, role, floor name, template,
+## "start" for the start room and "goal" for rooms holding objectives.
+func room_terms(room: Dictionary) -> String:
+	var terms: Array = [room.title,room.id,room.get("kind","dungeon"),room.get("role",""),room.get("template_id",""),Pack.floor_name(Pack.floor_of(room))]
+	if room.id == pack.start_room: terms.append("start")
+	if pack.get("goals",[]).any(func(g): return g.room == room.id): terms.append("goal")
+	return " ".join(terms).to_lower()
+func room_matches(room: Dictionary, query: String) -> bool:
+	var terms := room_terms(room)
+	return Array(query.to_lower().split(" ",false)).all(func(word): return terms.contains(word))
+func refresh_room_list() -> void:
+	var was_syncing := syncing;syncing = true
+	rooms_list.clear();listed_rooms.clear()
+	var floors: bool = pack.rooms.any(func(r): return Pack.floor_of(r) != 0)
+	for r in pack.rooms:
+		if not room_matches(r,room_filter.text): continue
+		listed_rooms.append(r.id)
+		rooms_list.add_item(("★ " if r.id == pack.start_room else "") + (Pack.floor_name(Pack.floor_of(r))+"  " if floors else "") + r.title + (" ("+String(r.kind)+")" if r.get("kind") in ["cellar","cave"] else ""))
+		rooms_list.set_item_tooltip(rooms_list.item_count-1,r.id)
+		if r.id == current_id: rooms_list.select(rooms_list.item_count-1)
+	room_count.text = "%d rooms" % pack.rooms.size() if listed_rooms.size() == pack.rooms.size() else "%d of %d rooms" % [listed_rooms.size(),pack.rooms.size()]
+	syncing = was_syncing
 func refresh() -> void:
 	syncing = true
 	var room := current()
 	var visual := effective_art()
 	var enemy_selection := selected(enemy_type)
 	var target_selection := selected(destination)
-	rooms_list.clear()
-	for r in pack.rooms:
-		rooms_list.add_item(("★ " if r.id == pack.start_room else "") + r.title + (" ("+String(r.kind)+")" if r.get("kind") in ["cellar","cave"] else ""))
-		if r.id == current_id: rooms_list.select(rooms_list.item_count-1)
+	refresh_room_list()
 	goal_pickup.clear()
 	for pickup in room.pickups: goal_pickup.add_item(pickup.id)
 	goal_info.text = str(pack.get("goals",[]).size()) + " objective pickups. Add one to use progression checking."
