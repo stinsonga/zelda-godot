@@ -28,6 +28,7 @@ var save_button: Button
 var template_id: LineEdit
 var role: OptionButton
 var port_checks: Array[CheckBox] = []
+var mirror_checks: Array[CheckBox] = []
 var requirement_checks: Array[CheckBox] = []
 var companion_rooms: ItemList
 var include_linked: CheckBox
@@ -97,6 +98,9 @@ func _ready() -> void:
 	for edge in Pack.EDGES:
 		var check := CheckBox.new();check.text = edge;check.button_pressed = true;ports.add_child(check);port_checks.append(check)
 		check.toggled.connect(func(_value): refresh_capture_preview())
+	var mirrors := HBoxContainer.new();capture.add_child(mirrors);label("Mirrored versions (format 3)",mirrors)
+	for mode in Templates.MIRRORS:
+		var check := CheckBox.new();check.text = mode;mirrors.add_child(check);mirror_checks.append(check)
 	var requirements := HFlowContainer.new();capture.add_child(requirements);label("Incoming item requirements",requirements)
 	for item in Pack.REQUIRED_ITEMS:
 		var check := CheckBox.new();check.text = item;requirements.add_child(check);requirement_checks.append(check)
@@ -208,6 +212,15 @@ func file_selected(path: String) -> void:
 		if check.button_pressed: requirements.append(check.text)
 	var result := Templates.capture(loaded.catalog,source_pack,room_id,template_id.text,role.get_item_text(role.selected),ports,requirements,include_linked.button_pressed,reward_room.get_item_text(reward_room.selected) if custom_reward.button_pressed and reward_room.selected>=0 else "",[int(reward_x.value),int(reward_y.value)],selected_companions())
 	if not result.errors.is_empty(): report.text = "Cannot save template:\n"+"\n".join(result.errors);return
+	var mirrors: Array = []
+	for check in mirror_checks:
+		if check.button_pressed: mirrors.append(check.text)
+	if not mirrors.is_empty():
+		if int(result.catalog.format_version) < 3: report.text = "Cannot save template:\nMirrored versions need a format-3 (door-group) library.";return
+		for entry in result.catalog.templates:
+			if entry.id == template_id.text: entry.mirrors = mirrors
+		var mirror_errors := Templates.validate(result.catalog)
+		if not mirror_errors.is_empty(): report.text = "Cannot save template:\n"+"\n".join(mirror_errors);return
 	var error := Pack.write(path,result.catalog)
 	if error != OK: report.text = "Template save failed: "+error_string(error);return
 	catalog_path.text = path;invalidate_recipe();report.text = "Saved new authored template to "+path+"\nFingerprint: "+Templates.fingerprint(result.catalog)

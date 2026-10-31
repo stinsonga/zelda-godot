@@ -16,5 +16,10 @@ func run() -> void:
 	var mixed := Generator.new().generate(Fixture.mixed_catalog(),42,6)
 	check(mixed.errors.is_empty(),"Mixed internal doors and cellar stairs verify")
 	if mixed.has("pack"): replay(mixed.pack,mixed.proof)
+	# Suites captured facing up or right, mirrored by the generator.
+	for seed_value in [42,7,91]:
+		var generated := Generator.new().generate(Fixture.mirrored_catalog(),seed_value,8)
+		check(generated.errors.is_empty(),"Mirrored suites verify for seed %d" % seed_value)
+		if generated.has("pack"): replay(generated.pack,generated.proof)
 	print("Generated door-group native checks: ","PASS" if failures==0 else "FAIL")
 	quit(1 if failures else 0)

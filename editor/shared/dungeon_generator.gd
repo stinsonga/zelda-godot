@@ -59,13 +59,14 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	for i in range(count):
 		roles.append("start" if i == 0 else "key" if i == 1 else "combat" if i == 2 else "item" if i == 3 else "goal" if i == main_count-1 else "treasure")
 	var chosen: Array = []
+	var candidates := Templates.variants(catalog.templates)
 	var occupied: Array = positions.duplicate()
 	for i in range(count):
 		var ports: Array = []
 		if i>0: ports.append(Pack.OPPOSITE[edges[i]])
 		for j in range(i+1,count):
 			if parents[j] == i: ports.append(edges[j])
-		var eligible: Array = catalog.templates.filter(func(t): return t.role == roles[i] and ports.all(func(port): return port in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")))
+		var eligible: Array = candidates.filter(func(t): return t.role == roles[i] and ports.all(func(port): return port in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")))
 		if catalog.format_version>=3: eligible = eligible.filter(func(t): return footprint_fits(t,positions[i],occupied))
 		if eligible.is_empty(): return {"errors":PackedStringArray(["No template fits the required ports and room-group footprint"])}
 		var total := 0

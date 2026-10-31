@@ -2,6 +2,9 @@ extends RefCounted
 const Pack = preload("room_pack.gd")
 const Bindings = preload("art_bindings.gd")
 const ROLES := ["start","key","item","combat","treasure","goal"]
+## Rooms are 16x11 tiles, so they mirror rather than turn: a format-3 template
+## may list any of these to give the generator mirrored versions.
+const MIRRORS := ["horizontal","vertical","both"]
 static func defaults() -> Dictionary:
 	var catalog := {"format_version":1,"id":"native_templates","enemy_types":Pack.fresh().enemy_types,"templates":[]}
 	for role in ROLES:
@@ -29,7 +32,7 @@ static func validate(data) -> PackedStringArray:
 	var enemy_art: Dictionary = {}
 	for entry in data.templates:
 		if not entry is Dictionary: errors.append("Template must be an object");continue
-		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version >= 2 else []),"Template",errors)
+		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version >= 2 else [])+(["mirrors"] if data.format_version >= 3 else []),"Template",errors)
 		if not Pack.identifier(entry.get("id")) or ids.has(entry.get("id")): errors.append("Template IDs must be unique");continue
 		ids[entry.id] = true
 		if entry.get("role") not in ROLES: errors.append(entry.id+": invalid role")
@@ -61,6 +64,14 @@ static func validate(data) -> PackedStringArray:
 			if enemy_art.has(variant) and enemy_art[variant] != art: errors.append("Conflicting template art for enemy variant "+variant)
 			enemy_art[variant] = art
 		if not Pack.layout_warnings(pack).is_empty(): errors.append(entry.id+": all rooms must be reachable and internal doors must join adjacent map cells")
+		if entry.has("mirrors"):
+			var mirror_errors := mirror_problems(entry)
+			for error in mirror_errors: errors.append(entry.id+": "+error)
+			if mirror_errors.is_empty():
+				for mode in entry.mirrors:
+					var flipped := mirrored(entry,mode)
+					var check := pack.duplicate();check.rooms = [flipped.room]+flipped.get("annexes",[])
+					for error in Pack.validate(check): errors.append(entry.id+" ("+mode+"): "+error)
 		if data.format_version >= 3 and entry.get("ports") is Array:
 			for edge in entry.ports:
 				if entry.room.connections.has(edge): errors.append(entry.id+": external port overlaps an internal door: "+str(edge))
@@ -235,3 +246,74 @@ static func door_group_rooms(pack: Dictionary, root: String, chosen: Array, incl
 	var rooms: Array = [lookup[root]]
 	for id in companions: rooms.append(lookup[id])
 	return {"errors":PackedStringArray(),"rooms":rooms}
+
+static func mirror_problems(entry: Dictionary) -> PackedStringArray:
+	var errors := PackedStringArray()
+	var values = entry.mirrors
+	var distinct: Array = []
+	if values is Array:
+		for value in values:
+			if value in MIRRORS and value not in distinct: distinct.append(value)
+	if not values is Array or values.is_empty() or distinct.size() != values.size():
+		errors.append("mirrors must list distinct horizontal, vertical or both");return errors
+	var rooms: Array = [entry.room]+entry.get("annexes",[])
+	var art: Dictionary = entry.get("appearance",{})
+	if not art.get("room_tiles",{}).is_empty() or not art.get("room_sprites",{}).is_empty(): errors.append("room art is drawn one way; mirror only templates without room art")
+	if values.any(func(v): return v != "horizontal") and rooms.any(func(r): return r.get("kind") == "cellar" or r.has("resident")):
+		errors.append("cellars and residents only mirror horizontally")
+	return errors
+## A copy of a template entry mirrored left-right, top-bottom, or both.
+static func mirrored(entry: Dictionary, mode: String) -> Dictionary:
+	var flip_x := mode in ["horizontal","both"]
+	var flip_y := mode in ["vertical","both"]
+	var result := entry.duplicate(true)
+	result.erase("mirrors")
+	result.ports = entry.ports.map(func(edge): return mirror_edge(edge,flip_x,flip_y))
+	var origin: Array = entry.room.map_position
+	var rooms: Array = [result.room]+result.get("annexes",[])
+	for room in rooms:
+		room.tiles = room.tiles.map(func(row): return row.reverse() if flip_x else row)
+		if flip_y: room.tiles.reverse()
+		room.spawn = mirror_position(room.spawn,flip_x,flip_y)
+		for field in ["enemies","pickups"]:
+			for placement in room[field]: placement.position = mirror_position(placement.position,flip_x,flip_y)
+		var links: Dictionary = {}
+		for edge in room.connections: links[mirror_edge(edge,flip_x,flip_y)] = room.connections[edge]
+		room.connections = links
+		if room.has("secret"):
+			room.secret.cell = mirror_cell(room.secret.cell,flip_x,flip_y)
+			room.secret.direction = mirror_edge(room.secret.direction,flip_x,flip_y)
+		for stair in room.get("stairs",[]):
+			stair.cell = mirror_cell(stair.cell,flip_x,flip_y)
+			stair.target_position = mirror_position(stair.target_position,flip_x,flip_y)
+		var offset := Vector2i(int(room.map_position[0])-int(origin[0]),int(room.map_position[1])-int(origin[1]))
+		if flip_x: offset.x = -offset.x
+		if flip_y: offset.y = -offset.y
+		room.map_position = [int(origin[0])+offset.x,int(origin[1])+offset.y]
+	# Only offsets matter; keep the unit's local cells in the valid map range.
+	var shift := Vector2i(maxi(0,-rooms.map(func(r): return int(r.map_position[0])).min()),mini(0,-rooms.map(func(r): return int(r.map_position[1])).max()))
+	for room in rooms: room.map_position = [int(room.map_position[0])+shift.x,int(room.map_position[1])+shift.y]
+	if result.has("reward"): result.reward.position = mirror_position(result.reward.position,flip_x,flip_y)
+	return result
+static func mirror_edge(edge: String, flip_x: bool, flip_y: bool) -> String:
+	if (flip_x and edge in ["left","right"]) or (flip_y and edge in ["up","down"]): return Pack.OPPOSITE[edge]
+	return edge
+static func mirror_cell(cell: Array, flip_x: bool, flip_y: bool) -> Array:
+	return [15-int(cell[0]) if flip_x else int(cell[0]),10-int(cell[1]) if flip_y else int(cell[1])]
+## Link's sixteen-pixel body mirrors exactly across the room's width. Vertically
+## his feet (y+11) decide the tile, so the foot row mirrors and keeps its offset.
+static func mirror_position(at: Array, flip_x: bool, flip_y: bool) -> Array:
+	var x := int(at[0]);var y := int(at[1])
+	if flip_x: x = 240-x
+	if flip_y:
+		var foot := y+11
+		y = 16*(10-foot/16)+foot%16-11
+	return [x,y]
+## Each template and its mirrored versions, in a fixed order. Libraries without
+## mirrors list exactly their templates, keeping earlier seed results.
+static func variants(templates: Array) -> Array:
+	var result: Array = []
+	for entry in templates:
+		result.append(entry)
+		for mode in entry.get("mirrors",[]): result.append(mirrored(entry,mode))
+	return result

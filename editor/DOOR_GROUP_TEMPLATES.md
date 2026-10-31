@@ -16,8 +16,9 @@ and playtest it normally. For branches and a loop, use **8 primary rooms** with
 **Custom layout**, **2 branch rooms**, **1 extra loop**, and the same seed.
 
 The example includes manually authored versions facing each of the four
-cardinal directions. Generation chooses a version that fits; it does not rotate
-room contents.
+cardinal directions. Generation chooses a version that fits. A template can
+instead list mirrored versions (below), so one captured suite serves several
+directions.
 
 ## Capture a group
 
@@ -35,7 +36,9 @@ room contents.
 5. Optionally choose the generated reward room and pixel position. This may be
    any room in the captured unit. Without an override the primary's `(120,77)`
    remains the reward location.
-6. Review the live footprint below the capture controls, then save the derived
+6. Optionally tick **Mirrored versions**: horizontal, vertical or both (a 180°
+   turn). Rooms are 16×11 tiles, so they mirror rather than turn by 90°.
+7. Review the live footprint below the capture controls, then save the derived
    library, choose it for generation and verify a recipe.
 
 The preview marks the primary room with **P**, the generated reward with **\***,
@@ -57,6 +60,25 @@ The source document is unchanged. Existing pickups are copied; remove example
 pickups that would grant progression items early. Enemy definitions are scoped
 to the template. Shared art follows all captured rooms and enemy variants;
 private ROM appearance never enters the library.
+
+## Mirrored versions
+
+A format-3 template may carry `"mirrors": ["horizontal", "vertical", "both"]`
+(any distinct subset). The generator then also considers the template mirrored
+that way, after the original, with the same weight. Mirroring flips the tiles,
+door ports and internal doors, companion map offsets, spawns, enemies, pickups,
+the reward, secret cells and directions, and stair cells and arrivals.
+Horizontally, Link's sixteen-pixel body mirrors exactly (`x` becomes `240-x`).
+Vertically his feet (`y+11`) decide the tile, so the foot's tile row mirrors and
+keeps its offset within the tile; placements therefore stay on mirrored floor,
+though an off-centre feature can sit up to eight pixels differently. Every
+generated dungeon is verified by the solver as usual.
+
+Templates with room art (tiles or room sprites) cannot mirror, because the art
+is drawn one way. Cellars and residents mirror only horizontally. Each mirrored
+version is validated with the library. A library without `mirrors` offers
+exactly its templates, so its seeds give the same dungeons as before; adding
+mirrors changes the library fingerprint and so the recipe identity.
 
 ## Placement, identity and compatibility
 
@@ -88,7 +110,8 @@ Room-ID alias history is a separate manual-edit feature; regenerating content
 does not replay manual edits or their migration history.
 
 Current limits: four rooms per unit, external ports on the primary only, one
-automatic reward location per unit, no automatic rotation or multiple floors.
+automatic reward location per unit, mirroring but no 90° turns, and no
+multiple floors.
 Advanced dependencies remain outside solver support; water is solved with the
 ladder (see [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md)).
 
@@ -99,7 +122,7 @@ ladder (see [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md)).
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tests/generated_door_groups.gd --log-file /tmp/door-groups-native.log
 ```
 
-Checks cover explicit membership and outside-door removal, repeated instances,
+Checks (also `editor/tests/mirrors.gd`) cover explicit membership and outside-door removal, repeated instances,
 shared art, invalid/cyclic/disconnected units, footprint bounds and overlap,
 JSON determinism, unavailable internal dependencies, GUI capture, and native
 replays through internal key doors, generated loops and mixed cellar stairs.

@@ -35,3 +35,17 @@ static func mixed_catalog() -> Dictionary:
 	if not result.errors.is_empty(): return {"errors":result.errors}
 	result.catalog.templates = result.catalog.templates.filter(func(t): return t.role!="key" or t.id=="mixed_key")
 	return result.catalog
+
+## Only the upward suites, mirrored to cover the other three directions.
+static func mirrored_catalog() -> Dictionary:
+	var catalog := catalog()
+	if catalog.has("errors"): return catalog
+	catalog.id = "mirrored_door_templates"
+	catalog.templates = catalog.templates.filter(func(t): return not t.id.contains("_suite_") or t.id.ends_with("_up"))
+	for entry in catalog.templates:
+		if entry.id.ends_with("_up"): entry.mirrors = ["vertical"]
+	# A right-facing suite mirrored horizontally covers left.
+	var right := catalog()
+	for entry in right.templates:
+		if entry.id.contains("_suite_right"): entry.mirrors = ["horizontal"];catalog.templates.append(entry)
+	return catalog

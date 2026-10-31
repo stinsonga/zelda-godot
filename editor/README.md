@@ -183,9 +183,9 @@ recommended order:
 1. **Broader progression solving.** Enemy drops, other secret types and bomb
    shops mixed with finite bombs. Standalone packaging, ladder crossings and
    bomb supplies beyond the bag are implemented.
-2. **More flexible generation.** External ports on companion rooms, template
-   rotation and multiple floors. Door-connected groups and their live footprint
-   preview are implemented.
+2. **More flexible generation.** External ports on companion rooms and multiple
+   floors. Door-connected groups, their live footprint preview and mirrored
+   templates are implemented.
 3. **Other content-ID migrations.** Placements, enemy variants, items and pack
    identity. Room-ID renaming already preserves checkpoint references; see
    [ROOM_IDS.md](ROOM_IDS.md).
