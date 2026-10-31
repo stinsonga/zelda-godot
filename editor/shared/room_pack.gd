@@ -17,6 +17,12 @@ const ITEMS := ["key", "rupee", "heart", "bombs", "wooden_sword","bow","ladder",
 const UPGRADES := {"white_sword":"wooden_sword","magical_sword":"wooden_sword","red_candle":"blue_candle"}
 const RUPEE_VALUES := {"rupee":1,"five_rupees":5}
 const BEHAVIORS := ["walker", "jumper", "gel", "rope", "flyer"]
+## Enemy variant options (v2). The sword always works, so the solver's
+## sword-cleared rooms stay valid; "magic" is the wand's shots.
+const ENEMY_DROPS := ["none","standard","generous"]
+const IMMUNITIES := ["arrow","boomerang","bomb","fire","magic"]
+const PROJECTILES := ["rock","arrow","sword","boomerang","magic"]
+const ENEMY_OPTIONS := ["drops","front_shield","immune_to","projectile","projectile_damage"]
 ## Optional per-room floor: 0 is the ground floor (1F), -1 the first basement
 ## (B1), 1 the second floor (2F). Map cells are unique per floor.
 const MIN_FLOOR := -3
@@ -96,7 +102,14 @@ static func validate(pack) -> PackedStringArray:
 	for id in definitions:
 		var e = definitions[id]
 		if not identifier(id) or not e is Dictionary: errors.append("Invalid enemy definition"); continue
-		unknown_fields(e,["title","behavior","health","speed_subpixels","contact_damage"] + (["shooting_enabled"] if version==2 else []),"Enemy " + id,errors)
+		unknown_fields(e,["title","behavior","health","speed_subpixels","contact_damage"] + (["shooting_enabled"]+ENEMY_OPTIONS if version==2 else []),"Enemy " + id,errors)
+		if e.has("drops") and e.drops not in ENEMY_DROPS: errors.append("Enemy " + id + ": drops must be none, standard or generous")
+		if e.has("front_shield") and not e.front_shield is bool: errors.append("Enemy " + id + ": front_shield must be true or false")
+		if e.has("immune_to") and (not e.immune_to is Array or e.immune_to.any(func(kind): return kind not in IMMUNITIES) or e.immune_to.size() != Array(e.immune_to).reduce(func(seen,kind): return seen if kind in seen else seen+[kind],[]).size()):
+			errors.append("Enemy " + id + ": immune_to lists distinct arrow, boomerang, bomb, fire or magic; the sword always works")
+		if (e.has("projectile") or e.has("projectile_damage")) and e.get("shooting_enabled") != true: errors.append("Enemy " + id + ": projectile settings need a shooting walker")
+		if e.has("projectile") and e.projectile not in PROJECTILES: errors.append("Enemy " + id + ": projectile must be rock, arrow, sword, boomerang or magic")
+		if e.has("projectile_damage") and not integer(e.projectile_damage,1,16): errors.append("Enemy " + id + ": projectile_damage must be 1..16 half hearts")
 		if not e.get("title") is String or e.get("behavior") not in BEHAVIORS: errors.append("Enemy " + id + ": invalid title or behavior")
 		if e.has("shooting_enabled") and (not e.shooting_enabled is bool or (e.shooting_enabled and e.get("behavior")!="walker")): errors.append("Shooting is an optional boolean for walker variants")
 		for field in {"health":[1,255],"speed_subpixels":[0,2048],"contact_damage":[0,16]}:
@@ -366,6 +379,20 @@ static func validate_stairs(rooms: Dictionary, errors: PackedStringArray) -> voi
 			if not target.get("tiles") is Array or not walkable(target.tiles,position): errors.append(prefix+"arrival feet are blocked")
 			secret = target.get("secret")
 			if secret is Dictionary and point(secret.get("cell"),2,13,2,8) and secret.get("direction") in EDGES and block_overlaps(secret,position,false): errors.append(prefix+"arrival overlaps the destination's reset block")
+
+## Writes a variant's options, leaving defaults out; projectile settings only
+## apply to shooting walkers. True when the pack needs schema 2.
+static func set_enemy_options(enemy: Dictionary, options: Dictionary) -> bool:
+	for field in ENEMY_OPTIONS: enemy.erase(field)
+	if options.get("drops","standard") != "standard": enemy.drops = options.drops
+	if options.get("front_shield",false): enemy.front_shield = true
+	if not options.get("immune_to",[]).is_empty(): enemy.immune_to = options.immune_to.duplicate()
+	if enemy.get("shooting_enabled") == true:
+		if options.get("projectile","rock") != "rock": enemy.projectile = options.projectile
+		if int(options.get("projectile_damage",1)) != 1: enemy.projectile_damage = int(options.projectile_damage)
+	return ENEMY_OPTIONS.any(func(field): return enemy.has(field))
+static func enemy_options(enemy: Dictionary) -> Dictionary:
+	return {"drops":enemy.get("drops","standard"),"front_shield":enemy.get("front_shield",false),"immune_to":enemy.get("immune_to",[]).duplicate(),"projectile":enemy.get("projectile","rock"),"projectile_damage":int(enemy.get("projectile_damage",1))}
 
 static func cellar(id: String) -> Dictionary:
 	var result := room(id,"Cellar")

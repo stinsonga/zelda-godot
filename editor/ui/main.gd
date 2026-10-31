@@ -73,6 +73,11 @@ var enemy_behavior: OptionButton
 var health: SpinBox
 var speed: SpinBox
 var shooting: CheckBox
+var enemy_drops: OptionButton
+var front_shield: CheckBox
+var immunity_checks: Array[CheckBox] = []
+var projectile: OptionButton
+var projectile_damage: SpinBox
 var damage: SpinBox
 var edge: OptionButton
 var destination: OptionButton
@@ -376,7 +381,15 @@ func build_ui() -> void:
 	health = number("Health",right,1,255)
 	speed = number("Speed / 256",right,0,2048)
 	damage = number("Half-heart damage",right,0,16)
-	shooting = CheckBox.new();shooting.text = "Walker shoots rocks";right.add_child(shooting)
+	shooting = CheckBox.new();shooting.text = "Walker shoots";right.add_child(shooting)
+	var shot_row := HBoxContainer.new();right.add_child(shot_row)
+	label("Shoots",shot_row);projectile = options(Pack.PROJECTILES,shot_row);projectile_damage = number("Shot damage",shot_row,1,16)
+	label("Drops",right);enemy_drops = options(Pack.ENEMY_DROPS,right)
+	enemy_drops.tooltip_text = "standard: hearts and rupees; generous: always drops, with five-rupee coins"
+	front_shield = CheckBox.new();front_shield.text = "Shield blocks hits from the front";right.add_child(front_shield)
+	var immune_row := HFlowContainer.new();right.add_child(immune_row);label("Immune to",immune_row)
+	for kind in Pack.IMMUNITIES:
+		var check := CheckBox.new();check.text = kind;immune_row.add_child(check);immunity_checks.append(check)
 	button("Apply variant settings",right,apply_enemy)
 	button("Duplicate enemy variant",right,duplicate_enemy)
 	var rename_row := HBoxContainer.new();right.add_child(rename_row)
@@ -525,6 +538,10 @@ func refresh_enemy() -> void:
 	speed.value = enemy.speed_subpixels
 	damage.value = enemy.contact_damage
 	shooting.button_pressed = enemy.get("shooting_enabled",false)
+	var settings := Pack.enemy_options(enemy)
+	pick(enemy_drops,settings.drops);front_shield.button_pressed = settings.front_shield
+	pick(projectile,settings.projectile);projectile_damage.value = settings.projectile_damage
+	for check in immunity_checks: check.button_pressed = check.text in settings.immune_to
 func refresh_connection() -> void:
 	var link: Dictionary = current().connections.get(selected(edge),{})
 	for check in requirement_checks: check.button_pressed = check.text in link.get("requires",[])
@@ -668,7 +685,11 @@ func apply_enemy() -> void:
 		enemy.contact_damage = int(damage.value)
 		if enemy.behavior=="walker" and shooting.button_pressed:
 			Pack.upgrade(pack);enemy.shooting_enabled = true
-		else: enemy.erase("shooting_enabled"))
+		else: enemy.erase("shooting_enabled")
+		var immune: Array = []
+		for check in immunity_checks:
+			if check.button_pressed: immune.append(check.text)
+		if Pack.set_enemy_options(enemy,{"drops":selected(enemy_drops),"front_shield":front_shield.button_pressed,"immune_to":immune,"projectile":selected(projectile),"projectile_damage":projectile_damage.value}): Pack.upgrade(pack))
 func duplicate_enemy() -> void:
 	if pack.enemy_types.size() >= 128 or enemy_type.item_count == 0: return
 	var id := "variant_1"
@@ -1116,7 +1137,10 @@ func apply_placement(properties: Dictionary) -> void:
 					if appearance.enemy_sprites.has(variant): appearance.enemy_sprites[target] = appearance.enemy_sprites[variant]
 					if pack.has("appearance") and pack.appearance.enemy_sprites.has(variant): pack.appearance.enemy_sprites[target] = pack.appearance.enemy_sprites[variant]
 				if properties.settings.get("shooting_enabled",false): Pack.upgrade(pack)
-				pack.enemy_types[target] = properties.settings.duplicate(true)
+				# The inspector edits stats; the variant's other options carry over.
+				var settings: Dictionary = properties.settings.duplicate(true)
+				Pack.set_enemy_options(settings,Pack.enemy_options(pack.enemy_types[variant]))
+				pack.enemy_types[target] = settings
 			data.type = target
 		else:
 			data.item = properties.item

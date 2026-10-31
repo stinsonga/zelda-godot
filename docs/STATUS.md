@@ -181,30 +181,22 @@ it uses), and an exported game lists the bundles in its `packs/` folder or
 `user://packs`, each with its own save files (README, *Distributing an authored
 game*).
 
-Remaining editor work, in recommended order:
+The editor is feature-complete for authoring, generating, checking and
+shipping dungeons. Possible future work, none of it needed for that loop:
 
-1. **Broader progression solving.** Water with the ladder and bomb supplies
-   beyond the bag are solved and replayed; still to model: more complex
-   dependencies (enemy drops, other secret types, bomb shops mixed with finite
-   bombs). Continue reporting unsupported mechanics rather than certifying them.
-2. **More flexible generation.** Generation can now split the main path across
-   up to three floors joined by stairs at templates' stair cells (recipe
-   version 8); authored packs stack floors by hand. Templates can be mirrored
-   (rooms are 16×11, so not turned) and give companion rooms external ports.
-   Still open: basements, floor changes from branches, companion stair cells. Bounded door-connected groups, internal locks,
-   linked cellars, branches/loops and the live capture preview are implemented.
-3. **More authoring coverage and usability.** Additional resident modes,
-   cave entrance/original cellar transitions, recorder/Armos and other secrets,
-   advanced doors and more enemy properties (room-list filters and most dungeon
-   items, with the map and compass, are done). See
-   [RESIDENTS.md](../editor/RESIDENTS.md) and
-   [PLACEMENTS.md](../editor/PLACEMENTS.md) for current support.
-4. **Further graphics workflows.** Layered sprites, animation states beyond the
-   implemented idle/walk/attack clips, and editable copies of imported rooms.
-   Rectangular sprite layouts, directional clips and independent timing are
-   already implemented. Shared authored art and private ROM overlays remain
-   separate; see [AUTHORED_ART.md](../editor/AUTHORED_ART.md) and
-   [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md).
+- **Progression solving:** enemy drops, recorder/Armos secrets, and bomb shops
+  mixed with finite bombs. Packs using these are reported as unsupported or
+  assumed away, never certified.
+- **Generation:** basements, floor changes from branch rooms, and stair cells
+  on companion rooms.
+- **Authoring:** further resident modes ("take any one", paid passage), cave
+  entrances and the original cellar transitions, recorder/Armos secrets, and
+  more enemy behaviours (wizzrobes, traps, wallmasters, which each need their
+  own tuning and art).
+- **Graphics:** layered sprites, animation states beyond idle/walk/attack, and
+  editable copies of imported rooms. See
+  [AUTHORED_ART.md](../editor/AUTHORED_ART.md) and
+  [ASSET_LIBRARY_PLAN.md](../editor/ASSET_LIBRARY_PLAN.md).
 
 ## 5. Reachability checker limits
 

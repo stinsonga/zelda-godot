@@ -108,8 +108,9 @@ In game, named clips follow each enemy's simulation updates:
 - Missing clips fall back to walk, then idle, then the original whole-sheet
   cycle. Libraries without named clips retain their existing game animation.
 
-The **Walker shoots rocks** checkbox in variant and placement settings exposes
-existing walker shooting. It defaults off, uses the engine's existing targeting
+The **Walker shoots** checkbox (**Walker shoots rocks** in the placement
+inspector) exposes existing walker shooting; the variant panel also picks the
+shot and its damage (see [PLACEMENTS.md](PLACEMENTS.md)). It defaults off, uses the engine's existing targeting
 and timers, and saves as optional `shooting_enabled` in a version-2 enemy
 variant. Other current authorable families remain contact enemies and naturally
 use idle/walk. Selecting attack art does not give an enemy an attack.

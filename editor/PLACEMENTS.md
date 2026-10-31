@@ -22,6 +22,15 @@ placement. If its chosen definition is shared, changed stats create a new varian
 and copy its local sprite selection. An unshared definition is updated in place.
 The older enemy brush settings still edit a definition for all of its users.
 
+The variant panel also sets each variant's **drops** (`standard` hearts and
+rupees, `generous` drops every time with five-rupee coins, or `none`), a
+**shield** that blocks hits from the front, **immunities** to arrows, boomerangs,
+bombs, fire or the wand's shots, and for shooting walkers the **shot** (rock,
+arrow, sword, boomerang or magic) and its damage. These map onto the game's own
+enemy settings. The sword always works, so the progression solver's assumption
+that a sword clears a room still holds. Placement stat edits keep a variant's
+options when they copy it.
+
 Pickup controls choose an item, room-clear requirement and objective membership.
 Secret visibility after a block push is also available; see [PUSH_BLOCKS.md](PUSH_BLOCKS.md).
 Enabling these features upgrades a v1 pack to v2. Moving or changing an item

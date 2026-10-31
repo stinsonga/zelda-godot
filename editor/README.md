@@ -189,28 +189,20 @@ See [ASSET_BOUNDARY.md](../docs/ASSET_BOUNDARY.md).
 
 ### Limits and next editor work
 
-The editor supports an end-to-end MVP authoring loop. Remaining work, in
-recommended order:
+The editor covers the whole loop: author or generate a dungeon, check it with
+the progression solver, play it, and export it as a standalone game. Along the
+way it supports multiple floors, door-connected, mirrored and multi-floor
+templates, most dungeon items with the map and compass, enemy variants with
+drops, shields, immunities and shots, push blocks, bomb/fire secrets, hidden
+stairs, linked cellars, hint/gift/shop residents, room-list filters, and stable
+IDs for rooms, placements and packs. See [PLACEMENTS.md](PLACEMENTS.md),
+[PUSH_BLOCKS.md](PUSH_BLOCKS.md), [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md),
+[STAIRS.md](STAIRS.md), [RESIDENTS.md](RESIDENTS.md) and
+[RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
 
-1. **Broader progression solving.** Enemy drops, other secret types and bomb
-   shops mixed with finite bombs. Standalone packaging, ladder crossings and
-   bomb supplies beyond the bag are implemented.
-2. **More flexible generation.** Door-connected groups, their live footprint
-   preview, mirrored templates, companion ports, hand-built floors and
-   generation across floors are implemented. Still open: floors below 1F,
-   floor changes from branch rooms, and stair cells on companion rooms.
-3. **More authoring coverage and usability.** Additional cave/resident modes,
-   secret types, advanced doors and enemy properties. Current
-   support includes room-list filters, most dungeon items (see
-   [PLACEMENTS.md](PLACEMENTS.md)), individual placement editing, push blocks, bomb/fire secrets,
-   hidden stairs, linked cellars and hint/gift/shop residents; see
-   [PLACEMENTS.md](PLACEMENTS.md), [PUSH_BLOCKS.md](PUSH_BLOCKS.md),
-   [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md), [STAIRS.md](STAIRS.md),
-   [RESIDENTS.md](RESIDENTS.md) and [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
-4. **Further graphics workflows.** Layered sprites, animation states beyond
-   idle/walk/attack, and editable copies of imported rooms. Rectangular layouts,
-   directional clips and independent timing are already available; see
-   [AUTHORED_ART.md](AUTHORED_ART.md).
+Possible future work: enemy drops and recorder/Armos secrets in the solver;
+basements and branch floor changes in generation; more resident modes, cave
+entrances and enemy behaviours; layered sprites and further animation states.
 
 The current project-wide work list is [STATUS.md](../docs/STATUS.md).
 

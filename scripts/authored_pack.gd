@@ -43,6 +43,12 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 		enemy.speed_subpixels = int(source.speed_subpixels)
 		enemy.contact_damage = int(source.contact_damage)
 		enemy.shooting_enabled = source.get("shooting_enabled",false)
+		enemy.drops_rewards = source.get("drops","standard") != "none"
+		if source.get("drops") == "generous": enemy.loot_table = preload("res://content/enemies/stout_loot.tres")
+		enemy.front_shield = source.get("front_shield",false)
+		for kind in source.get("immune_to",[]): enemy.invincible_to.append(kind)
+		enemy.projectile_kind = source.get("projectile","rock")
+		enemy.projectile_damage = int(source.get("projectile_damage",1))
 		enemy.fallback_color = Color("ec7967")
 		if appearance.get("enemy_sprites",{}).has(id):
 			var group: String = appearance.enemy_sprites[id]
