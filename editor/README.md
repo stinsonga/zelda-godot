@@ -200,8 +200,9 @@ recommended order:
    generation across floors are implemented. Still open: floors below 1F,
    floor changes from branch rooms, and stair cells on companion rooms.
 3. **More authoring coverage and usability.** Additional cave/resident modes,
-   secret types, items, advanced doors and enemy properties. Current
-   support includes room-list filters, individual placement editing, push blocks, bomb/fire secrets,
+   secret types, advanced doors and enemy properties. Current
+   support includes room-list filters, most dungeon items (see
+   [PLACEMENTS.md](PLACEMENTS.md)), individual placement editing, push blocks, bomb/fire secrets,
    hidden stairs, linked cellars and hint/gift/shop residents; see
    [PLACEMENTS.md](PLACEMENTS.md), [PUSH_BLOCKS.md](PUSH_BLOCKS.md),
    [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md), [STAIRS.md](STAIRS.md),

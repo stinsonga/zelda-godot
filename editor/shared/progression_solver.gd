@@ -22,7 +22,7 @@ var key_capacity := 255
 ## More bombs than the bag holds: reachable bomb pickups are taken at once, as
 ## walking over them would, and the excess is lost to the cap.
 var force_bombs := false
-const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, other secret types or enemy-drop farming. With the ladder, Link crosses one water tile straight from a grid point, as the game deploys it; water is otherwise solid. Directional blocks reset on room entry and require the room to be cleared. Bomb/fire reveals persist and consume one bomb or one blue-candle use. With more than eight bombs supplied, reachable bomb pickups are taken immediately (the bag holds eight). Active stairs force transitions; arriving on a stair suppresses it until Link moves away."
+const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, other secret types or enemy-drop farming. With the ladder, Link crosses one water tile straight from a grid point, as the game deploys it; water is otherwise solid. Directional blocks reset on room entry and require the room to be cleared. Bomb/fire reveals persist and consume one bomb or one blue-candle use. With more than eight bombs supplied, reachable bomb pickups are taken immediately (the bag holds eight). Active stairs force transitions; arriving on a stair suppresses it until Link moves away. White and magical swords open sword gates and the red candle opens blue-candle gates; other non-required items do not change the route."
 func item_bit(item: String) -> int: return 1 << Pack.REQUIRED_ITEMS.find(item)
 func owns(state: Dictionary, item: String) -> bool: return (state.items & item_bit(item)) != 0
 func requires_met(state: Dictionary, link: Dictionary) -> bool:
@@ -75,7 +75,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 		if not room.has("resident"): continue
 		for ware in room.resident.wares:
 			if ware == null: continue
-			if room.resident.mode == "shop" and ware.item == "rupee": return report("unsupported",String(room.id)+": repeatable money offers require a farming/capacity model.")
+			if room.resident.mode == "shop" and ware.item in Pack.RUPEE_VALUES: return report("unsupported",String(room.id)+": repeatable money offers require a farming/capacity model.")
 			if ware.item == "bombs":
 				if room.resident.mode == "gift": bomb_supply+=4
 				if room.resident.mode == "shop": shop_bombs = true
@@ -167,7 +167,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 		for i in range(pickups.size()):
 			if pickups[i].room != state.room or (state.collected & (1<<i)) != 0: continue
 			var pickup: Dictionary = pickups[i].pickup
-			if has_residents and not room.has("resident") and pickup.item == "rupee": continue
+			if has_residents and not room.has("resident") and pickup.item in Pack.RUPEE_VALUES: continue
 			if pickup.get("requires_secret",false) and not state.pushed: reason(state.room+"/"+pickup.id+": requires revealing the room secret");continue
 			if pickup.get("requires_clear",false) and not view.clear: reason(state.room+"/"+pickup.id+": requires clearing the room with a sword");continue
 			if not near(cells,pickup.position): reason(state.room+"/"+pickup.id+": pickup lies outside the entry's walkable region");continue
@@ -237,9 +237,10 @@ func signature(state: Dictionary) -> String:
 func take(state: Dictionary, item: String) -> void:
 	match item:
 		"key": state.keys = mini(key_capacity,state.keys+1)
-		"rupee": state.rupees = mini(255,state.rupees+1)
+		"rupee","five_rupees": state.rupees = mini(255,state.rupees+Pack.RUPEE_VALUES[item])
 		"bombs": state.bombs = mini(8,state.bombs+4)
 		_:
+			item = Pack.UPGRADES.get(item,item)
 			if item in Pack.REQUIRED_ITEMS: state.items |= item_bit(item)
 func door_mask(state: Dictionary, cleared: bool) -> int:
 	var room: Dictionary = rooms[state.room]
@@ -370,13 +371,13 @@ func coin_action(state: Dictionary, view: Dictionary) -> Dictionary:
 	var ids: Array = [];var positions: Array = []
 	for i in range(pickups.size()):
 		var entry: Dictionary = pickups[i]
-		if entry.room != state.room or entry.pickup.item != "rupee" or (state.collected & (1<<i)) != 0: continue
+		if entry.room != state.room or entry.pickup.item not in Pack.RUPEE_VALUES or (state.collected & (1<<i)) != 0: continue
 		var pickup: Dictionary = entry.pickup
 		if pickup.get("requires_clear",false) and not view.clear: continue
 		if pickup.get("requires_secret",false) and not state.pushed: continue
 		if not near(view.cells,pickup.position): continue
 		var at := collect_position(view.cells,pickup.position)
-		next.collected |= 1<<i;take(next,"rupee")
+		next.collected |= 1<<i;take(next,entry.pickup.item)
 		next.portal_armed = next.portal_armed or at != next.at;next.at = at
 		ids.append(pickup.id);positions.append([at.x,at.y])
 	if ids.is_empty(): return {}

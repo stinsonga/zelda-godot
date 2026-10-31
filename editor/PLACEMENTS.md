@@ -30,6 +30,25 @@ objective reference; Undo restores both. A duplicate gets a fresh ID and nearby
 free position, and does not become an objective automatically. Room placement
 limits still apply. Player spawn cannot be deleted or duplicated.
 
+### Items
+
+Pickups and resident wares may be keys, rupees and five rupees, hearts, heart
+containers and fairies, bombs, the map and compass, the swords (wooden, white,
+magical), boomerangs, the bow, arrows and silver arrows, candles, the recorder,
+the ladder, the magic key, the wand and book, rings, the magic shield, potions
+and bait. Items that end a level (the triforce) or only matter outdoors (raft,
+power bracelet, letter) are not offered, nor the clock, which works only as an
+enemy drop.
+
+The map lights the level's rooms on the status-bar map, for the current floor.
+The compass blinks at the room of the first objective still to collect (in the
+original levels, the triforce's room). Without art of its own, the authored
+status bar draws this map in its lower-right corner.
+
+For progression checking, a white or magical sword opens sword gates and the red
+candle opens blue-candle gates, as their slots do in the game; five rupees count
+five. Other items do not change the route.
+
 Properties apply together as one undo step. Reset fields reloads saved document
 values without undoing other edits. Selection is cleared on room, document or tool
 changes. Placement IDs remain read-only; save-ID migration is future work.

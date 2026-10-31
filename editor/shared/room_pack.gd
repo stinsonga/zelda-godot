@@ -10,7 +10,12 @@ const ITEM_SLOTS := {"wooden_sword":"sword","bow":"bow","ladder":"ladder","blue_
 const EDGES := ["up", "right", "down", "left"]
 const OPPOSITE := {"up":"down", "down":"up", "left":"right", "right":"left"}
 const KINDS := ["open", "key", "bombable", "shutter", "false", "wall"]
-const ITEMS := ["key", "rupee", "heart", "bombs", "wooden_sword","bow","ladder","blue_candle","recorder","magic_key"]
+const ITEMS := ["key", "rupee", "heart", "bombs", "wooden_sword","bow","ladder","blue_candle","recorder","magic_key",
+	"five_rupees","heart_container","fairy","map","compass","boomerang","magical_boomerang","arrows","silver_arrows","red_candle",
+	"white_sword","magical_sword","magic_rod","book","blue_ring","red_ring","magic_shield","blue_potion","red_potion","bait"]
+## Upgrades that also satisfy a required item's gate (doors test the slot).
+const UPGRADES := {"white_sword":"wooden_sword","magical_sword":"wooden_sword","red_candle":"blue_candle"}
+const RUPEE_VALUES := {"rupee":1,"five_rupees":5}
 const BEHAVIORS := ["walker", "jumper", "gel", "rope", "flyer"]
 ## Optional per-room floor: 0 is the ground floor (1F), -1 the first basement
 ## (B1), 1 the second floor (2F). Map cells are unique per floor.

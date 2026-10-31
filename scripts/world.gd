@@ -1470,14 +1470,13 @@ func draw_level_map(markers: bool = true) -> void:
 		draw_hud_text("B%d" % -storey if storey < 0 else "%dF" % (storey + 1), Vector2(88, 8))
 	var cells: Array[int] = []
 	var left := 15
-	var triforce_room := -1
+	var triforce_room := compass_room(level)
 	for definition in rooms.values():
 		if definition.dungeon_level != level or definition.map_room_id < 0 or definition.map_floor != room.map_floor: continue
 		cells.append(definition.map_room_id)
 		left = mini(left, definition.map_room_id % 16)
-		for pickup in definition.pickups:
-			if "slot" in pickup.item and pickup.item.slot == &"triforce": triforce_room = definition.map_room_id
-	var original: bool = submenu_layout != null and not submenu_layout.status_map_tiles.is_empty() and visual_theme.hud_tiles != null
+	# Authored levels have no original status-bar map, so draw their cells.
+	var original: bool = submenu_layout != null and not submenu_layout.status_map_tiles.is_empty() and visual_theme.hud_tiles != null and level <= submenu_layout.status_map_offsets.size()
 	var origin := Vector2(16, 16)
 	if state.has_level_item(&"map", level):
 		if original:
@@ -2335,6 +2334,40 @@ func authored_room_rect(definition: Resource, slot: String, anchor: Vector2) -> 
 	return Rect2(anchor+layout.position,layout.size)
 
 ## Authored preview presentation uses existing inventory/objective state.
+## The room the compass points to on this floor: the triforce's, or in an
+## authored level the first objective not yet collected. -1 when none.
+func compass_room(level: int) -> int:
+	for definition in rooms.values():
+		if definition.dungeon_level != level or definition.map_room_id < 0 or definition.map_floor != room.map_floor: continue
+		for pickup in definition.pickups:
+			if "slot" in pickup.item and pickup.item.slot == &"triforce": return definition.map_room_id
+	if world_definition == null: return -1
+	for goal in world_definition.completion_goals:
+		var definition: Resource = rooms.get(StringName(goal.room))
+		if definition == null or definition.dungeon_level != level or definition.map_floor != room.map_floor or definition.map_room_id < 0: continue
+		if not state.has_collected(StringName(goal.room),StringName(goal.pickup)): return definition.map_room_id
+	return -1
+
+## The authored status bar's map, scaled into its lower-right corner: rooms on
+## this floor once the map is taken, the compass's objective, and Link.
+func draw_authored_map(area: Rect2) -> void:
+	var level: int = room.dungeon_level
+	var ids: Array[int] = []
+	for definition in rooms.values():
+		if definition.dungeon_level == level and definition.map_room_id >= 0 and definition.map_floor == room.map_floor: ids.append(definition.map_room_id)
+	if ids.is_empty(): return
+	var columns: Array = ids.map(func(id: int) -> int: return id % 16)
+	var rows: Array = ids.map(func(id: int) -> int: return id / 16)
+	var cell := Vector2(mini(8, int(area.size.x) / (columns.max() - columns.min() + 1)), mini(4, int(area.size.y) / (rows.max() - rows.min() + 1)))
+	var corner := Vector2(area.end.x - (columns.max() - columns.min() + 1) * cell.x, area.position.y)
+	var at := func(id: int) -> Vector2: return corner + Vector2((id % 16 - columns.min()) * cell.x, (id / 16 - rows.min()) * cell.y)
+	if state.has_level_item(&"map", level):
+		for id in ids: draw_rect(Rect2(at.call(id), cell - Vector2(1, 1)), Color("2038ec"))
+	var target := compass_room(level)
+	if target >= 0 and state.has_level_item(&"compass", level) and simulation_tick % 32 < 16:
+		draw_rect(Rect2(at.call(target) + (cell - Vector2(3, 3)) / 2, Vector2(3, 3)).abs(), Color("d82800"))
+	if room.map_room_id >= 0: draw_rect(Rect2(at.call(room.map_room_id) + (cell - Vector2(3, 3)) / 2, Vector2(3, 3)).abs(), Color("80d010"))
+
 func authored_progress_text() -> String:
 	var total: int = world_definition.completion_goals.size()
 	if total==0: return "FREE PLAY"
@@ -2363,3 +2396,4 @@ func draw_authored_hud() -> void:
 	draw_string(font,Vector2(160,34),authored_progress_text(),HORIZONTAL_ALIGNMENT_RIGHT,88,8,Color("86d1ad"))
 	draw_string(font,Vector2(8,48),"MOVE: ARROWS/WASD   Z/SPACE: SWORD",HORIZONTAL_ALIGNMENT_LEFT,-1,7,Color("a6b4bb"))
 	draw_string(font,Vector2(8,60),"X/SHIFT: ITEM   ENTER: MENU",HORIZONTAL_ALIGNMENT_LEFT,-1,7,Color("a6b4bb"))
+	draw_authored_map(Rect2(160,40,88,22))
