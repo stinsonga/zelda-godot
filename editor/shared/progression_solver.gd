@@ -19,7 +19,10 @@ var has_residents := false
 var secret_ids: Dictionary = {}
 var resident_ids: Dictionary = {}
 var key_capacity := 255
-const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, water/ladder deployment, other secret types or enemy-drop farming. Directional blocks reset on room entry and require the room to be cleared. Bomb/fire reveals persist and consume one bomb or one blue-candle use. Active stairs force transitions; arriving on a stair suppresses it until Link moves away."
+## More bombs than the bag holds: reachable bomb pickups are taken at once, as
+## walking over them would, and the excess is lost to the cap.
+var force_bombs := false
+const ASSUMPTIONS := "Assumes reachable sword-vulnerable enemies can be defeated without spending progression supplies. Does not model health, combat skill, enemy drops, other secret types or enemy-drop farming. With the ladder, Link crosses one water tile straight from a grid point, as the game deploys it; water is otherwise solid. Directional blocks reset on room entry and require the room to be cleared. Bomb/fire reveals persist and consume one bomb or one blue-candle use. With more than eight bombs supplied, reachable bomb pickups are taken immediately (the bag holds eight). Active stairs force transitions; arriving on a stair suppresses it until Link moves away."
 func item_bit(item: String) -> int: return 1 << Pack.REQUIRED_ITEMS.find(item)
 func owns(state: Dictionary, item: String) -> bool: return (state.items & item_bit(item)) != 0
 func requires_met(state: Dictionary, link: Dictionary) -> bool:
@@ -31,7 +34,7 @@ func reason(text: String) -> void:
 func report(status: String, message: String, states: int = 0, steps: Array = [], events: Array = []) -> Dictionary:
 	return {"status":status,"message":message,"states":states,"steps":steps,"events":events,"reached_rooms":reached.keys(),"blockers":reasons.keys(),"assumptions":ASSUMPTIONS+(" Resident routes settle dialogue, lifts and rupees between actions, avoid unchosen offer squares even when unaffordable, and batch reachable ordinary-room coins. Repeatable money offers and mixed shop/finite bomb supplies are outside this model." if has_residents else "")}
 func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000) -> Dictionary:
-	rooms.clear();pickups.clear();door_ids.clear();cache.clear();reasons.clear();reached.clear();goal_mask = 0;has_stairs = false;has_residents = false;resident_ids.clear();secret_ids.clear();key_capacity = 255
+	rooms.clear();pickups.clear();door_ids.clear();cache.clear();reasons.clear();reached.clear();goal_mask = 0;has_stairs = false;has_residents = false;resident_ids.clear();secret_ids.clear();key_capacity = 255;force_bombs = false
 	started = Time.get_ticks_msec()
 	var errors := Pack.validate(pack)
 	if not errors.is_empty(): return report("invalid","\n".join(errors))
@@ -47,7 +50,6 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 		for y in range(11):
 			for x in range(16):
 				var tile: String = room.tiles[y][x]
-				if tile == "~": return report("unsupported",room.id + ": water traversal is not modeled; no solvability claim.")
 				if (x<2 or x>13 or y<2 or y>8) and tile != "#": return report("unsupported",room.id + ": use the standard two-tile wall frame; no doorway-bypass claim.")
 		for pickup in room.pickups: pickups.append({"room":room.id,"pickup":pickup})
 		for edge in room.connections:
@@ -82,7 +84,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 	for entry in pickups:
 		if entry.pickup.item == "bombs": bomb_supply += 4
 	if shop_bombs and bomb_supply>0: return report("unsupported","Mixed shop and finite bomb supplies require automatic-pickup capacity/timing search.")
-	if bomb_supply>8: return report("unsupported","More than eight supplied bombs needs pickup-capacity/timing search; no solvability claim.")
+	force_bombs = bomb_supply>8
 	var first: Dictionary = rooms[pack.start_room]
 	var initial := {"room":pack.start_room,"at":Vector2i(int(first.spawn[0]),int(first.spawn[1])),"keys":0,"bombs":0,"rupees":0,"gifts":0,"secrets":0,"served":false,"items":0,"collected":0,"opened":0,"pushed":false,"portal_armed":true,"parent":-1,"action":"Start in " + String(pack.start_room),"event":{"type":"start","room":pack.start_room}}
 	for item in pack.starting_items: take(initial,item)
@@ -110,6 +112,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 		var cells: Dictionary = view.cells
 		if cells.is_empty() and view.stairs.is_empty() and view.offers.is_empty(): reason(state.room + ": entry position is blocked"); continue
 		var actions: Array = []
+		var forced := false
 		for offer in view.offers:
 			var ware: Dictionary = room.resident.wares[offer.slot]
 			var price := int(ware.price) if room.resident.mode == "shop" else 0
@@ -144,6 +147,7 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 			next.portal_armed = not on_any_stair(rooms[next.room],next.at)
 			next.action = "Take stairs %s/%s -> %s" % [state.room,stair.id,stair.target]
 			actions.append(next)
+		if owns(state,"ladder"): actions.append_array(ladder_actions(state,view))
 		if room.has("secret") and not state.pushed:
 			var secret: Dictionary = room.secret
 			var trigger := Pack.secret_trigger(secret)
@@ -176,8 +180,9 @@ func solve(pack: Dictionary, state_limit: int = 20000, time_limit_ms: int = 8000
 			next.collected |= 1<<i
 			take(next,pickup.item)
 			next.action = "Collect %s/%s (%s); keys=%d, bombs=%d" % [state.room,pickup.id,pickup.item,next.keys,next.bombs]
+			if force_bombs and pickup.item == "bombs": actions = [next];forced = true;break
 			actions.append(next)
-		for edge in Pack.EDGES:
+		for edge in ([] if forced else Pack.EDGES):
 			if not room.connections.has(edge): continue
 			var link: Dictionary = room.connections[edge]
 			if link.kind == "wall": continue
@@ -381,3 +386,46 @@ func coin_action(state: Dictionary, view: Dictionary) -> Dictionary:
 
 func remembered_secret(room_id: String, state: Dictionary) -> bool:
 	return secret_ids.has(room_id) and (state.secrets & (1<<int(secret_ids[room_id]))) != 0
+
+## Z_07 Link_EndMoveAndAnimate / Z_05 CheckLadder, as scripts/ladder.gd: from a
+## grid point facing water, with every probe water or open, the ladder deploys
+## sixteen pixels ahead (eight going up). Link moves freely to it; at its centre
+## the ordinary probe must find the far shore; he steps off sixteen pixels on.
+## Returns the landing, or (-999,-999).
+func ladder_landing(room: Dictionary, at: Vector2i, direction: Vector2i, mask: int, pushed: bool) -> Vector2i:
+	var none := Vector2i(-999,-999)
+	var probes := step_probes(at,direction)
+	if not probes.any(func(p): return water(room,p) and blocked(room,p,mask,pushed)): return none
+	if not probes.all(func(p): return water(room,p) or not blocked(room,p,mask,pushed)): return none
+	var anchor := at+direction*(8 if direction == Vector2i.UP else 16)
+	var centre := anchor+(Vector2i(0,-8) if direction == Vector2i.UP else Vector2i.ZERO)
+	if step_probes(centre,direction).any(func(p): return blocked(room,p,mask,pushed)): return none
+	var landing := anchor+direction*16
+	return landing if standing(room,landing,mask,pushed) else none
+func step_probes(at: Vector2i, direction: Vector2i) -> Array:
+	var probe := at+Vector2i(0,11)
+	if direction.x != 0: return [probe+Vector2i(16 if direction.x>0 else -8,0)]
+	probe.y += 8 if direction.y>0 else -8
+	return [probe,probe+Vector2i(8,0)]
+func water(room: Dictionary, pixel: Vector2i) -> bool:
+	return pixel.x>=0 and pixel.x<256 and pixel.y>=0 and pixel.y<176 and room.tiles[pixel.y/16][pixel.x/16] == "~"
+## One crossing per newly reached region of the room.
+func ladder_actions(state: Dictionary, view: Dictionary) -> Array:
+	var room: Dictionary = rooms[state.room]
+	var mask := door_mask(state,view.monsters_clear)
+	var regions: Array = []
+	var result: Array = []
+	for cell in view.cells:
+		for name in DIRS:
+			var landing := ladder_landing(room,cell,DIRS[name],mask,state.pushed)
+			if landing.x == -999 or view.cells.has(landing) or on_any_stair(room,landing) or view.resident.offers.has(landing): continue
+			if regions.any(func(region): return region.has(landing)): continue
+			var region := flood(room,landing,mask,state.pushed,true,view.resident)
+			if region.is_empty(): continue
+			regions.append(region)
+			var next: Dictionary = state.duplicate()
+			next.at = landing;next.portal_armed = true
+			next.event = {"type":"ladder","room":state.room,"at":[cell.x,cell.y],"direction":name,"landing":[landing.x,landing.y]}
+			next.action = "Cross water by ladder in %s from (%d,%d) %s" % [state.room,cell.x,cell.y,name]
+			result.append(next)
+	return result

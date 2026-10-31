@@ -179,9 +179,10 @@ game*).
 
 Remaining editor work, in recommended order:
 
-1. **Broader progression solving.** Model water/ladder traversal, more complex
-   dependencies and capacity-sensitive pickup routing. Continue reporting
-   unsupported mechanics rather than certifying them.
+1. **Broader progression solving.** Water with the ladder and bomb supplies
+   beyond the bag are solved and replayed; still to model: more complex
+   dependencies (enemy drops, other secret types, bomb shops mixed with finite
+   bombs). Continue reporting unsupported mechanics rather than certifying them.
 2. **More flexible generation.** External ports on companion rooms, template
    rotation and multiple floors. Bounded door-connected groups, internal locks,
    linked cellars, branches/loops and the live capture preview are implemented.

@@ -71,9 +71,8 @@ These cases explicitly return **UNSUPPORTED**:
   timing dependencies. They remain authorable and playable.
 - A bomb shop combined with starting, floor or gift bomb supplies. Automatic
   pickups near the eight-bomb cap need finer timing before certification.
-- More than eight total finite bombs when there is no bomb shop, as before.
-- Other existing unsupported mechanics, such as water/ladder deployment or
-  enemy-drop dependencies. Combat remains the stated sword-vulnerable assumption.
+- Other existing unsupported mechanics, such as enemy-drop
+  dependencies. Combat remains the stated sword-vulnerable assumption.
 
 Bomb shops with no other finite bomb supplies are supported, including repeat
 purchases and spending bombs on doors. Search/time limits remain inconclusive;

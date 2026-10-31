@@ -72,14 +72,14 @@ func run() -> void:
 	pack.rooms[0].pickups = [{"id":"bombs","item":"bombs","position":[64,77]}]
 	check(solved(pack),"Bomb supply opens bombable connection")
 	pack.starting_items.append_array(["bombs","bombs"])
-	check(Solver.new().solve(pack).status == "unsupported","Capacity/timing cases are reported unsupported, not silently certified")
+	check(Solver.new().solve(pack).status == "solved" and Solver.new().solve(pack).assumptions.contains("taken immediately"),"Bomb supplies beyond the bag are solved under immediate pickups")
 	pack = pair("open")
 	check(Solver.new().solve(pack,1).status == "limit","Search exhaustion is inconclusive")
 	check(Solver.new().solve(pack,20000,-1).get("limit_kind") == "time","Wall-clock exhaustion is distinguished from state limits")
 	pack.goals = []
 	check(Solver.new().solve(pack).status == "unsupported","Empty goals are not automatic success")
 	pack = pair("open");pack.rooms[0].tiles[3] = "##..~.........##"
-	check(Solver.new().solve(pack).status == "unsupported","Water is explicitly outside solver support")
+	check(Solver.new().solve(pack).status == "solved","Water is solid scenery that a route may pass around")
 	pack = pair("open");pack.rooms[0].connections.up.requires = ["bow"]
 	check(not Pack.validate(pack).is_empty(),"Mismatched reverse item requirements rejected")
 	pack = pair("open");pack.goals[0].pickup = "missing"

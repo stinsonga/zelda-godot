@@ -180,24 +180,23 @@ See [ASSET_BOUNDARY.md](../docs/ASSET_BOUNDARY.md).
 The editor supports an end-to-end MVP authoring loop. Remaining work, in
 recommended order:
 
-1. **Standalone authored-game packaging and loading.** Distribute packs and shared
-   graphics without requiring the sibling source project; keep ROM assets private.
-2. **Broader progression solving.** Water/ladder traversal, complex dependencies
-   and capacity-sensitive pickups.
-3. **More flexible generation.** External ports on companion rooms, template
+1. **Broader progression solving.** Enemy drops, other secret types and bomb
+   shops mixed with finite bombs. Standalone packaging, ladder crossings and
+   bomb supplies beyond the bag are implemented.
+2. **More flexible generation.** External ports on companion rooms, template
    rotation and multiple floors. Door-connected groups and their live footprint
    preview are implemented.
-4. **Other content-ID migrations.** Placements, enemy variants, items and pack
+3. **Other content-ID migrations.** Placements, enemy variants, items and pack
    identity. Room-ID renaming already preserves checkpoint references; see
    [ROOM_IDS.md](ROOM_IDS.md).
-5. **More authoring coverage and usability.** Additional cave/resident modes,
+4. **More authoring coverage and usability.** Additional cave/resident modes,
    secret types, items, advanced doors, room filters and enemy properties. Current
    support includes individual placement editing, push blocks, bomb/fire secrets,
    hidden stairs, linked cellars and hint/gift/shop residents; see
    [PLACEMENTS.md](PLACEMENTS.md), [PUSH_BLOCKS.md](PUSH_BLOCKS.md),
    [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md), [STAIRS.md](STAIRS.md),
    [RESIDENTS.md](RESIDENTS.md) and [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
-6. **Further graphics workflows.** Layered sprites, animation states beyond
+5. **Further graphics workflows.** Layered sprites, animation states beyond
    idle/walk/attack, and editable copies of imported rooms. Rectangular layouts,
    directional clips and independent timing are already available; see
    [AUTHORED_ART.md](AUTHORED_ART.md).

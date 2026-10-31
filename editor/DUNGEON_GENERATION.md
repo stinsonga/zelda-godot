@@ -210,13 +210,20 @@ Current conservative limits:
   native barriers under conservative offer routing. Repeatable money offers and
   mixed shop/finite bomb supplies remain unsupported. See
   [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
+- Water is solid; with the ladder the solver crosses one water tile straight
+  from a grid point, as the game deploys it (sixteen pixels ahead, eight going
+  up, with the far shore checked at its centre). Each crossing is a witness
+  event that the native replay walks (`tests/progression_routes.gd`). Wider water
+  blocks the route.
 - Bomb/fire secrets track persistent collision and bomb/candle requirements through
-  configured use positions. Other secret types, water/ladder deployment, raft routes,
+  configured use positions. Other secret types, raft routes,
   advanced money rules, boss vulnerabilities and enemy-drop dependencies remain unsupported.
-- Without a bomb shop: at most eight total finite bombs, including gifts and
-  starting bundles. Bomb shops are supported only without other finite bomb sources. Larger supplies
-  need capacity/timing-aware pickup routing and are explicitly unsupported, rather
-  than pretending the eight-bomb cap cannot waste an early pickup.
+- Finite bombs (starting bundles, floor pickups and gifts) are unlimited. When
+  they total more than the eight-bomb bag, the solver takes each bomb pickup as
+  soon as it is reachable, as walking over it would, and the cap discards the
+  excess; deferring a bundle until bombs are spent is never assumed
+  (`editor/tests/bomb_capacity.gd`, replayed by `tests/progression_routes.gd`).
+  Bomb shops are supported only without other finite bomb sources.
 - Supported pack enemy families are modeled as sword-vulnerable encounters.
   More complex encounters need explicit capability rules before certification.
 

@@ -52,7 +52,11 @@ func path_to(predicate: Callable) -> Array:
 				stride = 8-posmod(at.y-5,8) if direction.y>0 else posmod(at.y-5,8)
 			var candidate: Vector2i = at+direction*stride
 			if parents.has(candidate) or not world.room.movement_bounds.has_point(candidate): continue
-			if not world.can_enter_segment(at,direction): continue
+			# Ladder crossings are explicit witness events; probing must not deploy it.
+			var ladder_was: bool = world.ladder.active
+			var enters: bool = world.can_enter_segment(at,direction)
+			if not ladder_was and world.ladder.active: world.ladder.reset();enters = false
+			if not enters: continue
 			var safe := true
 			for i in range(1,stride+1):
 				if not world.can_occupy(at+direction*i): safe = false;break
@@ -100,6 +104,14 @@ func replay(pack: Dictionary, proof: Dictionary) -> void:
 			check(reached_pickup,"Native geometry reaches witness pickup "+event.pickup)
 			for i in range(4): tick()
 			check(world.state.has_collected(StringName(event.room),StringName(event.pickup)),"Native pickup collected "+event.pickup)
+		elif event.type == "ladder":
+			var from := Vector2i(int(event.at[0]),int(event.at[1]))
+			var landing := Vector2i(int(event.landing[0]),int(event.landing[1]))
+			check(walk_to(func(p): return p == from),"Native movement reaches the ladder shore")
+			for i in range(64):
+				if world.player.pixel_position() == landing: break
+				tick(DIRS[event.direction])
+			check(world.player.pixel_position() == landing and not world.ladder.active,"Native ladder crossing lands where the solver predicts: "+str(world.player.pixel_position())+" vs "+str(landing))
 		elif event.type == "walk":
 			var waypoint := Vector2i(int(event.at[0]),int(event.at[1]))
 			check(walk_to(func(p): return p == waypoint),"Native movement steps off arrival stair")

@@ -101,8 +101,7 @@ reachable. This is a conservative proof through that stance, not an exhaustive
 search of every possible blast position.
 
 Other existing limits remain: combat/survival are not frame-level proofs, other
-secret types and water remain unsupported, finite bombs are limited to eight,
-and bomb shops cannot be mixed with finite bomb supplies in a certified pack.
+secret types remain unsupported, and bomb shops cannot be mixed with finite bomb supplies in a certified pack.
 Shop-only bomb supply and a resident-gifted candle are supported and replayed.
 See [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md) for the economy assumptions.
 

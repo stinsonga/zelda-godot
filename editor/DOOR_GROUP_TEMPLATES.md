@@ -89,7 +89,8 @@ does not replay manual edits or their migration history.
 
 Current limits: four rooms per unit, external ports on the primary only, one
 automatic reward location per unit, no automatic rotation or multiple floors.
-Water/ladder traversal and advanced dependencies remain outside solver support.
+Advanced dependencies remain outside solver support; water is solved with the
+ladder (see [DUNGEON_GENERATION.md](DUNGEON_GENERATION.md)).
 
 ## Checks
 
