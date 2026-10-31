@@ -61,3 +61,12 @@ static func companion_catalog() -> Dictionary:
 		var inward: Array = side.connections.keys()
 		entry.companion_ports = {side.id:Pack.EDGES.filter(func(edge): return edge not in inward)}
 	return catalog
+
+## The classic single-room library, plus the companion suites, with a stair
+## cell on every template so generation can change floors anywhere.
+static func floor_catalog(rooms: String = "single") -> Dictionary:
+	var catalog := Templates.defaults() if rooms == "single" else companion_catalog()
+	if catalog.has("errors"): return catalog
+	catalog.format_version = 3;catalog.id = "floor_templates"
+	for entry in catalog.templates: entry.stair_cell = [7,4]
+	return catalog

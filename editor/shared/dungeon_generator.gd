@@ -19,10 +19,14 @@ func generate(catalog: Dictionary, seed_value: int, room_count: int = 8, require
 	if verification_ms<0 or verification_ms>60000: return {"errors":PackedStringArray(["Verification budget must be 0..60000 ms"])}
 	if seed_value<0 or seed_value>2147483647 or room_count<6 or room_count>16 or required_item not in Pack.REQUIRED_ITEMS: return {"errors":PackedStringArray(["Seed must be 0..2147483647, rooms 6..16, required item supported"])}
 	var layout_errors := PackedStringArray()
-	Pack.unknown_fields(layout,["branch_rooms","loop_count"],"Layout",layout_errors)
+	Pack.unknown_fields(layout,["branch_rooms","loop_count","floors"],"Layout",layout_errors)
 	if not layout.is_empty():
 		if not Pack.integer(layout.get("branch_rooms",room_count/4 if room_count>=8 else 0),0,room_count-6): layout_errors.append("Branch rooms must leave at least six primary rooms on the main path")
 		if not Pack.integer(layout.get("loop_count",0),0,8): layout_errors.append("Loop count must be 0..8")
+		if not Pack.integer(layout.get("floors",1),1,3): layout_errors.append("Floors must be 1..3")
+		elif int(layout.get("floors",1))>1:
+			if int(catalog.format_version)<3: layout_errors.append("Generating across floors needs a format-3 template library with stair cells")
+			elif floor_changes(room_count-int(layout.get("branch_rooms",room_count/4 if room_count>=8 else 0)),int(layout.floors)).is_empty(): layout_errors.append("Too few main-path rooms for %d floors" % int(layout.floors))
 	if not layout_errors.is_empty(): return {"errors":layout_errors}
 	rng_state = seed_value
 	var last_report: Dictionary = {}
@@ -45,13 +49,16 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	var roles: Array = []
 	for i in range(count):
 		roles.append("start" if i == 0 else "key" if i == 1 else "combat" if i == 2 else "item" if i == 3 else "goal" if i == main_count-1 else "treasure")
-	var laid := grow_units(catalog,count,main_count,roles) if companion_library(catalog) else layout_tree(catalog,count,main_count,roles)
+	var floors := int(layout.get("floors",1))
+	var changes := floor_changes(main_count,floors) if floors>1 else []
+	var laid := grow_units(catalog,count,main_count,roles,changes) if companion_library(catalog) or floors>1 else layout_tree(catalog,count,main_count,roles)
 	if not laid.has("chosen"): return laid
 	var positions: Array = laid.positions
 	var parents: Array = laid.parents
 	var edges: Array = laid.edges
 	var chosen: Array = laid.chosen
 	var exits: Array = laid.exits
+	var storeys: Array = laid.get("floors",[])
 	# Resident solvability changes candidate acceptance. Give those libraries
 	# a new recipe and world identity, preserving existing v1/v2 seed results.
 	var resident_library: bool = catalog.templates.any(func(t): return t.room.has("resident") or t.get("annexes",[]).any(func(room): return room.has("resident")))
@@ -61,10 +68,12 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	if catalog.format_version>=3: algorithm_version = 6
 	# Companion ports grow the layout unit by unit, consuming the PRNG differently.
 	if companion_library(catalog): algorithm_version = 7
+	# Floors pick stair-joined boundaries on the main path.
+	if floors>1: algorithm_version = 8
 	var pack := Pack.fresh()
 	Pack.upgrade(pack)
 	pack.id = ("generated_v"+str(algorithm_version)+"_" if algorithm_version>=3 else "generated_")+"%d_%d_%s_%s" % [seed_value,count,required_item,Templates.fingerprint(catalog).left(8)]
-	if not layout.is_empty(): pack.id = "generated_v%d_%d_%d_%s_b%d_l%d_%s" % [algorithm_version,seed_value,count,required_item,branch_count,loop_count,Templates.fingerprint(catalog).left(8)]
+	if not layout.is_empty(): pack.id = "generated_v%d_%d_%d_%s_b%d_l%d%s_%s" % [algorithm_version,seed_value,count,required_item,branch_count,loop_count,"_f%d" % floors if floors>1 else "",Templates.fingerprint(catalog).left(8)]
 	pack.title = "Seed %d dungeon" % seed_value
 	pack.start_room = "room_0"
 	pack.enemy_types = catalog.enemy_types.duplicate(true)
@@ -73,6 +82,7 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 	if not layout.is_empty():
 		pack.generation.algorithm = "authored_graph"
 		pack.generation.branch_rooms = branch_count;pack.generation.loop_count = loop_count;pack.generation.loop_edges = []
+		if floors>1: pack.generation.floors = floors
 	var units: Array = []
 	for i in range(count):
 		var template: Dictionary = chosen[i]
@@ -85,6 +95,7 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 		var room: Dictionary = unit.primary
 		room.title = String(template.room.title)+" "+str(i+1)
 		room.map_position = [positions[i].x,positions[i].y]
+		if not storeys.is_empty() and storeys[i] != 0: room.floor = storeys[i]
 		room.role = roles[i];room.template_id = template.id
 		pack.generation.templates[room.id] = template.id
 		pack.rooms.append(room)
@@ -98,10 +109,14 @@ func build(catalog: Dictionary, seed_value: int, count: int, required_item: Stri
 				annex.map_position = [at.x,at.y]
 			else: annex.map_position = annex_position(pack.rooms,positions[i])
 			annex.title = String(annex.title)+" "+str(i+1)
+			if room_floor(pack.rooms[i]) != 0: annex.floor = room_floor(pack.rooms[i])
 			annex.template_id = chosen[i].id
 			pack.rooms.append(annex)
 			pack.generation.templates[annex.id] = chosen[i].id
 	for i in range(1,count):
+		if i in changes:
+			add_stairs(pack.rooms[parents[i]],chosen[parents[i]].stair_cell,pack.rooms[i],chosen[i].stair_cell)
+			continue
 		var source: Dictionary = pack.rooms[parents[i]] if exits[i] == 0 else units[parents[i]].annexes[exits[i]-1]
 		var target: Dictionary = pack.rooms[i]
 		var kind := "key" if i == 2 or i == main_count-1 else "bombable" if i>=main_count and random_int(2) == 0 else "open"
@@ -184,7 +199,7 @@ func add_loops(pack: Dictionary, chosen: Array, count: int, requested: int) -> P
 			var a: Dictionary = pack.rooms[i];var b: Dictionary = pack.rooms[j]
 			var delta := Vector2i(int(b.map_position[0])-int(a.map_position[0]),int(b.map_position[1])-int(a.map_position[1]))
 			for edge in Pack.EDGES:
-				if delta!=DIRS[edge] or a.connections.has(edge) or b.connections.has(Pack.OPPOSITE[edge]): continue
+				if delta!=DIRS[edge] or room_floor(a) != room_floor(b) or a.connections.has(edge) or b.connections.has(Pack.OPPOSITE[edge]): continue
 				if edge not in chosen[i].ports or Pack.OPPOSITE[edge] not in chosen[j].ports: continue
 				var gate := loop_gate(tree,a.id,b.id)
 				if not gate.is_empty(): options.append({"source":i,"target":j,"edge":edge,"gate":gate})
@@ -263,29 +278,38 @@ func unit_ports(entry: Dictionary, origin: Vector2i) -> Array:
 ## Libraries with companion ports: each new room attaches to a free port of an
 ## earlier unit (its primary or a companion), and its template is chosen as it
 ## is placed, entering through its primary.
-func grow_units(catalog: Dictionary, count: int, main_count: int, roles: Array) -> Dictionary:
+## Floor changes stack the next main-path room above its parent, joined by
+## stairs at both templates' stair cells; doors stay on one floor.
+func grow_units(catalog: Dictionary, count: int, main_count: int, roles: Array, changes: Array = []) -> Dictionary:
 	var candidates := Templates.variants(catalog.templates)
 	var positions: Array = [Vector2i(8,-7)]
-	var parents: Array = [-1];var edges: Array = [""];var exits: Array = [0];var chosen: Array = []
-	var occupied: Array = [positions[0]]
+	var parents: Array = [-1];var edges: Array = [""];var exits: Array = [0];var chosen: Array = [];var storeys: Array = [0]
+	var occupied_by_floor: Dictionary = {0:[positions[0]]}
 	var used: Dictionary = {}
 	for i in range(count):
 		var at: Vector2i = positions[0]
 		var incoming := ""
-		if i>0:
+		if i in changes:
+			at = positions[i-1]
+			positions.append(at);parents.append(i-1);edges.append("");exits.append(0);storeys.append(storeys[i-1]+1)
+			occupied_by_floor[storeys[i]] = [at]
+		elif i>0:
 			var options: Array = []
 			for source in ([i-1] if i<main_count else range(i)):
 				for port in unit_ports(chosen[source],positions[source]):
 					var cell: Vector2i = port.cell+DIRS[port.edge]
-					if used.has("%d/%d/%s" % [source,port.exit,port.edge]) or cell.x<0 or cell.x>15 or cell.y < -15 or cell.y>0 or cell in occupied: continue
+					if used.has("%d/%d/%s" % [source,port.exit,port.edge]) or cell.x<0 or cell.x>15 or cell.y < -15 or cell.y>0 or cell in occupied_by_floor[storeys[source]]: continue
 					options.append({"parent":source,"exit":port.exit,"edge":port.edge,"at":cell})
 			if options.is_empty(): return {"errors":PackedStringArray(["No free port leads to an empty map cell"])}
 			var selected: Dictionary = options[random_int(options.size())]
 			at = selected.at;incoming = Pack.OPPOSITE[selected.edge]
 			used["%d/%d/%s" % [selected.parent,selected.exit,selected.edge]] = true
-			positions.append(at);parents.append(selected.parent);edges.append(selected.edge);exits.append(selected.exit)
-			occupied.append(at)
-		var eligible: Array = candidates.filter(func(t): return t.role == roles[i] and (incoming.is_empty() or incoming in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")) and footprint_fits(t,at,occupied))
+			positions.append(at);parents.append(selected.parent);edges.append(selected.edge);exits.append(selected.exit);storeys.append(storeys[selected.parent])
+			occupied_by_floor[storeys[i]].append(at)
+		var occupied: Array = occupied_by_floor[storeys[i]]
+		# Stairs carry no lock or item gate, so the room above takes none.
+		var stairs := i in changes or i+1 in changes
+		var eligible: Array = candidates.filter(func(t): return t.role == roles[i] and (incoming.is_empty() or incoming in t.ports) and (i != 0 or t.requires.all(func(item): return item == "wooden_sword")) and (not stairs or t.has("stair_cell")) and (i not in changes or t.requires.is_empty()) and footprint_fits(t,at,occupied))
 		if eligible.is_empty(): return {"errors":PackedStringArray(["No template fits the required ports and room-group footprint"])}
 		var total := 0
 		for t in eligible: total += int(t.weight)
@@ -294,6 +318,31 @@ func grow_units(catalog: Dictionary, count: int, main_count: int, roles: Array) 
 			roll -= int(t.weight)
 			if roll<0:
 				chosen.append(t);occupied.append_array(footprint(t,at))
-				if i>0: used["%d/0/%s" % [i,incoming]] = true
+				if not incoming.is_empty(): used["%d/0/%s" % [i,incoming]] = true
 				break
-	return {"positions":positions,"parents":parents,"edges":edges,"chosen":chosen,"exits":exits}
+	return {"positions":positions,"parents":parents,"edges":edges,"chosen":chosen,"exits":exits,"floors":storeys}
+
+## Main-path rooms that start a new floor, spread evenly: never the key-locked
+## doors (2 and the goal) or the required-item gate (4), and never two in a
+## row, since each primary has one stair cell. Empty when they do not fit.
+static func floor_changes(main_count: int, floors: int) -> Array:
+	var candidates: Array = range(1,main_count).filter(func(i): return i not in [2,4,main_count-1])
+	var result: Array = []
+	for k in range(1,floors):
+		var target := float(k*main_count)/floors
+		var best := -1
+		for i in candidates:
+			if i in result or i-1 in result or i+1 in result or (not result.is_empty() and i<result[-1]): continue
+			if best<0 or absf(i-target)<absf(best-target): best = i
+		if best<0: return []
+		result.append(best)
+	return result
+static func room_floor(room: Dictionary) -> int: return int(room.get("floor",0))
+func add_stairs(lower: Dictionary, lower_cell: Array, upper: Dictionary, upper_cell: Array) -> void:
+	var down := Pack.stair_position({"cell":lower_cell});var up := Pack.stair_position({"cell":upper_cell})
+	for pair in [[lower,lower_cell,upper,up,"floor_up"],[upper,upper_cell,lower,down,"floor_down"]]:
+		var room: Dictionary = pair[0]
+		if not room.has("stairs"): room.stairs = []
+		var id: String = pair[4];var n := 1
+		while room.stairs.any(func(s): return s.id == id): id = pair[4]+"_"+str(n);n += 1
+		room.stairs.append({"id":id,"cell":[int(pair[1][0]),int(pair[1][1])],"target":pair[2].id,"target_position":[pair[3].x,pair[3].y]})

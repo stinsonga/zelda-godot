@@ -110,11 +110,12 @@ func run() -> void:
 	dialog.companion_ports_edit.text = "side: up, down";dialog.companion_ports_edit.text_changed.emit(dialog.companion_ports_edit.text)
 	check(dialog.capture_preview.companion_ports == {"side":["up","down"]},"Preview shows companion ports as typed")
 	dialog.mirror_checks[0].button_pressed = true
+	dialog.stair_check.button_pressed = true;dialog.stair_x.value = 6
 	dialog.template_id.text = "gui_suite";dialog.role.select(1);dialog.picker.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	var filename := "/tmp/zelda-door-template-%d.json" % OS.get_process_id();dialog.file_selected(filename)
 	var saved := Templates.read(filename)
 	check(saved.errors.is_empty() and saved.catalog.format_version==3 and saved.catalog.templates[-1].reward.room=="side","GUI saves a reusable door-connected template")
-	check(saved.errors.is_empty() and saved.catalog.templates[-1].companion_ports == {"side":["up","down"]} and saved.catalog.templates[-1].mirrors == ["horizontal"],"GUI saves companion ports and mirrors")
+	check(saved.errors.is_empty() and saved.catalog.templates[-1].companion_ports == {"side":["up","down"]} and saved.catalog.templates[-1].mirrors == ["horizontal"] and saved.catalog.templates[-1].stair_cell.map(func(v): return int(v)) == [6,4],"GUI saves companion ports, mirrors and the stair cell")
 	DirAccess.remove_absolute(filename)
 	dialog.size = dialog.min_size;await process_frame;await process_frame;dialog.layout_content()
 	check(dialog.content.position.y+dialog.content.size.y<=dialog.size.y-40,"Capture remains usable at minimum dialog size")

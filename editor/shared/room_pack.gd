@@ -281,8 +281,8 @@ static func validate_progression(pack: Dictionary, rooms: Dictionary, errors: Pa
 		var g = pack.generation
 		if not g is Dictionary: errors.append("Generation provenance must be an object"); return
 		var graph: bool = g.get("algorithm")=="authored_graph"
-		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"] + (["branch_rooms","loop_count","loop_edges"] if graph else []),"Generation",errors)
-		var supported: bool = integer(g.get("version"),5,7) if graph else g.get("algorithm")=="authored_tree" and (integer(g.get("version"),1,4) or integer(g.get("version"),6,7))
+		unknown_fields(g,["algorithm","version","seed","template_sha256","room_count","required_item","templates"] + (["branch_rooms","loop_count","loop_edges","floors"] if graph else []),"Generation",errors)
+		var supported: bool = integer(g.get("version"),5,8) if graph else g.get("algorithm")=="authored_tree" and (integer(g.get("version"),1,4) or integer(g.get("version"),6,7))
 		if not supported or not integer(g.get("seed"),0,2147483647) or not integer(g.get("room_count"),6,16): errors.append("Unsupported generator provenance")
 		if graph: validate_graph_recipe(g,errors)
 		var hash = g.get("template_sha256")
@@ -424,6 +424,7 @@ static func validate_graph_recipe(g: Dictionary, errors: PackedStringArray) -> v
 	if not integer(g.get("room_count"),6,16): return
 	if not integer(g.get("branch_rooms"),0,int(g.room_count)-6) or not integer(g.get("loop_count"),0,8):
 		errors.append("Invalid graph branch/loop counts");return
+	if g.has("floors") and (not integer(g.floors,2,3) or g.get("version") != 8): errors.append("Generated floors need recipe version 8 and 2..3 floors")
 	var edges = g.get("loop_edges")
 	if not edges is Array or edges.size()!=g.get("loop_count"): errors.append("Graph recipe needs one record per requested loop");return
 	var seen: Array = []

@@ -26,5 +26,10 @@ func run() -> void:
 		var generated := Generator.new().generate(Fixture.companion_catalog(),seed_value,8)
 		check(generated.errors.is_empty(),"Companion ports verify for seed %d" % seed_value)
 		if generated.has("pack"): replay(generated.pack,generated.proof)
+	# Main paths split across floors, climbing generated stairs.
+	for recipe in [["single",7,8,3],["suites",42,8,2]]:
+		var generated := Generator.new().generate(Fixture.floor_catalog(recipe[0]),recipe[1],recipe[2],"blue_candle",6000,{"branch_rooms":0,"loop_count":0,"floors":recipe[3]})
+		check(generated.errors.is_empty(),"%d floors verify for seed %d" % [recipe[3],recipe[1]])
+		if generated.has("pack"): replay(generated.pack,generated.proof)
 	print("Generated door-group native checks: ","PASS" if failures==0 else "FAIL")
 	quit(1 if failures else 0)

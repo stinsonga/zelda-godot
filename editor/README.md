@@ -87,8 +87,9 @@ Choose **New** for a blank room or **Open** to load an authored JSON pack.
    **Apply map position** can move a room between floors. Doors join rooms on
    the same floor; stairs join floors and are marked with the floor they reach.
    In the game the HUD names the floor ("2F Landing") and the maps show the
-   current floor only. Templates capture rooms without floors and generation
-   places them on 1F.
+   current floor only. Templates capture rooms without floors; generation can
+   split a dungeon across floors through templates' stair cells (see
+   [DOOR_GROUP_TEMPLATES.md](DOOR_GROUP_TEMPLATES.md)).
 7. **Validate**, then **Save as** under `content/packs/`. Title edits apply on
    Enter or when the field loses focus. Cmd/Ctrl+S saves; Cmd/Ctrl+Z undoes;
    Cmd/Ctrl+Shift+Z redoes. Undo history holds up to 100 operations.
@@ -191,9 +192,10 @@ recommended order:
 1. **Broader progression solving.** Enemy drops, other secret types and bomb
    shops mixed with finite bombs. Standalone packaging, ladder crossings and
    bomb supplies beyond the bag are implemented.
-2. **More flexible generation.** Generating across floors. Door-connected
-   groups, their live footprint preview, mirrored templates, companion ports and
-   hand-built floors are implemented.
+2. **More flexible generation.** Door-connected groups, their live footprint
+   preview, mirrored templates, companion ports, hand-built floors and
+   generation across floors are implemented. Still open: floors below 1F,
+   floor changes from branch rooms, and stair cells on companion rooms.
 3. **More authoring coverage and usability.** Additional cave/resident modes,
    secret types, items, advanced doors, room filters and enemy properties. Current
    support includes individual placement editing, push blocks, bomb/fire secrets,

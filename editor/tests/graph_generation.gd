@@ -100,7 +100,7 @@ func run() -> void:
 	dialog.count.value = 6
 	check(dialog.branch_rooms.max_value==0,"GUI reserves six main-path rooms")
 	dialog.custom_layout.button_pressed = false
-	check(not dialog.loop_count.editable,"Classic mode disables custom controls")
+	check(not dialog.loop_count.editable and not dialog.floor_count.editable,"Classic mode disables custom controls")
 	ui.free()
 	Pack.write("/tmp/zelda-graph-generation-fixture.json",first)
 	print("Graph generation checks: ","PASS" if failures==0 else "FAIL");quit(0 if failures==0 else 1)

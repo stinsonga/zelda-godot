@@ -42,7 +42,9 @@ directions.
    shows them in green with the primary's ports.
 7. Optionally tick **Mirrored versions**: horizontal, vertical or both (a 180°
    turn). Rooms are 16×11 tiles, so they mirror rather than turn by 90°.
-8. Review the live footprint below the capture controls, then save the derived
+8. Optionally tick **Stair cell for other floors** and choose its tile, so the
+   generator can join this primary to another floor (see *Floors*).
+9. Review the live footprint below the capture controls, then save the derived
    library, choose it for generation and verify a recipe.
 
 The preview marks the primary room with **P**, the generated reward with **\***,
@@ -99,6 +101,31 @@ is drawn one way. Cellars and residents mirror only horizontally. Each mirrored
 version is validated with the library. A library without `mirrors` offers
 exactly its templates, so its seeds give the same dungeons as before; adding
 mirrors changes the library fingerprint and so the recipe identity.
+
+## Floors
+
+A format-3 template may carry `"stair_cell": [x, y]` (X 3..12, Y 3..7): a tile
+of its primary room where generation may put stairs to another floor. It is
+checked as a real stair link: walkable floor, not the spawn, clear of the
+room's block and its own stairs, and not over the reward or a pickup. Mirrored
+versions mirror the cell.
+
+With **Custom layout** and **Floors** 2 or 3, the main path climbs: at evenly
+spread main-path rooms the next room goes on the floor above, on the same map
+cell as the room before it, joined by stairs on both rooms' stair cells.
+Arrival lands on the other room's stairs, which stay inactive until Link steps
+off. Floor changes never replace the two key doors or the required-item gate
+(rooms 2, 4 and the goal), and never come twice in a row, since a primary has
+one stair cell; six main-path rooms allow three floors. The room above a floor
+change takes no item requirements, because stairs carry no gate. Branch rooms
+and loops stay on their source's floor, and companion rooms on their primary's.
+The goal ends on the top floor.
+
+Floors use the room-by-room layout (as companion ports do) and are recipe
+version **8**; the pack ID gains `_f2` or `_f3`. Layouts with one floor are
+unchanged. Generating across floors needs a format-3 library whose templates
+offer stair cells for the rooms that change floor; otherwise generation reports
+that no template fits.
 
 ## Placement, identity and compatibility
 

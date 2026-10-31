@@ -19,6 +19,7 @@ var count: SpinBox
 var custom_layout: CheckBox
 var branch_rooms: SpinBox
 var loop_count: SpinBox
+var floor_count: SpinBox
 var required_item: OptionButton
 var report: TextEdit
 var generate_button: Button
@@ -30,6 +31,9 @@ var role: OptionButton
 var port_checks: Array[CheckBox] = []
 var mirror_checks: Array[CheckBox] = []
 var companion_ports_edit: LineEdit
+var stair_check: CheckBox
+var stair_x: SpinBox
+var stair_y: SpinBox
 var requirement_checks: Array[CheckBox] = []
 var companion_rooms: ItemList
 var include_linked: CheckBox
@@ -78,6 +82,8 @@ func _ready() -> void:
 	custom_layout = CheckBox.new();custom_layout.text = "Custom layout";custom_layout.tooltip_text = "Off preserves classic recipes and seed results";layout_row.add_child(custom_layout)
 	label("Branch rooms",layout_row);branch_rooms = SpinBox.new();branch_rooms.min_value = 0;branch_rooms.max_value = 2;branch_rooms.value = 2;branch_rooms.tooltip_text = "Rooms off the main route, not a count of separate branches";layout_row.add_child(branch_rooms)
 	label("Extra loops",layout_row);loop_count = SpinBox.new();loop_count.min_value = 0;loop_count.max_value = 8;loop_count.tooltip_text = "Exact extra connections between adjacent primary rooms; cellar stairs are separate";layout_row.add_child(loop_count)
+	label("Floors",layout_row);floor_count = SpinBox.new();floor_count.min_value = 1;floor_count.max_value = 3;floor_count.tooltip_text = "Split the main path across floors joined by stairs; needs templates with stair cells";layout_row.add_child(floor_count)
+	floor_count.value_changed.connect(func(_value): invalidate_recipe())
 	custom_layout.toggled.connect(func(_value): update_layout_controls();invalidate_recipe())
 	branch_rooms.value_changed.connect(func(_value): invalidate_recipe())
 	loop_count.value_changed.connect(func(_value): invalidate_recipe())
@@ -103,6 +109,10 @@ func _ready() -> void:
 	companion_ports_edit = LineEdit.new();companion_ports_edit.placeholder_text = "side: up right; vault: left"
 	companion_ports_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL;companion_row.add_child(companion_ports_edit)
 	companion_ports_edit.text_changed.connect(func(_text): refresh_capture_preview())
+	var stair_row := HBoxContainer.new();capture.add_child(stair_row)
+	stair_check = CheckBox.new();stair_check.text = "Stair cell for other floors (format 3)";stair_check.tooltip_text = "Where generation may put stairs joining this primary room to another floor";stair_row.add_child(stair_check)
+	label("X",stair_row);stair_x = SpinBox.new();stair_x.min_value = 3;stair_x.max_value = 12;stair_x.value = 7;stair_row.add_child(stair_x)
+	label("Y",stair_row);stair_y = SpinBox.new();stair_y.min_value = 3;stair_y.max_value = 7;stair_y.value = 4;stair_row.add_child(stair_y)
 	var mirrors := HBoxContainer.new();capture.add_child(mirrors);label("Mirrored versions (format 3)",mirrors)
 	for mode in Templates.MIRRORS:
 		var check := CheckBox.new();check.text = mode;mirrors.add_child(check);mirror_checks.append(check)
@@ -178,6 +188,7 @@ func start_generation() -> void:
 	var room_count := int(count.value)
 	var item := required_item.get_item_text(required_item.selected)
 	var layout := {"branch_rooms":int(branch_rooms.value),"loop_count":int(loop_count.value)} if custom_layout.button_pressed else {}
+	if custom_layout.button_pressed and floor_count.value>1: layout.floors = int(floor_count.value)
 	candidate = {};job_kind = "generate";set_busy(true)
 	report.text = "Generating and checking progression… The editor stays responsive."
 	worker = Thread.new()
@@ -197,7 +208,7 @@ func _process(_delta: float) -> void:
 	if job_kind == "generate":
 		if result.errors.is_empty():
 			candidate = result.pack
-			report.text = ("Layout: %d branch rooms, %d extra loops\n" % [candidate.generation.branch_rooms,candidate.generation.loop_count] if candidate.generation.algorithm=="authored_graph" else "Layout: classic tree\n")+"Seed %d • %d primary / %d total rooms • attempt %d\nTemplate SHA256: %s\n\n%s" % [candidate.generation.seed,candidate.generation.room_count,candidate.rooms.size(),result.attempts,candidate.generation.template_sha256,Solver.format_report(result.proof)]
+			report.text = ("Layout: %d branch rooms, %d extra loops%s\n" % [candidate.generation.branch_rooms,candidate.generation.loop_count,", %d floors" % candidate.generation.floors if candidate.generation.has("floors") else ""] if candidate.generation.algorithm=="authored_graph" else "Layout: classic tree\n")+"Seed %d • %d primary / %d total rooms • attempt %d\nTemplate SHA256: %s\n\n%s" % [candidate.generation.seed,candidate.generation.room_count,candidate.rooms.size(),result.attempts,candidate.generation.template_sha256,Solver.format_report(result.proof)]
 		else: report.text = "Generation failed:\n"+"\n".join(result.errors)+("\n\n"+Solver.format_report(result.proof) if result.has("proof") and not result.proof.is_empty() else "")
 	else: report.text = Solver.format_report(result)
 	set_busy(false)
@@ -221,12 +232,13 @@ func file_selected(path: String) -> void:
 	for check in mirror_checks:
 		if check.button_pressed: mirrors.append(check.text)
 	var companions := companion_ports()
-	if not mirrors.is_empty() or not companions.is_empty():
-		if int(result.catalog.format_version) < 3: report.text = "Cannot save template:\nMirrored versions and companion ports need a format-3 (door-group) library.";return
+	if not mirrors.is_empty() or not companions.is_empty() or stair_check.button_pressed:
+		if int(result.catalog.format_version) < 3: report.text = "Cannot save template:\nMirrored versions, companion ports and stair cells need a format-3 (door-group) library.";return
 		for entry in result.catalog.templates:
 			if entry.id != template_id.text: continue
 			if not mirrors.is_empty(): entry.mirrors = mirrors
 			if not companions.is_empty(): entry.companion_ports = companions
+			if stair_check.button_pressed: entry.stair_cell = [int(stair_x.value),int(stair_y.value)]
 		var mirror_errors := Templates.validate(result.catalog)
 		if not mirror_errors.is_empty(): report.text = "Cannot save template:\n"+"\n".join(mirror_errors);return
 	var error := Pack.write(path,result.catalog)
@@ -287,6 +299,7 @@ func update_layout_controls() -> void:
 	if not custom_layout.button_pressed: branch_rooms.value = int(count.value)/4 if count.value>=8 else 0
 	branch_rooms.editable = not busy and custom_layout.button_pressed
 	loop_count.editable = not busy and custom_layout.button_pressed
+	floor_count.editable = not busy and custom_layout.button_pressed
 
 func selected_companions() -> Array:
 	var ids: Array = []

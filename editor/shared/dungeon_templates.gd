@@ -32,7 +32,7 @@ static func validate(data) -> PackedStringArray:
 	var enemy_art: Dictionary = {}
 	for entry in data.templates:
 		if not entry is Dictionary: errors.append("Template must be an object");continue
-		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version >= 2 else [])+(["mirrors","companion_ports"] if data.format_version >= 3 else []),"Template",errors)
+		Pack.unknown_fields(entry,["id","role","weight","ports","requires","room"] + (["annexes","reward","appearance"] if data.format_version >= 2 else [])+(["mirrors","companion_ports","stair_cell"] if data.format_version >= 3 else []),"Template",errors)
 		if not Pack.identifier(entry.get("id")) or ids.has(entry.get("id")): errors.append("Template IDs must be unique");continue
 		ids[entry.id] = true
 		if entry.get("role") not in ROLES: errors.append(entry.id+": invalid role")
@@ -66,6 +66,8 @@ static func validate(data) -> PackedStringArray:
 		if not Pack.layout_warnings(pack).is_empty(): errors.append(entry.id+": all rooms must be reachable and internal doors must join adjacent map cells")
 		if entry.has("companion_ports"):
 			for error in companion_port_problems(entry): errors.append(entry.id+": "+error)
+		if entry.has("stair_cell"):
+			for error in stair_problems(entry,pack): errors.append(entry.id+": "+error)
 		if entry.has("mirrors"):
 			var mirror_errors := mirror_problems(entry)
 			for error in mirror_errors: errors.append(entry.id+": "+error)
@@ -74,6 +76,8 @@ static func validate(data) -> PackedStringArray:
 					var flipped := mirrored(entry,mode)
 					var check := pack.duplicate();check.rooms = [flipped.room]+flipped.get("annexes",[])
 					for error in Pack.validate(check): errors.append(entry.id+" ("+mode+"): "+error)
+					if flipped.has("stair_cell"):
+						for error in stair_problems(flipped,check): errors.append(entry.id+" ("+mode+"): "+error)
 		if data.format_version >= 3 and entry.get("ports") is Array:
 			for edge in entry.ports:
 				if entry.room.connections.has(edge): errors.append(entry.id+": external port overlaps an internal door: "+str(edge))
@@ -297,6 +301,7 @@ static func mirrored(entry: Dictionary, mode: String) -> Dictionary:
 	var shift := Vector2i(maxi(0,-rooms.map(func(r): return int(r.map_position[0])).min()),mini(0,-rooms.map(func(r): return int(r.map_position[1])).max()))
 	for room in rooms: room.map_position = [int(room.map_position[0])+shift.x,int(room.map_position[1])+shift.y]
 	if result.has("reward"): result.reward.position = mirror_position(result.reward.position,flip_x,flip_y)
+	if result.has("stair_cell"): result.stair_cell = mirror_cell(result.stair_cell,flip_x,flip_y)
 	return result
 static func mirror_edge(edge: String, flip_x: bool, flip_y: bool) -> String:
 	if (flip_x and edge in ["left","right"]) or (flip_y and edge in ["up","down"]): return Pack.OPPOSITE[edge]
@@ -344,3 +349,26 @@ static func companion_port_problems(entry: Dictionary) -> PackedStringArray:
 			var outside: Vector2i = Vector2i(int(room.map_position[0]),int(room.map_position[1]))+{"up":Vector2i.UP,"right":Vector2i.RIGHT,"down":Vector2i.DOWN,"left":Vector2i.LEFT}[edge]
 			if cells.has(outside): errors.append(str(id)+": companion port "+edge+" leads into its own unit")
 	return errors
+
+## A stair cell lets generation join this primary room to another floor: stairs
+## there lead to the other floor's primary, arriving on its stair cell. Check it
+## as a real link from the room to a copy of itself, clear of the reward and
+## pickups so a stair never hides them.
+static func stair_problems(entry: Dictionary, pack: Dictionary) -> PackedStringArray:
+	var cell = entry.stair_cell
+	if not Pack.point(cell,3,12,3,7): return PackedStringArray(["stair_cell must lie at X 3..12, Y 3..7, clear of door approaches"])
+	var at := Pack.stair_position({"cell":cell})
+	var lookup: Dictionary = {}
+	for room in pack.rooms: lookup[room.id] = room
+	var room: Dictionary = lookup[entry.room.id].duplicate(true)
+	var partner: Dictionary = room.duplicate(true);partner.id = "stair_cell_partner";partner.stairs = []
+	room.stairs = room.get("stairs",[])+[{"id":"stair_cell_check","cell":cell,"target":partner.id,"target_position":[at.x,at.y]}]
+	lookup[room.id] = room;lookup[partner.id] = partner
+	var errors := PackedStringArray()
+	Pack.validate_stairs(lookup,errors)
+	var reward: Dictionary = entry.get("reward",{"room":entry.room.id,"position":[120,77]})
+	var covered: Array = room.pickups.map(func(p): return p.position)
+	if reward.room == entry.room.id: covered.append(reward.position)
+	for position in covered:
+		if absi(int(position[0])-at.x)<16 and absi(int(position[1])-at.y)<16: errors.append("stair_cell overlaps the reward or a pickup");break
+	return PackedStringArray(Array(errors).map(func(e): return e.replace("stair_cell_partner","the other floor").replace(": stairs ",": stair_cell ")))

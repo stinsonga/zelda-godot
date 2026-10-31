@@ -187,9 +187,11 @@ Remaining editor work, in recommended order:
    beyond the bag are solved and replayed; still to model: more complex
    dependencies (enemy drops, other secret types, bomb shops mixed with finite
    bombs). Continue reporting unsupported mechanics rather than certifying them.
-2. **More flexible generation.** Generating across floors (authored packs can
-   stack floors joined by stairs). Templates can now be mirrored (rooms are
-   16×11, so not turned) and give companion rooms external ports. Bounded door-connected groups, internal locks,
+2. **More flexible generation.** Generation can now split the main path across
+   up to three floors joined by stairs at templates' stair cells (recipe
+   version 8); authored packs stack floors by hand. Templates can be mirrored
+   (rooms are 16×11, so not turned) and give companion rooms external ports.
+   Still open: basements, floor changes from branches, companion stair cells. Bounded door-connected groups, internal locks,
    linked cellars, branches/loops and the live capture preview are implemented.
 3. **More authoring coverage and usability.** Additional resident modes,
    cave entrance/original cellar transitions, recorder/Armos and other secrets,
