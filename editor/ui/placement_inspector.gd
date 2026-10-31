@@ -3,6 +3,7 @@ signal entity_chosen(kind: String, id: String)
 signal properties_applied(properties: Dictionary)
 signal duplicate_requested
 signal delete_requested
+signal rename_requested(id: String)
 signal snap_requested
 signal reset_requested
 const Pack = preload("../shared/room_pack.gd")
@@ -26,6 +27,7 @@ var clear_reward: CheckBox
 var objective: CheckBox
 var duplicate_button: Button
 var delete_button: Button
+var rename_button: Button
 var hint: Label
 var current_kind := ""
 var definitions: Dictionary = {}
@@ -53,7 +55,10 @@ func _ready() -> void:
 		entity_chosen.emit(key.kind,key.id))
 	hint = label("Click a placement or choose it here. Alt-click cycles overlaps. Drag or use arrows to move.",self)
 	form = VBoxContainer.new();add_child(form)
-	identity = LineEdit.new();identity.editable = false;identity.tooltip_text = "Stable placement ID. Movement and editing preserve this ID.";form.add_child(identity)
+	var identity_row := HBoxContainer.new();form.add_child(identity_row)
+	identity = LineEdit.new();identity.tooltip_text = "Placement ID. Renaming keeps old checkpoints' progress.";identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL;identity_row.add_child(identity)
+	identity.text_submitted.connect(func(text): if current_kind != "spawn": rename_requested.emit(text.strip_edges()))
+	rename_button = button("Rename ID",identity_row,func(): if current_kind != "spawn": rename_requested.emit(identity.text.strip_edges()))
 	x = number("X (pixels)",form,0,240);y = number("Y (pixels)",form,0,157)
 	button("Snap position to 8-pixel grid",form,func(): snap_requested.emit())
 	enemy_fields = VBoxContainer.new();form.add_child(enemy_fields)
@@ -93,6 +98,7 @@ func refresh(room: Dictionary, pack: Dictionary, key: Dictionary, data: Dictiona
 	x.value = data.position[0];y.value = data.position[1]
 	enemy_fields.visible = current_kind == "enemies";pickup_fields.visible = current_kind == "pickups"
 	duplicate_button.disabled = current_kind == "spawn";delete_button.disabled = current_kind == "spawn"
+	identity.editable = current_kind != "spawn";rename_button.disabled = current_kind == "spawn"
 	if current_kind == "enemies":
 		variant.clear()
 		for id in definitions: variant.add_item(id);variant.set_item_tooltip(variant.item_count-1,definitions[id].title+" ["+id+"]")

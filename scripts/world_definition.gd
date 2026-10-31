@@ -31,3 +31,7 @@ extends Resource
 
 ## Authored room renames, flattened to current IDs; empty values reserve deleted IDs.
 @export var room_aliases: Dictionary[String, String] = {}
+## Authored placement renames: {"pickups"|"enemies": {"room/old": "room/new"}}.
+@export var placement_aliases: Dictionary = {}
+## Earlier world IDs whose saves this world still loads.
+@export var previous_world_ids: PackedStringArray = []

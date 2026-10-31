@@ -26,6 +26,8 @@ static func compile(pack: Dictionary, appearance: Dictionary = {}, library_root:
 	world.id = StringName("authored/" + pack.id)
 	world.title = pack.title
 	world.room_aliases.assign(pack.get("room_aliases",{}))
+	world.placement_aliases = pack.get("placement_aliases",{}).duplicate(true)
+	for id in pack.get("previous_ids",[]): world.previous_world_ids.append("authored/" + id)
 	world.start_room = StringName(pack.start_room)
 	for item in pack.get("starting_items",["wooden_sword"]): world.starting_items.append(load("res://content/items/"+item+".tres"))
 	for goal in pack.get("goals",[]): world.completion_goals.append(goal.duplicate(true))

@@ -58,6 +58,9 @@ var status: RichTextLabel
 var room_id_edit: LineEdit
 var title_edit: LineEdit
 var pack_id: LineEdit
+## The pack ID last opened or saved; saving under a new ID remembers it.
+var published_id := ""
+var variant_id: LineEdit
 var pack_title: LineEdit
 var start_button: Button
 var enemy_type: OptionButton
@@ -307,6 +310,7 @@ func build_ui() -> void:
 	placement_inspector.entity_chosen.connect(select_placement)
 	placement_inspector.properties_applied.connect(apply_placement)
 	placement_inspector.delete_requested.connect(delete_placement)
+	placement_inspector.rename_requested.connect(rename_placement)
 	placement_inspector.duplicate_requested.connect(duplicate_placement)
 	placement_inspector.reset_requested.connect(refresh)
 	placement_inspector.snap_requested.connect(func():
@@ -361,6 +365,9 @@ func build_ui() -> void:
 	shooting = CheckBox.new();shooting.text = "Walker shoots rocks";right.add_child(shooting)
 	button("Apply variant settings",right,apply_enemy)
 	button("Duplicate enemy variant",right,duplicate_enemy)
+	var rename_row := HBoxContainer.new();right.add_child(rename_row)
+	variant_id = LineEdit.new();variant_id.placeholder_text = "new variant ID";variant_id.size_flags_horizontal = Control.SIZE_EXPAND_FILL;rename_row.add_child(variant_id)
+	button("Rename variant",rename_row,func(): rename_variant(variant_id.text.strip_edges()))
 	button("Clear variant art",right,func(): edit(func():
 		appearance.enemy_sprites.erase(selected(enemy_type))
 		if pack.has("appearance"): pack.appearance.enemy_sprites.erase(selected(enemy_type))))
@@ -564,7 +571,8 @@ func paint(cell: Vector2i, erase: bool) -> void:
 func placement_cell(at: Array) -> Vector2i: return Vector2i(int(at[0])/16,(int(at[1])+3)/16)
 func unique_placement_id(entries: Array, prefix: String) -> String:
 	var n := 1
-	while entries.any(func(e): return e.id == prefix + "_" + str(n)): n += 1
+	# Historical placement IDs stay reserved so old progress cannot attach to them.
+	while entries.any(func(e): return e.id == prefix + "_" + str(n)) or Pack.ContentIds.FIELDS.any(func(field): return Pack.ContentIds.reserved_placement(pack,current_id,field,prefix + "_" + str(n))): n += 1
 	return prefix + "_" + str(n)
 func unique_room_id() -> String:
 	var n := 1
@@ -602,6 +610,7 @@ func delete_room() -> void:
 	edit(func():
 		Pack.upgrade(pack)
 		Pack.RoomIds.retire(pack,current_id)
+		Pack.ContentIds.rekey_room(pack,current_id,"")
 		var removed := current_id
 		appearance.room_tiles.erase(removed)
 		if pack.schema == 2: pack.goals = pack.goals.filter(func(g): return g.room != removed)
@@ -674,6 +683,7 @@ func replace_pack(value: Dictionary, filename: String, load_local_art: bool = tr
 	canvas.dragging = false
 	stairs_inspector.room_id = ""
 	pack = value.duplicate(true)
+	published_id = String(pack.id) if not filename.is_empty() else ""
 	var local := Appearance.read_local(game_root,pack) if load_local_art else {"overlay":Appearance.fresh(pack.id),"warnings":PackedStringArray()}
 	appearance = local.overlay
 	appearance_load_warnings = local.warnings
@@ -730,9 +740,12 @@ func save_to(filename: String) -> bool:
 	if not art_errors.is_empty(): message("Invalid local appearance: " + "\n".join(art_errors)); return false
 	if filename.get_extension().to_lower() != "json": filename += ".json"
 	if forbidden_destination(filename): message("Save authored packs outside imported/, reference-inputs/ and editor caches."); return false
+	var before_identity := pack.duplicate(true)
+	Pack.ContentIds.record_identity(pack,published_id)
 	var error := Pack.write(filename,pack)
-	if error != OK: message("Save failed: " + error_string(error)); return false
+	if error != OK: pack = before_identity;message("Save failed: " + error_string(error)); return false
 	path = filename
+	published_id = pack.id
 	saved_text = JSON.stringify(pack)
 	if JSON.stringify(appearance) != saved_appearance_text:
 		var art_path := Appearance.local_path(game_root,pack.id)
@@ -997,6 +1010,8 @@ func delete_placement() -> void:
 		var entries: Array = current()[placement_key.kind]
 		for i in entries.size():
 			if entries[i].id == placement_key.id: entries.remove_at(i);break
+		Pack.upgrade(pack)
+		Pack.ContentIds.retire_placement(pack,current_id,placement_key.kind,placement_key.id)
 		if placement_key.kind == "pickups" and pack.has("goals"):
 			pack.goals = pack.goals.filter(func(g): return not (g.room == current_id and g.pickup == placement_key.id)))
 func duplicate_placement() -> void:
@@ -1204,3 +1219,24 @@ func rename_current_room(id: String) -> bool:
 	undo_stack[-1].current_id = old;undo_stack[-1].placement_key = selection
 	message("Renamed "+old+" to "+id+". References updated; save the pack to retain old-checkpoint compatibility.")
 	return true
+
+func rename_placement(id: String) -> void:
+	flush_text_edits()
+	if placement_key.get("kind","") not in Pack.ContentIds.FIELDS: return
+	var result := Pack.ContentIds.rename_placement(pack,current_id,placement_key.kind,placement_key.id,id)
+	if result.errors.is_empty(): result.errors = Pack.validate(result.pack)
+	if not result.errors.is_empty(): message("Cannot rename placement:\n"+"\n".join(result.errors));return
+	var old: String = placement_key.id;var selection := placement_key.duplicate(true)
+	edit(func(): pack = result.pack;placement_key.id = id)
+	undo_stack[-1].current_id = current_id;undo_stack[-1].placement_key = selection
+	message("Renamed "+old+" to "+id+". Old checkpoints keep their progress; save the pack to retain the history.")
+func rename_variant(id: String) -> void:
+	flush_text_edits()
+	if enemy_type.item_count == 0: return
+	var old := selected(enemy_type)
+	var result := Pack.ContentIds.rename_variant(pack,old,id,appearance)
+	if result.errors.is_empty(): result.errors = Pack.validate(result.pack)
+	if not result.errors.is_empty(): message("Cannot rename variant:\n"+"\n".join(result.errors));return
+	edit(func(): pack = result.pack;appearance = result.appearance)
+	pick(enemy_type,id);variant_id.text = ""
+	message("Renamed variant "+old+" to "+id+".")

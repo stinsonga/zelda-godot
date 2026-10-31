@@ -186,17 +186,14 @@ recommended order:
 2. **More flexible generation.** Multiple floors. Door-connected groups, their
    live footprint preview, mirrored templates and companion ports are
    implemented.
-3. **Other content-ID migrations.** Placements, enemy variants, items and pack
-   identity. Room-ID renaming already preserves checkpoint references; see
-   [ROOM_IDS.md](ROOM_IDS.md).
-4. **More authoring coverage and usability.** Additional cave/resident modes,
+3. **More authoring coverage and usability.** Additional cave/resident modes,
    secret types, items, advanced doors, room filters and enemy properties. Current
    support includes individual placement editing, push blocks, bomb/fire secrets,
    hidden stairs, linked cellars and hint/gift/shop residents; see
    [PLACEMENTS.md](PLACEMENTS.md), [PUSH_BLOCKS.md](PUSH_BLOCKS.md),
    [DESTRUCTIBLE_SECRETS.md](DESTRUCTIBLE_SECRETS.md), [STAIRS.md](STAIRS.md),
    [RESIDENTS.md](RESIDENTS.md) and [RESIDENT_PROGRESSION.md](RESIDENT_PROGRESSION.md).
-5. **Further graphics workflows.** Layered sprites, animation states beyond
+4. **Further graphics workflows.** Layered sprites, animation states beyond
    idle/walk/attack, and editable copies of imported rooms. Rectangular layouts,
    directional clips and independent timing are already available; see
    [AUTHORED_ART.md](AUTHORED_ART.md).

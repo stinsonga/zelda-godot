@@ -65,11 +65,11 @@ func erase_state(slot: int) -> void:
 	if not DirAccess.dir_exists_absolute(dir): return
 	for file in DirAccess.get_files_at(dir): DirAccess.remove_absolute(dir.path_join(file))
 
-func read_state(slot: int, world_id: String) -> Dictionary:
+func read_state(slot: int, world_id: String, previous: PackedStringArray = []) -> Dictionary:
 	if not active(slot): return {}
-	var path: String = store_for(slot).path_for(world_id)
-	if not FileAccess.file_exists(path) and not FileAccess.file_exists(path + ".bak"): return {}
-	var result: Dictionary = store_for(slot).read_snapshot(world_id)
+	var paths: Array = [world_id] + Array(previous)
+	if not paths.any(func(id): return FileAccess.file_exists(store_for(slot).path_for(id)) or FileAccess.file_exists(store_for(slot).path_for(id) + ".bak")): return {}
+	var result: Dictionary = store_for(slot).read_snapshot(world_id, previous)
 	return result.data if result.ok else {}
 
 func write_state(slot: int, data: Dictionary, world_id: String) -> bool:

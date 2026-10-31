@@ -58,7 +58,7 @@ func start(choice: String) -> void:
 			queue_redraw()
 			return
 		front_end.pack_world = result.world
-		front_end.files_directory = "user://pack_files".path_join(String(loaded.pack.id))
+		front_end.files_directory = files_directory(loaded.pack)
 		get_window().title = String(loaded.pack.title).replace("\n", " ").strip_edges().left(120)
 	var tree := get_tree()
 	tree.root.add_child.call_deferred(front_end)
@@ -73,3 +73,13 @@ func _draw() -> void:
 		draw_string(font, Vector2(36, 60 + i * 16), titles[i].left(28), HORIZONTAL_ALIGNMENT_LEFT, -1, 10)
 	if not titles.is_empty(): draw_string(font, Vector2(24, 60 + cursor * 16), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 10)
 	if not error.is_empty(): draw_multiline_string(font, Vector2(24, 200), error.left(200), HORIZONTAL_ALIGNMENT_LEFT, 208, 8, 3, Color("e85050"))
+
+## Each bundle's file slots, under its pack ID; a renamed pack keeps using the
+## folder of its most recent earlier ID until it has its own.
+static func files_directory(pack: Dictionary) -> String:
+	var ids: Array = [String(pack.id)]
+	var previous: Array = pack.get("previous_ids",[]).duplicate();previous.reverse();ids.append_array(previous)
+	for id in ids:
+		var folder := "user://pack_files".path_join(id)
+		if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(folder)): return folder
+	return "user://pack_files".path_join(String(pack.id))

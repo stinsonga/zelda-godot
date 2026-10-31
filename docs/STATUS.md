@@ -172,6 +172,10 @@ checkpoint migration. Old and deleted names stay reserved. Shared artwork and
 private ROM appearance follow room renames without crossing the asset boundary.
 See [ROOM_IDS.md](../editor/ROOM_IDS.md) for the compatibility rules.
 
+IDs: rooms, placements, enemy variants and the pack itself can be renamed;
+saves made before a rename keep their progress
+([ROOM_IDS.md](../editor/ROOM_IDS.md)).
+
 Standalone play: **Export game…** writes a bundle (the pack and the shared art
 it uses), and an exported game lists the bundles in its `packs/` folder or
 `user://packs`, each with its own save files (README, *Distributing an authored
@@ -186,15 +190,12 @@ Remaining editor work, in recommended order:
 2. **More flexible generation.** Multiple floors. Templates can now be mirrored
    (rooms are 16×11, so not turned) and give companion rooms external ports. Bounded door-connected groups, internal locks,
    linked cellars, branches/loops and the live capture preview are implemented.
-3. **Other content-ID migrations.** Placements, enemy variants, items and pack
-   identity. Room-ID renaming and its checkpoint migration are implemented; see
-   [ROOM_IDS.md](../editor/ROOM_IDS.md).
-4. **More authoring coverage and usability.** Additional resident modes,
+3. **More authoring coverage and usability.** Additional resident modes,
    cave entrance/original cellar transitions, recorder/Armos and other secrets,
    advanced doors, room filters and more item/enemy properties. See
    [RESIDENTS.md](../editor/RESIDENTS.md) and
    [PLACEMENTS.md](../editor/PLACEMENTS.md) for current support.
-5. **Further graphics workflows.** Layered sprites, animation states beyond the
+4. **Further graphics workflows.** Layered sprites, animation states beyond the
    implemented idle/walk/attack clips, and editable copies of imported rooms.
    Rectangular sprite layouts, directional clips and independent timing are
    already implemented. Shared authored art and private ROM overlays remain

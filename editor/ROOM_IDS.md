@@ -63,14 +63,53 @@ using earlier room names remain usable with the pack's alias history.
 ## Scope
 
 This migration is forward-only: an older pack does not know names introduced by
-a newer pack. Keep pack identity stable for updates to the same world; give
-independent worlds different pack IDs. Placement, item, enemy-variant and pack-ID
-renaming are not covered by this feature.
+a newer pack. Give independent worlds different pack IDs. Placement, enemy-variant
+and pack-ID renames are covered below.
 
 Generation metadata follows a rename, but regenerating a recipe rebuilds its
 base content; it does not replay manual renames or preserve their migration
 history. Preserve that history when updating the same world, or use a distinct
 pack ID for independently regenerated content.
+
+## Placements, enemy variants and the pack
+
+**Placements.** Select a pickup or enemy, edit its ID in the placement panel and
+click **Rename ID** (or press Enter). Objectives follow. Saves record collected
+pickups and defeated enemies as `room/placement`, so the pack keeps a flat
+history in `placement_aliases`:
+
+```json
+"placement_aliases": {
+  "pickups": {"relay/item_1": "relay/ember"},
+  "enemies": {"room_1/enemy_1": "room_1/sentry", "room_1/enemy_2": ""}
+}
+```
+
+Targets stay in the same room; an empty target marks a deleted placement. As
+with rooms, historical IDs are reserved in their room, including by new and
+duplicated placements. Renaming a room carries its placement history along;
+deleting a room drops it (the room ID itself stays reserved). Loading an old
+checkpoint maps room IDs first, then exact placement keys; other keys are
+untouched.
+
+**Enemy variants.** Enter a new ID beside **Rename variant** in the enemy-variant
+section. Placements, shared and private enemy art follow. Saves record
+placements, not variants, so no history is kept.
+
+**The pack.** Changing the pack ID and saving records the ID it was last opened
+or saved under in `previous_ids`. The game then loads checkpoints and front-end
+files written under an earlier ID when the current ID has none (the most recent
+earlier ID first) and writes the next save under the current ID. A bundle's file
+slots stay in the folder of its earlier ID until the new one has its own. A
+private appearance file is keyed by pack ID; save once under the new ID to
+write it there.
+
+**Items** are the engine's fixed item names, not authored IDs, so there is
+nothing to rename.
+
+Checks: `editor/tests/content_ids.gd` (references, history, reservation, GUI
+rename/undo/delete, identity on save) and `tests/content_id_saves.gd` (a real
+checkpoint across placement, room and pack renames).
 
 Checks: `editor/tests/room_renaming.gd` covers pack references, private overlays,
 GUI undo/redo and reserved names. `tests/room_rename_saves.gd` exercises real

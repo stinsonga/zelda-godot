@@ -83,6 +83,8 @@ var rise_remaining := 0
 var rise_square := Rect2i()
 const RoomSaveMigration = preload("res://scripts/room_save_migration.gd")
 var room_aliases: Dictionary[String, String] = {}
+var placement_aliases: Dictionary = {}
+var previous_world_ids: PackedStringArray = []
 var legacy_ids: Dictionary[String, String] = {}
 var world_definition_whirlwinds: Array = []
 var overrides: Dictionary = {}
@@ -146,6 +148,8 @@ func _ready() -> void:
 		quest = selected_world.quest
 		legacy_ids = selected_world.legacy_ids
 		room_aliases = selected_world.room_aliases
+		placement_aliases = selected_world.placement_aliases
+		previous_world_ids = selected_world.previous_world_ids
 		world_definition_whirlwinds = selected_world.whirlwinds
 		world_id = String(selected_world.id)
 		submenu_layout = selected_world.submenu
@@ -2225,8 +2229,8 @@ func begin_file(data: Dictionary) -> bool:
 ## The game state of a checked snapshot, or null (with a status) if its
 ## content is unavailable. Shared by checkpoints and save files.
 func restore_state(data: Dictionary) -> RefCounted:
-	if not room_aliases.is_empty():
-		var checked := save_store.validate(RoomSaveMigration.remap(data,room_aliases),world_id)
+	if not room_aliases.is_empty() or not placement_aliases.is_empty():
+		var checked := save_store.validate(RoomSaveMigration.remap(data,room_aliases,placement_aliases),world_id)
 		if not checked.ok:
 			show_status("LOAD FAILED: MIGRATED SAVE IS INVALID")
 			return null
@@ -2265,7 +2269,7 @@ func restore_state(data: Dictionary) -> RefCounted:
 	return restored
 
 func load_game() -> bool:
-	var result: Dictionary = save_store.read_snapshot(world_id)
+	var result: Dictionary = save_store.read_snapshot(world_id,previous_world_ids)
 	if not result.ok:
 		show_status("LOAD FAILED: " + result.error)
 		return false

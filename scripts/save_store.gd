@@ -87,8 +87,18 @@ func read_file(path: String, world_id: String) -> Dictionary:
 	if parser.parse(text) != OK: return failure("Save file is damaged")
 	return validate(parser.data, world_id)
 
-func read_snapshot(world_id: String) -> Dictionary:
-	var path := path_for(world_id)
+## Falls back to saves made under earlier world IDs (a renamed pack), adopting
+## the current ID; the next save writes under it.
+func read_snapshot(world_id: String, previous: PackedStringArray = []) -> Dictionary:
+	var current := path_for(world_id)
+	if not FileAccess.file_exists(current) and not FileAccess.file_exists(current + ".bak"):
+		# previous_ids lists the oldest first; prefer the latest.
+		for i in range(previous.size()-1,-1,-1):
+			var found := read_snapshot(previous[i])
+			if found.ok:
+				found.data.world_id = world_id
+				return found
+	var path := current
 	var result := read_file(path, world_id)
 	if result.ok:
 		result["backup"] = false

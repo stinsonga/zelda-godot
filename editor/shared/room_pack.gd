@@ -1,5 +1,6 @@
 extends RefCounted
 const RoomIds = preload("room_ids.gd")
+const ContentIds = preload("content_ids.gd")
 const ArtBindings = preload("art_bindings.gd")
 ## The single, engine-independent pack contract, loaded by both Godot projects.
 ## JSON is data only: no script, resource or external asset paths are accepted.
@@ -73,7 +74,7 @@ static func validate(pack) -> PackedStringArray:
 	if not pack is Dictionary: return PackedStringArray(["Pack must be a JSON object"])
 	var version = pack.get("schema")
 	var fields := ["schema","id","title","start_room","rooms","enemy_types"]
-	if version == 2: fields.append_array(["starting_items","goals","generation","appearance","room_aliases"])
+	if version == 2: fields.append_array(["starting_items","goals","generation","appearance","room_aliases","placement_aliases","previous_ids"])
 	unknown_fields(pack,fields,"Pack",errors)
 	if version != 1 and version != 2: errors.append("Unsupported pack schema; expected 1 or 2")
 	if not identifier(pack.get("id")): errors.append("Pack ID needs lowercase letters, digits, underscores or hyphens")
@@ -179,6 +180,7 @@ static func validate(pack) -> PackedStringArray:
 				errors.append(id + ": connection " + edge + " needs a reciprocal door of the same kind")
 	if version == 2:
 		if pack.has("room_aliases"): errors.append_array(RoomIds.validate(pack.room_aliases,ids))
+		if errors.is_empty(): errors.append_array(ContentIds.validate(pack))
 		if pack.has("appearance"): errors.append_array(ArtBindings.validate(pack.appearance,pack))
 		validate_stairs(ids,errors)
 		validate_progression(pack,ids,errors)
@@ -429,5 +431,6 @@ static func rename_room(pack: Dictionary, old: String, id: String, overlay: Dict
 	var errors := validate(pack)
 	if not errors.is_empty(): return {"errors":errors}
 	var result := RoomIds.rename(pack,old,id,overlay)
+	if result.errors.is_empty(): ContentIds.rekey_room(result.pack,old,id)
 	if result.errors.is_empty(): result.errors = validate(result.pack)
 	return result

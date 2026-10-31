@@ -12,14 +12,20 @@ static func flag(key: String, aliases: Dictionary) -> String:
 	if parts.size()==2 and parts[0] in ["secret","shutters","visited"]: return parts[0]+"/"+room(parts[1],aliases)
 	if parts.size()==3 and parts[0]=="door" and parts[2] in ["up","right","down","left"]: return "door/"+room(parts[1],aliases)+"/"+parts[2]
 	return key
-static func remap(data: Dictionary, aliases: Dictionary) -> Dictionary:
-	if aliases.is_empty(): return data
+## Authored placement renames, applied after rooms: exact "room/placement"
+## keys only; deleted placements (empty targets) keep their old keys.
+static func placement(key: String, aliases: Dictionary) -> String:
+	var target: String = aliases.get(key,"")
+	return target if not target.is_empty() else key
+static func remap(data: Dictionary, aliases: Dictionary, placements: Dictionary = {}) -> Dictionary:
+	if aliases.is_empty() and placements.is_empty(): return data
 	var output: Dictionary = data.duplicate(true)
 	output.room_id = aliases.get(data.room_id,data.room_id)
 	for field in ["collected","defeated","flags"]:
 		var mapped: Array = [];var seen: Dictionary = {}
 		for key in data[field]:
 			var value := flag(key,aliases) if field=="flags" else scoped(key,aliases)
+			if field != "flags": value = placement(value,placements.get("pickups" if field=="collected" else "enemies",{}))
 			if not seen.has(value): mapped.append(value);seen[value] = true
 		output[field] = mapped
 	var history: Array = []

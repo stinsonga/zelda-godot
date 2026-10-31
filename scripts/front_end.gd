@@ -145,7 +145,7 @@ func play(slot: int) -> void:
 	playing_slot = slot
 	use_quest(files.meta[slot].quest)
 	world.file_info = {"quest": files.meta[slot].quest, "name": files.meta[slot].name, "deaths": files.meta[slot].deaths}
-	if not world.begin_file(files.read_state(slot, world.world_id)): return
+	if not world.begin_file(files.read_state(slot, world.world_id, world.previous_world_ids)): return
 	mode = "playing"
 	world.visible = true
 	world.set_physics_process(true)
